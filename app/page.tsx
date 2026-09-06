@@ -1,0 +1,16 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import { Cpu, FolderCode, Info, Volume2, VolumeX, Maximize, Map, ArrowUpRight, Compass } from 'lucide-react';
+import { createWorld, districts } from './world';
+export default function Home(){
+ const host=useRef<HTMLDivElement>(null);const game=useRef<any>(null);const [place,setPlace]=useState(0);const [muted,setMuted]=useState(true);const [ready,setReady]=useState(false);
+ useEffect(()=>{if(!host.current)return;game.current=createWorld(host.current,{onPlace:setPlace,onReady:()=>setReady(true),onInteract:()=>{}});return()=>game.current?.dispose()},[]);
+ return <main className="kingdom"><div className="world" ref={host}/><div className="vignette"/>
+ <header className="topbar"><a className="brand" href="/" aria-label="The Living Computer Kingdom"><span className="brandmark"><Cpu size={24}/></span><span>THE LIVING<br/><b>COMPUTER KINGDOM</b></span></a><div className="system"><i/> SYSTEM ONLINE <span>·</span> PERSONAL PORTFOLIO / EXPLORABLE OS</div><nav><button><FolderCode size={16}/> Projects</button><button><Info size={16}/> System info <ArrowUpRight size={14}/></button></nav></header>
+ <section className="location"><div className="eyebrow">YOU ARE INSIDE THE MACHINE</div><h1>{districts[place].name}</h1><p>{districts[place].subtitle}</p><span className="district-tag"><i/> {place===0?'BOOT SECTOR':'DISTRICT 0'+place} <span> / </span> MOTHERBOARD LEVEL</span></section>
+ <aside className="quest"><div className="eyebrow"><span className="tiny-spark">✦</span> A SMALL BEGINNING <span>01 / 03</span></div><h2>Hello, little process.</h2><p>Every great journey starts with a packet.<br/>Meet Pip at the Packet Press.</p><div className="quest-step"><span>◇</span> Walk over to the glowing machine <ArrowUpRight size={16}/></div><footer>Take your time. The kingdom is yours to explore.</footer></aside>
+ <aside className="map-card"><div className="map-head"><span><Compass size={15}/> MOTHERBOARD</span><span>LIVE <i/></span></div><div className="mini-map">{districts.map((d,i)=><button key={d.name} style={{left:`${50+d.x*.65}%`,top:`${42+d.z*.65}%`,background:d.color}} title={d.name} onClick={()=>game.current?.travel(i)} className={place===i?'selected':''}>{i===0?'⌂':i}</button>)}</div><div className="map-foot"><span>7 districts. One living system.</span><Map size={15}/></div></aside>
+ <div className="interaction"><span className="npc-icon">✦</span><div><small>PIP · WORKSHOP KEEPER</small><p>“Oh! A new process. Welcome home.”</p></div><button onClick={()=>game.current?.interact()}><kbd>E</kbd> Talk to Pip</button></div>
+ <footer className="controls"><div><span><kbd>W A S D</kbd> Move</span><span><kbd>DRAG</kbd> Look around</span><span><kbd>E</kbd> Interact</span><span><kbd>SHIFT</kbd> Run</span></div><div><button aria-label={muted?'Enable sound':'Mute sound'} onClick={()=>{setMuted(!muted);game.current?.sound(muted)}}>{muted?<VolumeX size={18}/>:<Volume2 size={18}/>}</button><button aria-label="Fullscreen" onClick={()=>document.documentElement.requestFullscreen?.()}><Maximize size={18}/></button><span className="version">KINGDOM OS v.01</span></div></footer>{!ready&&<div className="loading">Booting your little world…</div>}
+ </main>
+}
