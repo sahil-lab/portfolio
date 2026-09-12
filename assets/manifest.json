@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "artDirection": {
+    "cream": "#eddfbf", "copper": "#b77c55", "terracotta": "#b66f59", "sage": "#8fa68a",
+    "dustyRose": "#c99597", "periwinkle": "#979fe0", "navy": "#293845", "amber": "#ffc778",
+    "guidance": "Broad rounded silhouettes, matte painted surfaces, restrained grain. Cream paths contrast with sage motherboard. Reserve saturated cyan/magenta for GPU accents."
+  },
+  "assets": [
+    {
+      "id": "packet-press",
+      "authorship": "Original project-authored procedural model and textures; no third-party geometry or textures.",
+      "intendedUse": "Bootloader Workshop hero prop; optional diagnostic delivery preparation",
+      "source": "assets/blender/PacketPress.blend",
+      "script": "assets/blender/build_packet_press.py",
+      "sourceTextures": "assets/blender/textures/*.png (also packed in blend)",
+      "runtime": "public/assets/packet-press.glb",
+      "exportCommand": "\"C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe\" --background --python assets/blender/build_packet_press.py",
+      "parameters": {"seed":271828,"bevelMeters":0.09,"sphereSegments":16,"fps":24,"durationSeconds":3},
+      "coordinates": "Meters. Blender +Z up, -Y forward; glTF +Y up, +Z forward. Root at base center. Game placement [1,0.65,17].",
+      "pivots": ["PacketPress_Lever: axle", "PacketPress_Tray: sliding deck center", "PacketPress_Ram: moving plate center"],
+      "clips": ["PacketPress_Prepare"],
+      "simulationBinding": "DeliveryRound.progress samples the clip. Ready/complete holds final frame; explicit new round rewinds. Stock controls Capsule_0..3 visibility; charge progress controls Indicator_0..3 and chamber emission.",
+      "collision": "Collision_PacketPress: simplified 4.6 x 4 x 4.5 meter box; invisible at runtime; 0.4 meter player padding. Includes full tray travel to prevent the courier intersecting the output rack.",
+      "optimization": "Low segment meshes, two-segment bevels, 128-pixel embedded grain textures, no external texture requests or decoder dependency."
+    },
+    {
+      "id": "workshop-mural",
+      "authorship": "Original AI-generated artwork created for this project with built-in image generation. No third-party source artwork. Signature is illustrative, not a claim of human authorship.",
+      "intendedUse": "Bootloader Workshop back wall",
+      "source": "assets/art/workshop-mural-source.png",
+      "sourceResolution": [1254,1254],
+      "runtime": "public/assets/workshop-mural.webp",
+      "runtimeResolution": [1024,1024],
+      "prompt": "assets/art/mural-prompt.md",
+      "exportCommand": "python assets/art/optimize_mural.py",
+      "rendering": "sRGB, toneMapped false, opaque front-facing plane; 8 meter square, just ahead of plaster wall."
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# Workshop mural generation record
+
+Generated with the built-in image-generation tool. The selected source is retained unchanged at 1254 × 1254, the resolution returned by the tool. Two initial candidates were rejected because the courier carried only three visible capsules. The selected image was visually inspected for four separate capsules, one bird, one snail, and the lowercase `codex` signature.
+
+Final generation prompt:
+
+> Square flat gouache POSTER mural. Extremely simple confident LARGE shapes with generous warm plaster negative space; muted terracotta ochre sage dusty rose cream periwinkle. Center: a large flat golden processor square, traces curl into cream cloud ribbons and ochre sun. Foreground: ONE chubby periwinkle courier, scalloped tuft, short rounded limbs, navy face panel two white eyes white smile. Courier holds a WIDE HORIZONTAL TRAY with EXACTLY FOUR separate capsules in a clear evenly spaced row: PINK, GOLD, MINT, BLUE. All FOUR capsules fully visible, not overlapping courier. Count four. Surrounding flat symbols: terracotta CPU rooftops, sage RAM shelves, small cyan/magenta GPU pavilion, packet train, underground vault, floating miniature islands. A cream circuit path connects them. ONE tiny bird, ONE snail. Flat graphic shapes only, no perspective architecture, no 3D, no photorealism, no tiny repeated detail, no outlines. Subtle gouache brush grain. Only text: small handwritten lowercase 'codex' at bottom right. Edge-to-edge illustration no frame no wall.
