@@ -16,7 +16,7 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
       target.copy(player.position);target.y+=1.5;
       const angle=settings.stableCamera?.62:pitch,rotation=settings.stableCamera?.1:yaw;
       direction.set(Math.sin(rotation)*Math.cos(angle),Math.sin(angle),Math.cos(rotation)*Math.cos(angle));
-      const desired=inside?Math.min(zoom,7):zoom;
+      const desired=inside?Math.min(zoom,11):zoom;
       let safe=desired;ray.set(target,direction);
       for(const box of boxes){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
       for(const {mesh,box} of movingBounds){if(!mesh.visible||box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}

@@ -23,7 +23,7 @@ export function buildWorldScenery(scene:T.Scene){
  for(let row=0;row<3;row++){box(17+row*2.7,2.2,-10,2.3,3.5,1.4,'#315a50');for(let j=0;j<4;j++)animated.shelves.push(box(16.3+row*2.7+j*.45,2.5,-9.2,.3,1.4,.4,'#91cbb0'))}box(21.1,6.3,-10.8,.2,3,2.6,'#83b6a0');box(24.9,6.3,-10.8,.2,3,2.6,'#83b6a0');box(23,6.3,-12.1,4,3,.2,'#83b6a0');box(23,8,-10.8,4.2,.3,2.8,'#b6c6a2');
  animated.gpu=mesh(new T.IcosahedronGeometry(1.8,0),'#d29afb',28,2.9,18);cyl(28,.8,18,2.6,.8,'#656282');box(33,3,14,6,4,.3,'#323650');box(33,3,14.2,5.4,3.2,.1,'#a783c5',scene,.3);
  for(let i=0;i<3;i++)line([new T.Vector3(-35,.7,15+i),new T.Vector3(-29,.7,17+i),new T.Vector3(-17,.7,19+i)],'#83b7bd',.08);animated.packet=box(-33,1.1,17,1.3,.9,.8,'#9adeeb',scene,.5);
- box(0,.6,39,8,.5,7,'#99855c');house(-3,40,'#806f50',4);label('â†“ INDEX VAULT',0,2,35,'#efcb85',.55);
+ box(0,.6,39,8,.5,7,'#99855c');house(-3,40,'#806f50',4);label('INDEX VAULT',0,2,35,'#efcb85',.55);
  for(let i=0;i<3;i++){cyl(-5+i*5,8,-29,3,1,'#688c8b');animated.pods.push(house(-5+i*5,-29,'#82bfc9',2.4,8.5));if(i<2)box(-2.5+i*5,8.5,-29,2.6,.2,1.8,'#93aaa0')};label('SERVICE LIFT',0,3,-21,'#bee6e1',.5);
  for(let p=0;p<3;p++){box(30,1,-30+p*1.6,12,.3,.9,'#836f5d');for(let j=0;j<7;j++)box(25+j*1.7,1.2,-30+p*1.6,.08,.1,.9,'#c5a981')}
  box(0,17,-56,125,40,3,'#223d3e');for(let i=0;i<9;i++)box(-55+i*14,18,-53,1,36,1,'#476060');

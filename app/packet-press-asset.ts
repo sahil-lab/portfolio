@@ -12,6 +12,7 @@ export function createPacketPress(parent: T.Object3D) {
   let clip: T.AnimationClip | undefined;
   let action: T.AnimationAction | undefined;
   let disposed = false;
+  let sampledTime=-1,lastStock=-1;
   const bounds = new T.Box3(new T.Vector3(-1.3, 0, 15.55), new T.Vector3(3.3, 5, 20.05));
   const stock: T.Object3D[] = [];
   const lights: T.MeshStandardMaterial[] = [];
@@ -48,9 +49,8 @@ export function createPacketPress(parent: T.Object3D) {
     update: (state: DeliverySnapshot, progress: number) => {
       const t = state.phase === 'preparing' ? progress : state.phase === 'idle' ? 0 : 1;
       // LoopOnce pauses at the final frame; allow a later explicit round to rewind it.
-      if (action) action.paused = false;
-      mixer?.setTime(t * (clip?.duration ?? 0));
-      stock.forEach((o, i) => { o.visible = i < state.stock; });
+      if(mixer&&sampledTime!==t){if(action)action.paused=false;mixer.setTime(t*(clip?.duration??0));sampledTime=t}
+      if(stock.length&&lastStock!==state.stock){stock.forEach((o,i)=>{o.visible=i<state.stock});lastStock=state.stock}
       lights.forEach((m, i) => {
         const charged = t * 4 > i;
         m.color.set(charged ? '#ffe0a0' : '#677268');

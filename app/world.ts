@@ -1,4 +1,5 @@
 import {sceneryCollision} from './collision-world';
+import {disposeScene} from './scene-resources';
 import {createInteractionDispatcher} from './interactions';
 import {batchScenery} from './static-batching';
 import {bindGameInput} from './game-input';
@@ -40,7 +41,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  function blocked(x:number,z:number){return buildings.blocked(x,z)}
  let last=performance.now(),place=0,time=0,shadowClock=0;
  function tick(){
-  if(disposed)return;frame=requestAnimationFrame(tick);const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.1);last=now;
+  if(disposed||document.hidden)return;frame=requestAnimationFrame(tick);const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.05);last=now;
   if(!paused&&!document.hidden){
    traversal.update(dt);
    if(!menuOpen&&!traversal.moving){const axis=input.state.axes();const yaw=settings.stableCamera?.1:rig.yaw;const x=axis.x*Math.cos(yaw)+axis.z*Math.sin(yaw),z=-axis.x*Math.sin(yaw)+axis.z*Math.cos(yaw);moveCharacter(player,x,z,dt*(input.state.keys.has('shift')?9:5.5),blocked,traversal.height)}
@@ -59,6 +60,8 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   {id:'building',run:()=>buildings.interact()},
  ],()=>!paused&&!menuOpen,audioGesture,()=>callbacks.onInteract(place));
  function interact(){dispatchInteraction()}
+ const visibility=()=>{cancelAnimationFrame(frame);input.state.clear();living.sound(false);last=performance.now();if(!document.hidden&&!disposed)tick()};
+ document.addEventListener('visibilitychange',visibility);
  const home=()=>{player.position.set(workshopSpawn.x,workshopSpawn.y,workshopSpawn.z);place=0;callbacks.onPlace(0);rig.reset();input.state.clear()};
  callbacks.onPlace(0);tick();callbacks.onReady();
  return {
@@ -70,6 +73,6 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   home,step:(dx:number,dz:number)=>{if(!paused&&!menuOpen&&!traversal.moving)moveCharacter(player,dx,dz,.75,blocked,traversal.height)},
   route:buildings.route,travel:(i:number)=>{if(paused||menuOpen||!districts[i])return;player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
   interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen)},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>living.sound(enabled&&!paused),
-  dispose:()=>{living.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);removeEventListener('resize',resize);scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.Sprite){if(o instanceof T.Mesh)o.geometry.dispose();const materials=Array.isArray(o.material)?o.material:[o.material];materials.forEach(m=>{const mapped=m as T.MeshStandardMaterial;mapped.map?.dispose();m.dispose()})}});renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
+  dispose:()=>{living.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);disposeScene(scene);renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
  };
 }
