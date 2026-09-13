@@ -51,3 +51,4 @@ next-env.d.ts
 *.blend
 *.blend1
 !/assets/blender/*.blend
+!/assets/cinematic/*.blend

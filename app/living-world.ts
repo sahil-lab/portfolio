@@ -1,3 +1,4 @@
+import type {SoundCue} from './audio-score';
 import {createPacketPress} from './packet-press-asset';
 import * as T from 'three';
 import {DeliveryRound,type DeliverySnapshot} from './delivery-state';
@@ -5,7 +6,7 @@ import {createCourier} from './courier';
 import {KingdomVoices} from './kingdom-voices';
 import {encounters,type Encounter} from './encounter-config';
 export {encounters,type Encounter} from './encounter-config';
-export function createLivingWorld(scene:T.Scene,player:T.Group,courier:ReturnType<typeof createCourier>,callbacks:{initialDelivery?:DeliverySnapshot|null;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void}){
+export function createLivingWorld(scene:T.Scene,player:T.Group,courier:ReturnType<typeof createCourier>,callbacks:{initialDelivery?:DeliverySnapshot|null;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onSound?:(cue:SoundCue)=>void}){
  const round=new DeliveryRound();if(callbacks.initialDelivery)round.restore(callbacks.initialDelivery);const voices=new KingdomVoices(),root=new T.Group();scene.add(root);let time=0,current:Encounter|null=null,lastId='',reaction='',reactionUntil=0;const talks=new Map<string,number>();
  const materialCache=new Map<string,T.MeshStandardMaterial>();const sphere=new T.SphereGeometry(1,16,12);
  const material=(color:string,glow=0)=>{const key=color+'/'+glow;let m=materialCache.get(key);if(!m){m=new T.MeshStandardMaterial({color,roughness:.82,metalness:.05,emissive:color,emissiveIntensity:glow});materialCache.set(key,m)}return m};
@@ -34,7 +35,7 @@ export function createLivingWorld(scene:T.Scene,player:T.Group,courier:ReturnTyp
  if(e.id==='cinema'){box(g,0,1.8,0,4.8,3,.3,'#333b62');box(g,0,1.8,.2,4.3,2.5,.1,'#122844');for(let i=0;i<3;i++)box(g,-1.2+i*1.2,.3,2,.8,.5,.7,'#8d7baf');const film=new T.Mesh(new T.IcosahedronGeometry(.6,0),material('#d9b1f2',.5));film.name='film';film.position.set(0,1.8,.5);g.add(film);for(let i=0;i<3;i++){const star=orb(g,'orbit bit '+i,0,1.8,.5,.14,.14,.14,['#f0d58c','#b3f5d3','#b8b7fa'][i],.6);star.name='orbit bit '+i}}
  }
  const press=createPacketPress(root);
- const announce=(text:string,seed:number,gesture='greeting',celebrate=false)=>{callbacks.onSubtitle?.(text);voices.speak(seed,celebrate);courier.gesture(gesture)};
+ const announce=(text:string,seed:number,gesture='greeting',celebrate=false)=>{callbacks.onSubtitle?.(text);callbacks.onSound?.(gesture==='pickup'?'pickup':gesture==='delivery'?'delivery':gesture==='curiosity'?'machine':'creature');voices.speak(seed,celebrate);courier.gesture(gesture)};
  const unsubscribe=round.subscribe(()=>callbacks.onDelivery?.(round.snapshot));callbacks.onDelivery?.(round.snapshot);
  function nearest(){return encounters.filter(e=>Math.hypot(e.x-player.position.x,e.z-player.position.z)<(e.id==='press'?4:3.2)).sort((a,b)=>Math.hypot(a.x-player.position.x,a.z-player.position.z)-Math.hypot(b.x-player.position.x,b.z-player.position.z))[0]??null}
  function interact(){const e=nearest();if(!e)return false;reaction=e.id;reactionUntil=time+3;if(e.id==='press'){if(round.snapshot.phase==='idle'){round.prepare();announce('Packet Press: charging four diagnostic capsules.',1,'curiosity')}else if(round.snapshot.phase==='ready'&&round.collect()){announce(round.snapshot.message,1,'pickup')}else announce(round.snapshot.phase==='complete'?'Round complete. Use Start another round when you are ready.':round.snapshot.phase==='preparing'?'Charging… watch the four indicators.':'Tray empty. Your remaining capsules are with you or their recipients.',1);return true}const n=talks.get(e.id)??0;talks.set(e.id,n+1);round.discover(e.id,e.name);announce(e.name+': '+e.dialogue[n%e.dialogue.length],encounters.indexOf(e),e.kind==='curiosity'?'curiosity':'greeting');return true}
