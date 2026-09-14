@@ -1,6 +1,6 @@
 # The Living Computer Kingdom
 
-A tiny courier explores a living motherboard. Portfolio buildings demonstrate state and architecture; System Information is the résumé. Current portfolio records are explicitly labeled examples, awaiting the owner's supplied facts.
+A tiny courier explores a living motherboard. Portfolio buildings demonstrate state and architecture; System Information is the résumé. System Information uses the owner's supplied résumé. Interactive architecture exhibits remain explicitly labeled examples pending repository details.
 
 ## Run locally
 
@@ -41,4 +41,5 @@ Start with [phase completion and remaining work](docs/phase-delivery.md), [asset
 - `assets/manifest.json`: ownership, intended use and reproducible art exports.
 
 Most world meshes remain code-authored. Packet Press has an editable Blender source and shipped GLB; the cinematic also includes an editable Blender scene. Do not present demo projects, provisional geometry, or unmeasured performance as final portfolio facts.
+
 

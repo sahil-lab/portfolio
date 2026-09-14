@@ -1,4 +1,6 @@
-// Edit this file to replace the demonstration exhibits with verified portfolio content.
+// Résumé facts are separate from the explicitly illustrative architecture exhibits.
+import * as resume from './resume-data.json';
+export {resume};
 export type Project = {
  id:string; name:string; kind:string; district:number; description:string; contribution:string;
  stack:string; decisions:string[]; links:{label:string;url:string}[]; flow:string[];
@@ -7,7 +9,7 @@ export type Project = {
  connections:{from:string;to:string;kind:'call'|'return'|'render'}[];
  scenario:{mode:'react'|'backend';records?:Record<string,string>;colors?:Record<string,string>;inputLabel:string;options:string[];initial:string;steps:{node:string;text:string;result:string}[];simplification:string};
 };
-export const portfolio={name:'Name not supplied',role:'Developer portfolio · demonstration content',summary:'Professional summary has not been supplied.',experience:'Experience has not been supplied. No roles or achievements are inferred.',education:'Education and certifications have not been supplied.',contact:'Contact details have not been supplied.'};
+export const portfolio={name:resume.name,role:resume.role,summary:resume.summary,experience:resume.experience.map(e=>`${e.name} · ${e.role} · ${e.dates}`).join('\n'),education:`${resume.education.name} · ${resume.education.degree} · ${resume.education.year}`,contact:[resume.email,...resume.phones].join(' · ')};
 export const projects:Project[]=[{
  id:'react-studio',name:'Component Studio',kind:'DEMONSTRATION · NOT A CLAIMED PROJECT',district:0,
  description:'An illustrative React interface that changes the color of a rendered card.',contribution:'Not supplied. This exhibit is an authored teaching example.',stack:'React · TypeScript · HTML/CSS',
@@ -25,3 +27,4 @@ export const projects:Project[]=[{
  connections:[{from:'entry',to:'service',kind:'call'},{from:'service',to:'store',kind:'call'},{from:'store',to:'service',kind:'return'},{from:'service',to:'response',kind:'return'}],
  scenario:{mode:'backend',records:{'101':'Copper coil','202':'Memory crystal'},inputLabel:'Catalog key',options:['101','202','404'],initial:'101',steps:[{node:'entry',text:'Handler accepts GET /catalog/{input}.',result:'Request accepted'},{node:'service',text:'Catalog service looks up key {input}.',result:'Lookup requested'},{node:'store',text:'The local store resolves key {input}: {record}.',result:'Store result: {record}'},{node:'service',text:'The result returns to the service: {record}.',result:'Service result: {record}'},{node:'response',text:'The handler returns {response}.',result:'{response}'}],simplification:'Entirely local and intentionally slowed. No real server, disk, network latency, authentication, or asynchronous messaging is represented.'}
 }];
+

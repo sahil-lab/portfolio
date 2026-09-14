@@ -1,5 +1,7 @@
 # Phase delivery and explicit completion checks
 
+Résumé update: the supplied Sahil Upadhyay PDF is now integrated into System Information and the HTML résumé, with all eight roles, project summaries, education, skills, certifications and links. Earlier references below to missing résumé facts describe the previous handoff. Repository details are still needed for faithful project architecture exhibits.
+
 Updated 14 September 2026. This is a working handoff, not a declaration that every production-brief item is complete. The established playable remains usable while the kingdom expands.
 
 Local preview for every phase: follow the root README (`npm ci`, `npm run build`, then `node node_modules/vinext/dist/cli.js start --port 3000`). Open http://127.0.0.1:3000/. Hosted preview: https://living-computer-kingdom.sahil-999.chatgpt.site/ (private; hosting revisions are confirmed separately).
@@ -49,5 +51,6 @@ Remaining final acceptance depends on the open spatial/art items, supplied portf
 Final production checks: TypeScript and build passed. Complete client-assets estimate: 2,188,060 bytes raw / 860,335 bytes independently gzipped (includes lazy chunks; excludes HTML/HTTP overhead). This is below 10 MB, not an HTTP first-load capture. Portrait terminal controls were inspected at 390×844; the world is mostly covered by the panel on narrow screens, so close it to inspect the result.
 
 Landscape 844×390 scrollable panel was also inspected. GPU select controls and Close measured at least 44px high; Close was 44×44px. Browser console returned no errors for this verification session. These are viewport emulations, not simultaneous physical touches.
+
 
 

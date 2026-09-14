@@ -1,0 +1,224 @@
+{
+  "name": "Sahil Upadhyay",
+  "role": "Senior Java Developer & Fullstack Engineer",
+  "source": {
+    "file": "/resume-sahil.pdf",
+    "sha256": "b2d57a23b3155836fe962bc0cdfdf3bf7fd4d407a739feb30b70d9e53967f736",
+    "note": "Transcribed from the supplied résumé. Dates, metrics and “Present” are retained as supplied; project architectures have not been inferred."
+  },
+  "summary": "Dynamic Senior Java Developer and Fullstack Engineer with over 6 years of experience in Java full stack and Big Data Analytics, cloud infrastructure, and scalable system design. Adept at leading cross-functional teams to deliver innovative, data-driven solutions that enhance business performance and user experience. Expertise in leveraging AWS, Kafka, and Generative AI to drive automation and efficiency. Committed to fostering a collaborative environment and driving continuous improvement through strategic planning and technical excellence.",
+  "email": "sahil.aps2k12@gmail.com",
+  "phones": [
+    "+91 7737890301",
+    "+91 8559067075"
+  ],
+  "links": [
+    {
+      "label": "LinkedIn",
+      "url": "https://www.linkedin.com/in/sahil-upadhyay-2921b5127/"
+    },
+    {
+      "label": "GitHub",
+      "url": "https://github.com/sahil-lab"
+    },
+    {
+      "label": "Medium",
+      "url": "https://medium.com/@sahilupadhyay.work"
+    },
+    {
+      "label": "Portfolio",
+      "url": "https://portfolio-resume-sahil.vercel.app/"
+    },
+    {
+      "label": "NFT collection",
+      "url": "https://opensea.io/collection/brainmine-genesis"
+    }
+  ],
+  "experience": [
+    {
+      "name": "Persistent Systems Limited",
+      "dates": "Aug 2023 – Aug 2024",
+      "role": "Engineer Lead",
+      "location": "India",
+      "highlights": [
+        "Architected and optimized front-end interfaces using React (18+), JavaScript, and Bootstrap, applying SOLID principles and design patterns to enhance maintainability and scalability , reducing page load times by 85%.",
+        "Streamlined back-end microservices with Spring Boot, Node.js, and Hibernate, integrating AWS and Kafka for robust data ingestion and real-time processing, ensuring high availability and fault tolerance.",
+        "Implemented CI/CD pipelines using Jenkins, automating deployments with Docker and Kubernetes, accelerating release velocity by 80% and reducing deployment errors by 90%.",
+        "Utilized monitoring tools like Splunk and profilers such as VM Profiler and JProfiler to ensure optimal performance and proactive issue resolution, decreasing server downtime by 75%.",
+        "Key Impact: Leveraged Generative AI (AWS toolkit, Microsoft Copilot) for automated debugging and algorithm analysis, cutting bug resolution time by 65%."
+      ]
+    },
+    {
+      "name": "Capgemini",
+      "dates": "Oct 2021 – May 2023",
+      "role": "Professional 2",
+      "location": "India",
+      "highlights": [
+        "Served as a systems architect in an Agile environment, applying design patterns and SOLID principles to develop scalable systems, minimizing technical debt and enhancing code reusability.",
+        "Implemented Spring Boot and ReactJS within Docker workflows, integrating with Kubernetes for automated scaling and load balancing, reducing cross-OS discrepancies by 80% and accelerating deployment cycles by 90%.",
+        "Migrated applications to AWS and Azure, utilizing Kafka for real-time data streaming and Splunk for monitoring, achieving a 75% cost reduction and improving system observability.",
+        "Developed and maintained CI/CD pipelines with Jenkins, integrating automated testing and deployment processes to improve reliability by 80% and support continuous delivery of high-quality software."
+      ]
+    },
+    {
+      "name": "GroupFIO",
+      "dates": "May 2021 – Aug 2021",
+      "role": "Fullstack Developer",
+      "location": "India",
+      "highlights": [
+        "Developed and maintained fullstack applications using React, Node.js, and Express, ensuring seamless integration between front-end and back-end components.",
+        "Collaborated with designers and stakeholders to implement responsive and user-friendly interfaces, improving overall user experience.",
+        "Optimized database queries and API endpoints, reducing response times by 50% and enhancing application performance."
+      ]
+    },
+    {
+      "name": "Kent RO",
+      "dates": "Nov 2020 – Apr 2021",
+      "role": "Senior Analyst - Contract",
+      "location": "India",
+      "highlights": [
+        "Led the development of a data catalog and lineage system using Neo4j, Java, and Docker, integrating Kafka and AWS for scalable infrastructure, enhancing data retrieval and integrity.",
+        "Optimized front-end modules with real-time analytics and VM Profiler, improving page responsiveness by 85% and ensuring a seamless user experience.",
+        "Managed AWS-based systems, integrating MySQL, MongoDB, RabbitMQ, and Kafka to establish reliable data pipelines and efficient data flow across services.",
+        "Automated system administration tasks using PowerShell and Shell scripting, reducing manual processes by 80% through robust CI/CD pipelines with Jenkins."
+      ]
+    },
+    {
+      "name": "Zyla Clothing",
+      "dates": "Mar 2020 – Nov 2020",
+      "role": "CEO",
+      "location": "India",
+      "highlights": [
+        "Led the development of a Shopify-based AI and React e-commerce platform, increasing sales conversion by 75% through UI/UX optimizations and personalized customer experiences.",
+        "Integrated Generative AI tools to provide automated customer support and product recommendations, enhancing user engagement and satisfaction.",
+        "Managed end-to-end project lifecycle, coordinating cross-functional teams to ensure timely delivery and adherence to quality standards.",
+        "Implemented scalable cloud infrastructure using AWS, ensuring high availability and security for online transactions and user data."
+      ]
+    },
+    {
+      "name": "NIIT Technologies",
+      "dates": "Jan 2020 – Mar 2020",
+      "role": "Software Developer",
+      "location": "India",
+      "highlights": [
+        "Contributed to the development of enterprise-level applications using Java and Spring Framework, ensuring high performance and scalability.",
+        "Collaborated with cross-functional teams to implement Agile methodologies, enhancing project delivery timelines by 30%.",
+        "Participated in code reviews and provided mentorship to junior developers, fostering a culture of continuous learning and improvement.",
+        "Integrated Kafka for real-time data processing, improving system responsiveness and reliability."
+      ]
+    },
+    {
+      "name": "Cognizant",
+      "dates": "Dec 2018 – Dec 2019",
+      "role": "Programmer Analyst - Big Data Developer",
+      "location": "India",
+      "highlights": [
+        "Enhanced a high-traffic BFSI application by optimizing front-end (HTML5, JavaScript) and back-end (Java, Spring Boot) using design patterns and SOLID principles, increasing throughput by 85%.",
+        "Developed data-centric applications with Hadoop, Hive, and Spark, integrating Kafka for real-time processing, speeding data handling by 95%.",
+        "Designed and implemented RESTful APIs using Java and Node.js, integrating with MySQL and utilizing Jenkins for automated deployments, reducing response latencies by 60%.",
+        "Ensured data integrity through algorithmic big data validations and used Splunk for monitoring, achieving near-zero data discrepancies and maintaining compliance standards."
+      ]
+    },
+    {
+      "name": "Wipro",
+      "dates": "May 2017 – May 2018",
+      "role": "Associate Analyst - SQL Database Administrator",
+      "location": "India",
+      "highlights": [
+        "Managed and administered SQL databases, ensuring high availability , performance, and security for enterprise-grade systems.",
+        "Performed database design, development, and optimization using SQL Server, enhancing query performance by 70% through indexing and query tuning.",
+        "Implemented robust backup and recovery strategies, reducing data loss risks and ensuring business continuity with a 99.9% uptime.",
+        "Monitored database performance using tools like SQL Server Profiler and Splunk, proactively identifying and resolving bottlenecks to maintain optimal performance.",
+        "Automated routine DBA tasks using PowerShell and T-SQL scripts, increasing operational efficiency by 60% and reducing manual intervention.",
+        "Collaborated with development teams to design and implement database schemas, ensuring data integrity and supporting application scalability.",
+        "Managed data migration projects, seamlessly transferring data between environments with zero downtime and maintaining data accuracy."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "COVID Data Analysis",
+      "dates": "Apr 2021 – Dec 2022",
+      "role": "Lead Developer",
+      "location": null,
+      "highlights": [
+        "Extracted live COVID-19 data from Worldometer using Pandas (Python) and Java, capturing real-time case information with 85%+ improved accuracy.",
+        "Performed advanced data organization (country-wise, region-wise), generating tables and visualizations ( Matplotlib) that guided government vaccine strategies.",
+        "Enhanced forecasting models by 80% using a Java-based approach for big data analytics, delivering critical insights to public health institutions."
+      ]
+    },
+    {
+      "name": "Zyla Clothing Startup",
+      "dates": "Nov 2022 – Present",
+      "role": "Fullstack Consultant",
+      "location": null,
+      "highlights": [
+        "Developed an e-commerce platform using Node.js, Express, and React, increasing sales conversion by 75% through UI/UX optimizations.",
+        "Leveraged MongoDB Atlas for scalable product catalogs, achieving 80% faster load times and a 90% improvement in concurrency handling."
+      ]
+    },
+    {
+      "name": "Astra Crypto Coin",
+      "dates": "Mar 2022 – Present",
+      "role": "Founder & Lead Dev",
+      "location": null,
+      "highlights": [
+        "Launched an ERC-20 token with advanced staking, boosting daily active users by 85%.",
+        "Deployed Solidity smart contracts with Truffle & Hardhat, achieving 85% lower transaction fees via optimized gas usage."
+      ]
+    },
+    {
+      "name": "Projects on Github",
+      "dates": "2018 – 2025",
+      "role": "Contributor",
+      "location": null,
+      "highlights": [
+        "GitHub: https://github.com/sahil-lab"
+      ]
+    }
+  ],
+  "education": {
+    "name": "Lovely Professional University (LPU)",
+    "year": "2018",
+    "degree": "B.Tech. in Electronics and Communication Engineering with Minor in Android Development",
+    "location": "India"
+  },
+  "certifications": [
+    "Google Advanced Data Analytics (2023)",
+    "Google Business Intelligence (2023)",
+    "Data Analytics with Jupyter IDE - Free Code Camp (2022)",
+    "Big Data - Data Air (2019, Hadoop 2.x)"
+  ],
+  "achievements": [
+    "TechGig Challenge Winner: Surpassed 1000+ participants with 90%+ superior algorithmic performance.",
+    "PCB Designing Competition: Secured 1st prize for a Solar Mobile Charger, increasing energy efficiency by 80%.",
+    "Crypto Token Creation: Scaled coin to $42K valuation on launch day; launched NFT collection on OpenSea.",
+    "Outstanding Collaboration: Recognized by offshore clients at Capgemini for a cross-team product release yielding 80% faster deployment cycles."
+  ],
+  "skills": [
+    {
+      "category": "Backend / Big Data",
+      "items": "Java, Spring Boot, Node.js, Hadoop, Spark, Kafka, SQL, Neo4j, IBM Mainframe"
+    },
+    {
+      "category": "Frontend",
+      "items": "ReactJS, Angular (10+), TypeScript, HTML5, CSS, Redux, React 3js fiber, React drei, Next.js, Nest.js"
+    },
+    {
+      "category": "Cloud & DevOps",
+      "items": "AWS, Azure, Docker, Kubernetes, Jenkins, CI/CD, Git, Splunk, JProfiler, VM Profiler"
+    },
+    {
+      "category": "AI/ML",
+      "items": "TensorFlow, PyTorch, OpenAI APIs, Scikit-learn, Vertex AI, Basic NLP"
+    },
+    {
+      "category": "Soft Skills",
+      "items": "Agile/Scrum, Stakeholder Management, Team Leadership, Communication, Problem-Solving"
+    }
+  ],
+  "publicationTopics": [
+    "Innovative Materials: Self-Cleaning, Color-Changing, Temperature-Regulating Fabric; Ultra-Refractory Materials for Nuclear Protection.",
+    "Advanced Technologies: Alien Intervention & Simulated Reality; Achieving Human Teleportation Through 3D Organ Bioprinting; Quantum-Enhanced Machine Learning for Teleportation."
+  ]
+}
