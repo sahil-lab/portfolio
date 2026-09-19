@@ -20,13 +20,15 @@ import {createCourier} from './courier';
 import {createLivingWorld} from './living-world';
 import { addProjectBuildings } from './project-world';
 import * as T from 'three';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {districts,districtDestinations,workshopSpawn} from './world-config';
 export {districts} from './world-config';
 export type WorldCallbacks={onPlace:(i:number)=>void;onReady:()=>void;onInteract:(i:number)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onExhibit?:(i:number)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void;onNotice?:(s:string)=>void;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onPauseToggle?:()=>void;onPerformance?:(s:string)=>void;onMachine?:(i:number)=>void;onMachineTick?:()=>void};
 export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSettings:Settings=defaultSettings,initialDelivery:DeliverySnapshot|null=null,createCharacter:typeof createCourier=createCourier){
  const audio=new KingdomAudio();const scene=new T.Scene();scene.background=new T.Color('#0a1e29');scene.fog=new T.FogExp2('#173741',.0045);
- const renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.3;host.appendChild(renderer.domElement);
- const camera=new T.PerspectiveCamera(50,1,.1,420);scene.add(new T.HemisphereLight('#fff0d6','#425862',1.5));const sun=new T.DirectionalLight('#ffe1ad',2.5);sun.position.set(-25,55,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-65,right:65,top:65,bottom:-65});scene.add(sun);
+ const renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;host.appendChild(renderer.domElement);
+ const studio=new RoomEnvironment(),prefilter=new T.PMREMGenerator(renderer),reflections=prefilter.fromScene(studio,.06);scene.environment=reflections.texture;scene.environmentIntensity=.22;studio.dispose();prefilter.dispose();
+ const camera=new T.PerspectiveCamera(50,1,.1,420);scene.add(new T.HemisphereLight('#fff0d6','#425862',.85));const sun=new T.DirectionalLight('#ffe1ad',2.5);sun.position.set(-25,55,25);sun.castShadow=true;sun.shadow.normalBias=.035;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-65,right:65,top:65,bottom:-65});scene.add(sun);const rim=new T.DirectionalLight('#a3cee7',.4);rim.position.set(30,25,-35);scene.add(rim);
  const {animated,obstacles,physicalBoxes,muralBlocked,box,cyl,ball,label,mat}=buildWorldScenery(scene);
  function creature(x:number,z:number,color:string){const g=new T.Group();g.position.set(x,.8,z);scene.add(g);ball(0,.65,0,.52,color,g);ball(0,1.3,0,.62,color,g);box(-.22,1.35,.56,.12,.16,.08,'#122d2b',g);box(.22,1.35,.56,.12,.16,.08,'#122d2b',g);cyl(0,2,0,.035,.5,'#e9ecbb',g);ball(0,2.3,0,.13,'#d7ffbd',g,1);ball(-.3,.1,.1,.22,color,g);ball(.3,.1,.1,.22,color,g);return g}
  batchScenery(scene,animated);
@@ -83,7 +85,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   home,step:(dx:number,dz:number)=>{if(!paused&&!menuOpen&&!traversal.moving){audioGesture();moveCharacter(player,dx,dz,.75,blocked,traversal.height)}},
   route:buildings.route,travel:(i:number)=>{if(paused||menuOpen||!districts[i])return;player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
   interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen)},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;living.sound(enabled&&!paused);audio.enable(enabled&&!paused)},
-  dispose:()=>{audio.dispose();living.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);disposeScene(scene);renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
+  dispose:()=>{audio.dispose();living.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
  };
 }
 

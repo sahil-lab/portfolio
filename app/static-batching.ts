@@ -1,11 +1,11 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 /** Batch immutable scenery by material and spatial tile, retaining camera collision bounds. */
-export function batchScenery(scene:T.Scene,animated:Record<string,unknown>){
+export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>){
   const dynamic=new Set<T.Object3D>();Object.values(animated).forEach(v=>{for(const item of Array.isArray(v)?v:[v])if(item instanceof T.Object3D)dynamic.add(item)});
   const groups=new Map<string,T.Mesh[]>();const collision:T.Box3[]=[];scene.updateMatrixWorld(true);
   scene.traverse(o=>{
-    if(!(o instanceof T.Mesh)||!(o.material instanceof T.MeshStandardMaterial)||o.material.map)return;
+    if(!(o instanceof T.Mesh)||o instanceof T.InstancedMesh||!(o.material instanceof T.MeshStandardMaterial)||o.material.map)return;
     let parent:T.Object3D|null=o;while(parent){if(dynamic.has(parent))return;parent=parent.parent}
     if(o.userData.cameraSolid)collision.push(new T.Box3().setFromObject(o).expandByScalar(.3));
     const worldPosition=new T.Vector3().setFromMatrixPosition(o.matrixWorld);

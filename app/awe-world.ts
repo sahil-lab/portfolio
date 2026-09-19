@@ -1,11 +1,13 @@
 import * as T from 'three';
+import {craftedBox,createCraftMaterials} from './crafted-surfaces';
+import {batchScenery} from './static-batching';
 
 /** Distant architecture is deliberately separate from the walkable collision world. */
 export function createAweWorld(scene:T.Scene){
   const root=new T.Group();root.name='LivingComputer_Megastructure';scene.add(root);
-  const material=(color:string,glow=0,metalness=.35)=>new T.MeshStandardMaterial({color,metalness,roughness:.7,emissive:color,emissiveIntensity:glow});
-  const cream=material('#b9b39a'),copper=material('#a76643'),dark=material('#172f35'),sage=material('#66887d'),amber=material('#e8a64d',.58),cyan=material('#55bcc0',.4),rose=material('#bd6a8b',.28);
-  const block=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,m:T.Material)=>{const o=new T.Mesh(new T.BoxGeometry(w,h,d),m);o.name=name;o.position.set(x,y,z);o.receiveShadow=true;root.add(o);return o};
+  const material=createCraftMaterials();
+  const cream=material('#c9c0a7'),copper=material('#aa704e',0,.65),dark=material('#20343b',0,.32),sage=material('#77978b'),amber=material('#e8a64d',.58),cyan=material('#55bcc0',.4),rose=material('#bd6a8b',.28);
+  const block=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,m:T.Material)=>{const o=new T.Mesh(craftedBox(w,h,d),m);o.name=name;o.position.set(x,y,z);o.receiveShadow=true;root.add(o);return o};
   const column=(name:string,x:number,y:number,z:number,r:number,h:number,m:T.Material,segments=12)=>{const o=new T.Mesh(new T.CylinderGeometry(r,r,h,segments),m);o.name=name;o.position.set(x,y,z);root.add(o);return o};
   const ring=(name:string,x:number,y:number,z:number,r:number,tube:number,m:T.Material,vertical=false)=>{const o=new T.Mesh(new T.TorusGeometry(r,tube,8,64),m);o.name=name;o.position.set(x,y,z);if(!vertical)o.rotation.x=Math.PI/2;root.add(o);return o};
   function instances(name:string,geometry:T.BufferGeometry,m:T.Material,positions:{x:number;y:number;z:number;sx?:number;sy?:number;sz?:number}[]){const mesh=new T.InstancedMesh(geometry,m,positions.length);const dummy=new T.Object3D();positions.forEach((p,i)=>{dummy.position.set(p.x,p.y,p.z);dummy.scale.set(p.sx??1,p.sy??1,p.sz??1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.name=name;mesh.computeBoundingSphere();root.add(mesh);return mesh}
@@ -24,11 +26,19 @@ export function createAweWorld(scene:T.Scene){
   instances('Abyss_RailPosts',new T.BoxGeometry(.16,1.5,.16),copper,Array.from({length:25},(_,i)=>({x:40,y:.8,z:-46+i*3.8})));
 
   // Each landmark is a silhouette first. The local teaching machines remain at human scale below.
-  column('ProcessorCathedral_Platform',-28,2,-14,10,4,dark,48);
-  column('ProcessorCathedral_Die',-28,8,-14,6,10,copper,12);
-  column('ProcessorCathedral_CoreGlow',-28,14,-14,4,2,amber,12);
-  for(let i=0;i<4;i++)ring('ProcessorCathedral_ClockHalo',-28,17+i*3,-14,5+i*.6,.12,i%2?copper:amber);
-  instances('ProcessorCathedral_HeatFins',new T.BoxGeometry(.55,1,.9),dark,Array.from({length:120},(_,i)=>{const a=i%30/30*Math.PI*2,r=8+Math.floor(i/30)*1.65;return{x:-28+Math.cos(a)*r,y:5+Math.floor(i/30)*2.8,z:-14+Math.sin(a)*r,sy:5+Math.floor(i/30)*1.8}}));
+  const profile=[[0,0],[7.8,0],[8.2,.3],[8.2,1],[7.9,1.4],[6.8,1.7],[6.5,3],[6.5,7],[6.2,7.4],[5.5,7.7],[5.5,15],[5.2,15.4],[0,15.4]].map(([r,y])=>new T.Vector2(r,y));
+  const casing=new T.Mesh(new T.LatheGeometry(profile,64),dark);casing.name='ProcessorCathedral_SculptedHousing';casing.position.set(-29,0,-24);root.add(casing);
+  for(const y of [1.5,3,7.5,15.5])ring('ProcessorCathedral_CopperGasket',-29,y,-24,y<4?7.4:5.8,.17,copper);
+  const die=block('ProcessorCathedral_Die',-29,10,-18.3,6.2,6.8,.6,copper);
+  block('ProcessorCathedral_CeramicInset',-29,10,-17.94,5.65,6.25,.2,cream);
+  block('ProcessorCathedral_LuminousDie',-29,10,-17.79,4.8,5.3,.14,amber);
+  block('ProcessorCathedral_Silicon',-29,10,-17.68,3.5,3.7,.1,dark);
+  for(const dx of [-.85,.85])for(const dy of [-.9,.9])block('ProcessorCathedral_ComputeTile',-29+dx,10+dy,-17.6,1.35,1.42,.08,copper);
+  for(let i=0;i<7;i++){block('ProcessorCathedral_EtchedTrace',-31+i*.65,7.9,-17.58,.07,.55,.03,dark);block('ProcessorCathedral_EtchedTrace',-31+i*.65,12.1,-17.58,.07,.55,.03,dark)}
+  die.castShadow=true;
+  for(let i=0;i<4;i++)ring('ProcessorCathedral_ClockHalo',-29,17+i*2.7,-24,5.4+i*.6,.16,i%2?copper:amber);
+  instances('ProcessorCathedral_HeatFins',craftedBox(.65,14,1.6),copper,Array.from({length:26},(_,i)=>{const a=.7+i/25*(Math.PI*2-1.4);return{x:-29+Math.sin(a)*8.8,y:9,z:-24+Math.cos(a)*8.8}}));
+  instances('ProcessorCathedral_ContactPins',craftedBox(.2,1.1,.3),copper,Array.from({length:16},(_,i)=>({x:-31.2+(i%8)*.63,y:6.4+Math.floor(i/8)*7.2,z:-17.7})));
   instances('ProcessorCathedral_TraceLights',new T.BoxGeometry(.17,.09,1),amber,Array.from({length:32},(_,i)=>({x:-42+(i%8)*3.5,y:.32,z:-30+Math.floor(i/8)*2.1,sz:2.8})));
 
   for(const x of [15,20,25,30]){
@@ -83,7 +93,7 @@ export function createAweWorld(scene:T.Scene){
   instances('Chassis_WallSocketLights',new T.BoxGeometry(.22,1.2,2.2),amber,Array.from({length:32},(_,i)=>({x:i<16?-63.8:64.8,y:20+Math.floor(i%16/8)*15,z:-54+(i%8)*14})));
 
   const skillSites:Record<string,[number,number,number,string]>={
-    'Backend / Big Data':[-28,24,-14,'#edbd74'],
+    'Backend / Big Data':[-29,29,-24,'#edbd74'],
     'Frontend':[32,31,18,'#d9a7e5'],
     'Cloud & DevOps':[0,29,-33,'#94dce4'],
     'AI/ML':[21,44,-16,'#b4e1c1'],
@@ -96,6 +106,9 @@ export function createAweWorld(scene:T.Scene){
     return {key,beam,halo,m};
   });
   let selectedSkill='';
+  batchScenery(root,{signals:skillBeacons.flatMap(b=>[b.beam,b.halo])});
+  // Distant enclosure geometry does not need to enter the moving shadow map.
+  root.traverse(o=>{if(o instanceof T.Mesh)o.castShadow=false});
 
   // A restrained data drift makes the gigantic, otherwise static air feel inhabited.
   const dustGeo=new T.SphereGeometry(.075,6,4),dust=new T.InstancedMesh(dustGeo,cream,84);dust.name='Atmosphere_DataDust';root.add(dust);const dummy=new T.Object3D();

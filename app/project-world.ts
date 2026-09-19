@@ -2,18 +2,23 @@ import {planWalkingRoute} from './walking-route';
 import * as T from 'three';
 import {projects} from './portfolio';
 import {exhibits} from './exhibit-state';
+import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 export function addProjectBuildings(scene:T.Scene,player:T.Group,callbacks:{externalBlocked?:(x:number,z:number)=>boolean;onNotice?:(s:string)=>void;onExhibit?:(i:number)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void}){
  const owned=new T.Group();scene.add(owned);
+ const surface=createCraftMaterials();
  const interiors:(()=>void)[]=[];const loaded=new Set<number>();
  const solids:{x:number;z:number;w:number;d:number}[]=[];
  const resultSigns:T.Sprite[]=[];const seenResults:string[]=[];const tokens:T.Mesh[]=[];const exteriorSigns:T.Sprite[][]=[];
  const doors:T.Mesh[]=[];const opened=projects.map(()=>false);const machineMeshes:T.Mesh[][]=[];const signs:T.Sprite[][]=[];
- const box=(x:number,y:number,z:number,w:number,h:number,d:number,color:string)=>{const m=new T.Mesh(new T.BoxGeometry(w,h,d),new T.MeshStandardMaterial({color,roughness:.45,metalness:.3}));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;m.userData.cameraSolid=h>.2;owned.add(m);return m};
+ const box=(x:number,y:number,z:number,w:number,h:number,d:number,color:string)=>{const m=new T.Mesh(craftedBox(w,h,d),surface(color));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;m.userData.cameraSolid=h>.2;owned.add(m);return m};
  function sign(text:string,x:number,y:number,z:number,color='#ecedda',width=8){const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=180;const c=canvas.getContext('2d')!;c.fillStyle='#102b2bee';c.fillRect(0,0,1024,180);c.fillStyle=color;c.textAlign='center';c.font='bold 32px Arial';const words=text.split(' ');let line='';const rows:string[]=[];for(const word of words){if(c.measureText(line+' '+word).width>960){rows.push(line);line=word}else line+=(line?' ':'')+word}rows.push(line);rows.slice(0,3).forEach((s,i)=>c.fillText(s,512,50+i*46));const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(canvas),depthTest:true}));sp.position.set(x,y,z);sp.scale.set(width,width*180/1024,1);owned.add(sp);return sp}
  projects.forEach((p,i)=>{const firstChild=owned.children.length;const {x,z,color,style}=p.building;box(x,.32,z,11,.25,13,'#415e57');
  const wall=(a:number,b:number,w:number,d:number)=>{box(a,1.8,b,w,3,d,style==='studio'?'#3f7970':'#776244');solids.push({x:a,z:b,w,d})};
  wall(x-5.5,z,.4,13);wall(x+5.5,z,.4,13);wall(x,z-6.5,11,.4);wall(x-3.7,z+6.5,3.6,.4);wall(x+3.7,z+6.5,3.6,.4);
  box(x,4,z+6.5,11,.5,.65,color);box(x-1.9,2,z+6.5,.25,4,.65,color);box(x+1.9,2,z+6.5,.25,4,.65,color);
+ // Recessed glass, sill and cornice give the entrance a readable material hierarchy.
+ for(const side of [-1,1]){const wx=x+side*3.7;box(wx,2.05,z+6.74,2.75,1.75,.14,'#b08b5a');box(wx,2.05,z+6.84,2.4,1.4,.08,'#233c49');box(wx,1.14,z+6.9,2.95,.18,.4,'#d5c5a3');box(wx,2.05,z+6.92,.09,1.4,.07,'#ae9f81');box(x+side*5.5,3.55,z,.65,.22,13.2,'#c2b294')}
+ box(x,4.36,z+6.7,11.35,.18,1.05,'#d5c5a3');box(x,.48,z+6.95,3.5,.15,.7,'#c2b294');
  doors.push(box(x,1.6,z+6.5,3.4,3,.18,color));sign(p.name.toUpperCase(),x,5.2,z+6.5,color,9);sign('DEMONSTRATION EXHIBIT',x,4.5,z-6,color,7);
  if(style==='studio'){for(let j=0;j<3;j++){const ring=new T.Mesh(new T.TorusGeometry(1.6,.09,8,40),new T.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.4}));ring.position.set(x,5.5,z-5.8);ring.rotation.set(j*.8,j*1.05,0);owned.add(ring)}}else{for(let j=0;j<5;j++)box(x-4+j*2,4.3,z-6,1.3,2.3,1,color)}
  tokens[i]=box(x,.9,z,.35,.35,.35,'#fff3be');tokens[i].visible=false;
