@@ -11,7 +11,7 @@ for folder in ('app', 'assets', 'components', 'hooks', 'lib', 'public', 'scripts
     files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file()
                  and '__pycache__' not in p.parts and not p.name.endswith('.blend1'))
 for name in ('package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts',
-             'next.config.ts', 'next-env.d.ts', 'components.json', '.gitignore',
+             'next.config.ts', 'vite.vercel.config.ts', 'vercel.json', 'next-env.d.ts', 'components.json', '.gitignore',
              '.oxlintrc.json', '.oxfmtrc.json', 'README.md', '.openai/hosting.json'):
     if (ROOT / name).exists():
         files.append(ROOT / name)
@@ -31,4 +31,5 @@ report = {'file': OUT.name, 'files': count, 'bytes': OUT.stat().st_size,
           'note': 'Source package; rendered MP4 is delivered separately. Hosting credentials excluded.'}
 (ROOT / 'outputs/source-package-check.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
+
 

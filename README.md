@@ -20,6 +20,8 @@ District terminals are labeled near each district arrival. Approach and press E.
 
 ## Verify and export
 
+Deploying on Vercel? Use [the Vercel build and settings](docs/vercel-deployment.md). The original build below targets Sites/Cloudflare.
+
 ```sh
 node --test tests/*.test.cjs tests/*.test.mjs
 node node_modules/typescript/bin/tsc --noEmit
