@@ -16,7 +16,7 @@ export function buildWorldScenery(scene:T.Scene){
  const animated:{fans:T.Object3D[];cores:T.Mesh[];shelves:T.Mesh[];pods:T.Group[];events:T.Mesh[];packet:T.Mesh|null;gpu:T.Mesh|null;press:T.Mesh|null}={fans:[],cores:[],shelves:[],pods:[],events:[],packet:null,gpu:null,press:null};const obstacles:{x:number,z:number,w:number,d:number,y:number,h:number}[]=[];
  function house(x:number,z:number,color:string,h=3,y=0){const g=new T.Group();scene.add(g);box(x,y+h/2,z,3.7,h,3.2,color,g);box(x,y+h+.2,z,4.2,.45,3.7,'#273f39',g);box(x,y+1,z+1.63,1,2,.08,'#122d2b',g);box(x-1,y+h*.65,z+1.66,.6,.65,.1,'#ffe0a0',g,.6);box(x+1,y+h*.65,z+1.66,.6,.65,.1,'#ffe0a0',g,.6);obstacles.push({x,z,w:3.7,d:3.2,y,h});return g}
  function lamp(x:number,z:number){cyl(x,1.3,z,.07,2.6,'#a5ab80');ball(x,2.7,z,.22,'#ffdc88',scene,1.5)}
- districts.forEach((d,i)=>{cyl(d.x,.1,d.z,8,.45,'#3d6659');cyl(d.x,.35,d.z,7.6,.18,i===0?'#70836a':'#486c5d');label(d.name.toUpperCase(),d.x,8,d.z,d.color,.8);lamp(d.x-6,d.z+3);lamp(d.x+6,d.z+3);if(i>0)house(d.x+3,d.z-2,d.color,3)});
+ districts.forEach((d,i)=>{cyl(d.x,.1,d.z,8,.45,'#3d6659');cyl(d.x,.35,d.z,7.6,.18,i===0?'#70836a':'#486c5d');if(i!==5)label(d.name.toUpperCase(),d.x,8,d.z,d.color,.65);lamp(d.x-6,d.z+3);lamp(d.x+6,d.z+3);if(i>0)house(d.x+3,d.z-2,d.color,3)});
  cyl(0,.55,19,5.8,.5,'#b6ae91');label('PACKET PRESS',1,5.1,17,'#f4ddad',.55);const muralBlocked=addWorkshopMural(scene);
  for(let i=0;i<5;i++)box(-2+i*.8,.7,23.8+i*.1,.65,.3,.9,'#a7aa88');
  for(let i=0;i<3;i++){const x=-24+i*3;box(x,2.1,-7,2.2,3.4,2.4,'#ad7849');animated.cores.push(box(x,3,-5.76,1.5,1.4,.08,'#f1a94e',scene,.6));for(let j=0;j<4;j++)box(x,4+j*.18,-7,2.5,.09,2.6,'#574e39')};cyl(-24,4,-11,.8,8,'#806f49');ball(-24,8.2,-11,.85,'#ffd684',scene,.8);
@@ -25,6 +25,7 @@ export function buildWorldScenery(scene:T.Scene){
  for(let i=0;i<3;i++)line([new T.Vector3(-35,.7,15+i),new T.Vector3(-29,.7,17+i),new T.Vector3(-17,.7,19+i)],'#83b7bd',.08);animated.packet=box(-33,1.1,17,1.3,.9,.8,'#9adeeb',scene,.5);
  box(0,.6,39,8,.5,7,'#99855c');house(-3,40,'#806f50',4);label('INDEX VAULT',0,2,35,'#efcb85',.55);
  for(let i=0;i<3;i++){cyl(-5+i*5,8,-29,3,1,'#688c8b');animated.pods.push(house(-5+i*5,-29,'#82bfc9',2.4,8.5));if(i<2)box(-2.5+i*5,8.5,-29,2.6,.2,1.8,'#93aaa0')};label('SERVICE LIFT',0,3,-21,'#bee6e1',.5);
+ label('CHASSIS OVERLOOK',10,11,-26,'#f4dba3',.46);
  for(let p=0;p<3;p++){box(30,1,-30+p*1.6,12,.3,.9,'#836f5d');for(let j=0;j<7;j++)box(25+j*1.7,1.2,-30+p*1.6,.08,.1,.9,'#c5a981')}
  box(0,17,-56,125,40,3,'#223d3e');for(let i=0;i<9;i++)box(-55+i*14,18,-53,1,36,1,'#476060');
  for(let i=0;i<5;i++){const x=-46+i*23;cyl(x,6,-43,3.5,12,'#3c5f59');for(let j=0;j<9;j++)cyl(x,1+j*1.25,-43,3.7,.22,'#68847b');const fan=new T.Group();fan.position.set(x,13,-43);scene.add(fan);for(let b=0;b<5;b++){const blade=box(0,0,0,5,.12,.7,'#91a798',fan);blade.rotation.y=b*Math.PI/5}animated.fans.push(fan)}

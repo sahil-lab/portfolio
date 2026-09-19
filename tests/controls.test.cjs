@@ -11,6 +11,15 @@ test('RAM ramp reaches the balcony and guarded edges prevent falling; lift carri
  const high=p.position.y;for(let i=0;i<100;i++)moveCharacter(p,-1,0,.075,()=>false,nav.height);assert.equal(p.position.y,high);
  p.position.set(0,.8,-21);assert.ok(nav.interact());for(let i=0;i<250;i++)nav.update(.02);assert.ok(Math.abs(p.position.y-8.6)<.01);assert.ok(nav.interact());for(let i=0;i<250;i++)nav.update(.02);assert.ok(Math.abs(p.position.y-.8)<.01);
 });
+test('chassis overlook is connected to the sky bridge and the circuit abyss has a guarded edge',()=>{
+ const p=new T.Group(),s=new T.Scene();p.position.set(6.8,8.6,-26.4);const nav=createTraversal(s,p);
+ for(let i=0;i<50;i++)moveCharacter(p,1,0,.1,()=>false,nav.height);
+ assert.ok(p.position.x>11.5);assert.equal(p.position.y,8.6);
+ for(let i=0;i<50;i++)moveCharacter(p,-1,0,.1,()=>false,nav.height);
+ assert.ok(p.position.x<7);assert.equal(p.position.y,8.6);
+ p.position.set(38,.8,0);moveCharacter(p,1,0,5,()=>false,nav.height);
+ assert.ok(p.position.x<=39.3);
+});
 test('camera avoids an obstruction and stays finite through large pointer rotation and zoom changes',()=>{
  const scene=new T.Scene(),p=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100);scene.add(p);const wall=new T.Mesh(new T.BoxGeometry(20,20,.4));wall.position.set(0,5,3);wall.userData.cameraSolid=true;scene.add(wall);const rig=createGameCamera(camera,scene,p);rig.update(.02,false,defaultSettings);assert.ok(camera.position.z<2.8);for(let i=0;i<200;i++){rig.rotate(900,900,false);rig.zoom(i%2?100:-100);rig.update(.02,true,defaultSettings);assert.ok(Number.isFinite(camera.position.lengthSq()))}const before=rig.yaw;rig.rotate(100,100,true);assert.equal(rig.yaw,before);
 });

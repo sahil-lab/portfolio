@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './boot-sequence.css';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 :root{--background:#102824;--foreground:#e0ebd7;--popover:#18352f;--popover-foreground:#e0ebd7;--primary:#cee3aa;--primary-foreground:#142920;--border:#637761;--muted:#284238;--muted-foreground:#a5b5a0;--ring:#cee3aa;--radius:.6rem;--font-sans:Arial,Helvetica,sans-serif}

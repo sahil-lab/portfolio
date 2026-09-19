@@ -3,7 +3,7 @@ export type Ramp={id:string;x:number;width:number;startZ:number;endZ:number;bott
 export const ramStair:Ramp={id:'ram-reading-stair',x:15,width:2.4,startZ:-1,endZ:-8.4,bottom:.8,top:4.8,steps:20};
 export const liftConfig={x:0,z:-21,size:3,bottom:.8,top:8.6,speed:2};
 type Surface={id:string;x:number;z:number;width:number;depth:number;y:number};
-export const upperSurfaces:Surface[]=[{id:'ram-balcony',x:20,z:-10.2,width:11,depth:4,y:4.8},{id:'sky-service-bridge',x:0,z:-25,width:3,depth:8,y:8.6},{id:'sky-main-walk',x:0,z:-26.4,width:15,depth:2.5,y:8.6}];
+export const upperSurfaces:Surface[]=[{id:'ram-balcony',x:20,z:-10.2,width:11,depth:4,y:4.8},{id:'sky-service-bridge',x:0,z:-25,width:3,depth:8,y:8.6},{id:'sky-main-walk',x:0,z:-26.4,width:15,depth:2.5,y:8.6},{id:'sky-observation',x:9.6,z:-26.4,width:6,depth:2.5,y:8.6}];
 export function rampHeight(r:Ramp,x:number,z:number){if(Math.abs(x-r.x)>r.width/2-.2||z>r.startZ+.15||z<r.endZ-.15)return null;return T.MathUtils.lerp(r.bottom,r.top,T.MathUtils.clamp((r.startZ-z)/(r.startZ-r.endZ),0,1))}
 export function createTraversal(scene:T.Scene,player:T.Group){
   const root=new T.Group();root.name='TraversableRoutes';scene.add(root);
@@ -26,6 +26,8 @@ export function createTraversal(scene:T.Scene,player:T.Group){
     prompt:()=>near()?(moving?'Service lift moving · Please wait':aboard()?'E · Ride service lift':'E · Call service lift'):null,
     update:(dt:number)=>{const riding=aboard();const delta=T.MathUtils.clamp(target-y,-2*dt,2*dt);y+=delta;lift.position.y=y-.15;if(riding)player.position.y=y;moving=Math.abs(y-target)>.001},
     height:(x:number,z:number,previous:number):number|null=>{
+      // The exposed outer board is a cut, not a painted floor. The rail marks its edge.
+      if(x>39.3&&z>-49&&z<49)return null;
       if(Math.abs(x)<1.3&&Math.abs(z+21)<1.3&&Math.abs(previous-y)<.45)return y;
       const ramp=rampHeight(r,x,z);if(ramp!==null&&Math.abs(previous-ramp)<.5)return ramp;
       for(const s of upperSurfaces)if(Math.abs(x-s.x)<s.width/2-.25&&Math.abs(z-s.z)<s.depth/2-.2&&Math.abs(previous-s.y)<.5)return s.y;
