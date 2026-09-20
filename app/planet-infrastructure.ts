@@ -1,10 +1,13 @@
 import * as T from 'three';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
+import {civilizationFor,civilizations} from './civilization-config';
+import {civilizationLogoReserved} from './civilization-world';
 import {globeDirection,planetPoint,planetUp,planetGeography,riverLatitude,roadLatitudes,roadLongitudes,type PlanetSurface} from './planet-geography';
 
 export type PlanetTown={name:string;direction:T.Vector3;position:T.Vector3;east:T.Vector3;north:T.Vector3};
 export function planetTowns(surface:PlanetSurface):PlanetTown[]{
-  const names=surface.stop.theme==='garden'?['Willow Reach','Fernbank','Orchard Rise','Cedar Hollow','Southmeadow','Riverbend']:surface.stop.theme==='copper'?['Sundial Row','Copperford','Amber Mesa','South Foundry','Dunehaven','Terrace Market']:['Glasswater','Prism Vale','Opal Heights','Southlight','Quartz Quay','Luminous Row'];
+  const identity=civilizationFor(surface.stop);
+  const names=identity?civilizations[identity].districts:surface.stop.theme==='garden'?['Willow Reach','Fernbank','Orchard Rise','Cedar Hollow','Southmeadow','Riverbend']:surface.stop.theme==='copper'?['Sundial Row','Copperford','Amber Mesa','South Foundry','Dunehaven','Terrace Market']:['Glasswater','Prism Vale','Opal Heights','Southlight','Quartz Quay','Luminous Row'];
   return names.map((name,index)=>{
     const latitude=Math.asin(index<3?.46:-.48);let longitude=.35+index%3*Math.PI*2/3+(index<3?0:.44);
     let direction=globeDirection(latitude,longitude);
@@ -16,17 +19,19 @@ export function planetTowns(surface:PlanetSurface):PlanetTown[]{
 
 export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurface){
   const root=new T.Group();root.name='Planet_Infrastructure_'+surface.stop.id;parent.add(root);
+  const identity=civilizationFor(surface.stop),style=identity?civilizations[identity]:null;
   const finish=createCraftMaterials();
-  const roadMaterial=finish('#41585b',0,.18);roadMaterial.roughness=.78;
-  const curbMaterial=finish('#d9e5db');
-  const stripeMaterial=new T.MeshBasicMaterial({color:'#edce78'});
+  const roadMaterial=finish(identity==='github'?'#343a42':identity==='linkedin'?'#9fb6c9':'#41585b',0,.18);roadMaterial.roughness=.78;
+  const curbMaterial=finish(style?.stone??'#d9e5db');
+  const stripeMaterial=new T.MeshBasicMaterial({color:style?.light??'#edce78'});
   const waterData=new Uint8Array(64*8*4);
   for(let row=0;row<8;row++)for(let column=0;column<64;column++){
     const offset=(row*64+column)*4,ripple=Math.sin(column*.39+row*.7)>.82?34:0;
     waterData.set([57+ripple,151+ripple,182+ripple,255],offset);
   }
   const waterTexture=new T.DataTexture(waterData,64,8,T.RGBAFormat);waterTexture.colorSpace=T.SRGBColorSpace;waterTexture.wrapS=waterTexture.wrapT=T.RepeatWrapping;waterTexture.repeat.set(55,1);waterTexture.needsUpdate=true;
-  const waterMaterial=new T.MeshPhysicalMaterial({map:waterTexture,roughness:.22,metalness:.24,clearcoat:.7,clearcoatRoughness:.14,color:surface.stop.theme==='copper'?'#96daca':'#c1ecff',emissive:'#206978',emissiveIntensity:.12});
+  const waterMaterial=new T.MeshPhysicalMaterial({map:identity?null:waterTexture,roughness:.22,metalness:.24,clearcoat:.7,clearcoatRoughness:.14,color:style?.water??(surface.stop.theme==='copper'?'#96daca':'#c1ecff'),emissive:style?.glass??'#206978',emissiveIntensity:.12});
+  if(identity)waterTexture.dispose();
   function ribbon(name:string,directions:T.Vector3[],width:number,offset:number,material:T.Material,water=false,lateral=0){
     const positions:number[]=[],uvs:number[]=[],indices:number[]=[];
     directions.forEach((direction,index)=>{
@@ -56,7 +61,7 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
     }
   }
   const rivers=[0,1].map(river=>ribbon('River_'+river,Array.from({length:769},(_,index)=>{const longitude=index/768*Math.PI*2;return globeDirection(riverLatitude(longitude,river,surface.stop.theme),longitude)}),5.2,0,waterMaterial,true));
-  const bridgeMaterial=finish('#cfb47b',0,.62);
+  const bridgeMaterial=finish(style?.metal??'#cfb47b',0,.62);
   const rails=new T.InstancedMesh(new T.BoxGeometry(.13,1.1,7),bridgeMaterial,bridges.length*2),dummy=new T.Object3D();
   bridges.forEach((position,index)=>{
     const normal=position.clone().sub(surface.center).normalize(),up=planetUp(surface,position);
@@ -66,22 +71,22 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
     for(const [side,offset] of [[-1,0],[1,1]]){dummy.position.copy(position).addScaledVector(right,side*3.65).addScaledVector(up,.6);dummy.updateMatrix();rails.setMatrixAt(index*2+offset,dummy.matrix)}
   });rails.name='River_Bridge_Railings';rails.computeBoundingSphere();root.add(rails);
   const towns=planetTowns(surface),buildings:{position:T.Vector3;radius:number;town:string}[]=[];
-  const palette=surface.stop.theme==='garden'?['#c9dfcf','#88bcad','#e3b196','#a3c9d2']:surface.stop.theme==='copper'?['#d4b785','#e3e3cd','#70a7a7','#cd9987']:['#b2d7e0','#c6b8d9','#8dcab9','#e3cf9f'];
+  const palette=identity==='github'?['#e1e6ec','#414851','#bbc5d0','#f1f4f7']:identity==='linkedin'?['#f4f9ff','#c4d8e9','#0a66c2','#e7f0fa']:surface.stop.theme==='garden'?['#c9dfcf','#88bcad','#e3b196','#a3c9d2']:surface.stop.theme==='copper'?['#d4b785','#e3e3cd','#70a7a7','#cd9987']:['#b2d7e0','#c6b8d9','#8dcab9','#e3cf9f'];
   const records:{position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;height:number;color:T.Color}[]=[];
   towns.forEach((town,townIndex)=>{
     for(const side of [-1,1])for(const along of [-16,-8,0,8,16]){
       const direction=town.direction.clone().addScaledVector(town.east,along/surface.radius).addScaledVector(town.north,side*11/surface.radius).normalize();
-      const terrain=planetGeography(surface,direction),position=planetPoint(surface,direction);if(terrain.river<5||terrain.road<5.8||buildings.some(building=>position.distanceTo(building.position)<6.2))continue;
+      const terrain=planetGeography(surface,direction),position=planetPoint(surface,direction);if(terrain.river<5||terrain.road<5.8||civilizationLogoReserved(surface,direction)||buildings.some(building=>position.distanceTo(building.position)<6.2))continue;
       const up=planetUp(surface,position),forward=town.position.clone().sub(position).projectOnPlane(up).normalize(),right=new T.Vector3().crossVectors(up,forward).normalize();
       const rotation=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
       const height=3.3+((townIndex+Math.abs(along))%3)*.65;
       records.push({position,up,rotation,height,color:new T.Color(palette[(records.length+townIndex)%palette.length])});buildings.push({position,radius:3.45,town:town.name});
     }
   });
-  const pearl=finish('#deebe7'),brass=finish('#cdb582',0,.65),glazing=finish('#284f5a',0,.48),windowLight=finish('#f5d69e',.3,.12);
+  const pearl=finish(style?.stone??'#deebe7'),brass=finish(style?.metal??'#cdb582',0,.65),glazing=finish(style?.glass??'#284f5a',0,.48),windowLight=finish(style?.light??'#f5d69e',.3,.12);
   glazing.roughness=.2;glazing.clearcoat=.85;
   const bodies=new T.InstancedMesh(craftedBox(4.8,1,4.8),finish('#ffffff'),records.length);
-  const roofs=new T.InstancedMesh(new T.ConeGeometry(3.9,2,4).rotateY(Math.PI/4),finish(surface.stop.theme==='garden'?'#3e7167':'#668c9a',0,.42),records.length);
+  const roofs=new T.InstancedMesh(identity?new T.BoxGeometry(5.1,.4,5.1):new T.ConeGeometry(3.9,2,4).rotateY(Math.PI/4),finish(style?.glass??(surface.stop.theme==='garden'?'#3e7167':'#668c9a'),0,.42),records.length);
   const doors=new T.InstancedMesh(craftedBox(1.15,2.2,.14),glazing,records.length);
   const windows=new T.InstancedMesh(new T.BoxGeometry(.86,.85,.14),windowLight,records.length*2);
   const foundations=new T.InstancedMesh(craftedBox(5.25,.24,5.25),pearl,records.length);

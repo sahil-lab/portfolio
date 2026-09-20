@@ -6,6 +6,8 @@ import {batchScenery} from './static-batching';
 import {moveCharacter} from './character-controller';
 import {createNeighborhood} from './neighborhood';
 import {createWoodenSign,type WoodenSignShape} from './wooden-sign';
+import {civilizationFor,civilizations} from './civilization-config';
+import {createCivilizationLink} from './civilization-link';
 import {createPlanetSurface,createPlanetLandscape,planetPoint,moveOnPlanet,resetSurfaceFrame} from './planet-surface';
 
 export type TransitStatus={current:number;mode:TransitMode|null;destination:number;progress:number;driving:boolean;nearMetro:boolean;nearRocket:boolean;visited:string[]};
@@ -26,6 +28,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  const cars=transitStops.map(stop=>{const car=kit.rover(stop.color);car.root.position.set(stop.x-10,stop.y,stop.z+3);root.add(car.root);return car});
  const rockets=transitStops.map(stop=>{const rocket=kit.rocket(stop.color);rocket.root.position.set(stop.x+10,stop.y,stop.z+2);root.add(rocket.root);return rocket});
  const paths=transitStops.map((from,index)=>transitStops.map((to,destination)=>index===destination?null:createMetroPath(from,to)));
+ const civilizationLink=createCivilizationLink(root,paths[1][3]!);
  const metro=kit.train();root.add(metro.root);placeMetro(metro,paths[0][1]!,0);
  let activePath:MetroPath|null=null,metroReversed=false,flightOrigin=0,flightRocket:ReturnType<typeof kit.rocket>|null=null;
  const railMaterial=kit.surface('#b69669',.12,.55);
@@ -43,17 +46,18 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
 
  transitStops.forEach((stop,index)=>{
   const {x,y,z}=stop;
+  const identity=civilizationFor(stop),style=identity?civilizations[identity]:null;
   if(index){
    kit.mesh(fixed,new T.CylinderGeometry(23.8,25,1.5,64),kit.navy,x,y-1,z-3);
-   kit.mesh(fixed,new T.CylinderGeometry(23.6,23.6,.3,64),kit.surface(index===2?'#739886':'#c4b698'),x,y-.25,z-3);
+  kit.mesh(fixed,new T.CylinderGeometry(23.6,23.6,.3,64),kit.surface(style?.ground??(index===2?'#739886':'#c4b698')),x,y-.25,z-3);
     const surface=surfaces[index]!;const ring=kit.mesh(fixed,new T.TorusGeometry(surface.radius*1.23,.22,8,160),railMaterial,x,surface.center.y,z-3);ring.rotation.set(Math.PI/2+.25,.1,index*.25);
    const halo=kit.mesh(fixed,new T.TorusGeometry(24,.1,8,96),kit.surface(stop.color,.6),x,y+.04,z-3);halo.rotation.x=Math.PI/2;
    // A circular promenade stays clear for driving; landmarks sit around its outer edge.
    for(const r of [14.5,18]){const road=kit.mesh(fixed,new T.TorusGeometry(r,.06,4,80),kit.cream,x,y+.015,z-3);road.rotation.x=Math.PI/2}
    for(let i=0;i<8;i++){const a=i/8*Math.PI*2,px=x+Math.sin(a)*20,pz=z-3+Math.cos(a)*20;
     if(index===2){kit.mesh(fixed,new T.CylinderGeometry(.17,.27,2.3,8),kit.copper,px,y+1,pz);const crown=kit.mesh(fixed,new T.SphereGeometry(1.3,16,10),kit.surface(i%2?'#a8c5a0':'#638f80'),px,y+2.9,pz);crown.scale.y=1.45;obstacles.push({x:px,z:pz,y,r:.5})}
-    else if(index===3){const crystal=kit.mesh(fixed,new T.OctahedronGeometry(1.2),kit.surface(i%2?'#bda5df':'#93c8d0',.16,.3),px,y+2,pz);crystal.scale.y=2+i%3*.5;obstacles.push({x:px,z:pz,y,r:1})}
-    else {kit.mesh(fixed,new T.CylinderGeometry(1.1,1.6,.65,16),kit.copper,px,y+.22,pz);const collector=kit.box(fixed,kit.navy,px,y+2,pz,2.2,.17,2.8);collector.rotation.x=-.45;kit.mesh(fixed,new T.CylinderGeometry(.12,.2,2,8),kit.cream,px,y+1,pz);obstacles.push({x:px,z:pz,y,r:.8})}
+    else if(index===3){const crystal=kit.mesh(fixed,new T.BoxGeometry(.95,2.4,.95),kit.surface(i%2?'#f4f9ff':'#0a66c2',.05,.3),px,y+2,pz);crystal.scale.y=2+i%3*.5;obstacles.push({x:px,z:pz,y,r:1})}
+    else {kit.mesh(fixed,new T.CylinderGeometry(1.1,1.6,.65,16),kit.surface('#9da7b2',0,.6),px,y+.22,pz);const collector=kit.box(fixed,kit.surface('#202731'),px,y+2,pz,2.2,.17,2.8);collector.rotation.x=-.45;kit.mesh(fixed,new T.CylinderGeometry(.12,.2,2,8),kit.cream,px,y+1,pz);obstacles.push({x:px,z:pz,y,r:.8})}
    }
   const signalX=x+resonatorOffset.x,signalZ=z+resonatorOffset.z;
   const tower=kit.mesh(fixed,new T.CylinderGeometry(2.4,3.5,1.6,32),kit.copper,signalX,y+.6,signalZ);
@@ -68,7 +72,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   const padRing=kit.mesh(fixed,new T.TorusGeometry(2.7,.07,6,48),kit.glow,x+10,y+.07,z+2);padRing.rotation.x=Math.PI/2;
   sign('ION ROCKET · E',x+10,index?y-.1:-.18,z-2.8,2.1,1.7,'arch');sign('ROVER · E TO DRIVE',x-10,index?y-.1:-.18,z-.7,2.3,1.2,'arrow');
  });
- batchScenery(fixed,{});fixed.traverse(o=>{if(o instanceof T.Mesh)o.castShadow=false});
+ batchScenery(fixed,{planets:landscapes.flatMap(landscape=>landscape?[landscape.root]:[])});fixed.traverse(o=>{if(o instanceof T.Mesh)o.castShadow=false});
 
  const closeTo=(x:number,y:number,z:number,r:number)=>player.position.distanceToSquared(new T.Vector3(x,y,z))<r*r;
  const current=()=>transitStops[journey.current];
@@ -146,11 +150,13 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   const car=nearCar();if(car>=0){carIndex=car;player.position.copy(cars[car].root.position);callbacks.notice('Driving · WASD / arrows or the joystick. E to park and step out.');publish(true);return true}
   if(nearMetro()||nearRocket()){callbacks.open();return true}
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost){station();callbacks.notice(outpost.name+' \u00b7 Returned to the landing station.');return true}
+  const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark){callbacks.notice(landmark.name+' / '+landmark.description);return true}
   const conversation=landscapes[journey.current]?.population.interact(player.position);if(conversation){callbacks.notice(conversation);return true}
   if(neighborhood.interact())return true;
   const s=current();if(journey.current&&closeTo(s.x+resonatorOffset.x,s.y,s.z+resonatorOffset.z,4)){const orb=planetSignals[journey.current-1],m=orb.material as T.MeshStandardMaterial;m.emissiveIntensity=m.emissiveIntensity>.5?.3:1.1;callbacks.sound();callbacks.notice(s.name+' resonator '+(m.emissiveIntensity>.5?'awake. Light travels around the satellite.':'resting.'));return true}return false;
  }
  function update(dt:number,dx:number,dz:number,reduced:boolean,walkingSpeed=2.75){
+  civilizationLink.update(dt,reduced);
   landscapes.forEach((landscape,index)=>landscape?.update(dt,reduced,player,journey.current===index&&!journey.mode));
   clock+=dt;statusClock+=dt;neighborhood.update(dt,reduced);if(!reduced)rotating.forEach((o,i)=>{o.rotation.y+=dt*(.16+i*.05);o.rotation.z=Math.sin(clock*.35+i)*.08});
   if(journey.mode){
@@ -172,6 +178,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   if(journey.mode)return (journey.mode==='metro'?'Metro to ':'Rocket to ')+transitStops[journey.destination].name+' \u00b7 '+Math.round(journey.progress*100)+'%';
   if(carIndex!==null)return 'E \u00b7 Park rover and step out';if(nearCar()>=0)return 'E \u00b7 Drive rover';if(nearMetro())return 'E \u00b7 Choose a metro destination';if(nearRocket())return 'E \u00b7 Launch to another world';
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost)return 'E \u00b7 '+outpost.name+' / return to station';
+  const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark)return 'E \u00b7 '+landmark.name;
   const conversation=landscapes[journey.current]?.population.prompt(player.position);if(conversation)return conversation;
   const neighbour=neighborhood.prompt();if(neighbour)return neighbour;
   const stop=current();if(journey.current&&closeTo(stop.x+resonatorOffset.x,stop.y,stop.z+resonatorOffset.z,4))return 'E \u00b7 Wake the satellite resonator';
@@ -182,7 +189,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   cars[journey.current].root.position.set(stop.x-10,stop.y,stop.z+3);cars[journey.current].root.rotation.set(0,0,0);publish(true);return true;
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();rockets.forEach((rocket,index)=>parkRocket(rocket,transitStops[index]));metro.root.visible=true;placeMetro(metro,paths[0][1]!,0);resetSurfaceFrame(player);publish(true)}
- return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,journey,neighborhood,
+ return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,journey,neighborhood,civilizationLink,
   reset:()=>{visited=['motherboard'];try{localStorage.removeItem('kingdom-transit-v1')}catch{}home()},
   get driving(){return carIndex!==null},get inRocket(){return journey.mode==='rocket'},
   hub:()=>{home();player.position.set(current().x-4,current().y,current().z+2);publish(true)},

@@ -34,6 +34,9 @@ import {createCreativePlaza,commonsArrival} from './creative-plaza';
 import {createBulletinWorld,bulletinSites,bulletinView,bulletinCameraView} from './bulletin-world';
 import {watchBulletins} from './bulletin-feed';
 import {districts,districtDestinations,workshopSpawn} from './world-config';
+import {civilizationFor,civilizations} from './civilization-config';
+import {createKingdomChronicle} from './kingdom-chronicle';
+import {watchForge} from './forge-feed';
 export {districts} from './world-config';
 export type WorldCallbacks={onPlace:(i:number)=>void;onReady:()=>void;onInteract:(i:number)=>void;onVoiceEnabled?:()=>void;onCommons?:(inside:boolean)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onExhibit?:(i:number)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void;onNotice?:(s:string)=>void;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onPauseToggle?:()=>void;onPerformance?:(s:string)=>void;onMachine?:(i:number)=>void;onMachineTick?:()=>void;onTransit?:(s:TransitStatus)=>void;onTransitOpen?:()=>void};
 export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSettings:Settings=defaultSettings,initialDelivery:DeliverySnapshot|null=null,createCharacter:typeof createCourier=createCourier){
@@ -47,6 +50,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  batchScenery(scene,animated);
  const awe=createAweWorld(scene);
  const artMoments=createAstraMoments(scene);
+ const chronicle=createKingdomChronicle(scene);let forgeFeed:ReturnType<typeof watchForge>|undefined;
  const courier=createCharacter();const player=courier.root;const avatar=new T.Group();avatar.name='Courier_VisualRig';avatar.add(...player.children);player.add(avatar);player.position.set(workshopSpawn.x,workshopSpawn.y,workshopSpawn.z);scene.add(player);const pip=creature(3,21,'#e5b879');label('PIP',3,3.9,21,'#e7cd91',.35);
  let settings={...initialSettings},paused=false,menuOpen=false,disposed=false,frame=0,machineOpen=false,simUiClock=0; const governor=createQualityGovernor('balanced'),effectiveTier=():QualityTier=>settings.quality==='auto'?governor.tier:settings.quality;const simulation=new KingdomSimulation();const machines=createDistrictMachines(scene,player,animated,simulation,i=>{machineOpen=true;simulation.message= districts[i].name+": choose a control to operate the local model. State lasts until reload.";callbacks.onMachine?.(i)});
  const traversal=createTraversal(scene,player);const collideScenery=sceneryCollision(physicalBoxes,obstacles);
@@ -58,7 +62,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  artAtmosphere.update(weather.snapshot,0,true);weather.sky.update(weather.snapshot,0,true,true,true);
  const commons=createCreativePlaza(scene,player,{notice:text=>callbacks.onNotice?.(text),subtitle:text=>callbacks.onSubtitle?.(text),sound:()=>audio.cue('pickup'),enableVoice:()=>{settings={...settings,muted:false};commons.speaker.sound(true,settings.volume);callbacks.onVoiceEnabled?.()}});
  const bulletins=createBulletinWorld(scene,player,text=>callbacks.onNotice?.(text));let bulletinFeed:ReturnType<typeof watchBulletins>|undefined;
- const rig=createGameCamera(camera,scene,player);
+ const rig=createGameCamera(camera,scene,player);let observedPlanet:number|null=null;
  const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:traversal.height,change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup')});
  const architecturalDetails=createKingdomAccents(scene);finishKingdomMaterials(scene);
  // Double world dimensions while retaining the courier's original apparent body size.
@@ -67,36 +71,41 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  scene.updateMatrixWorld(true);
  scene.traverse(o=>{for(const bound of o.userData.staticCameraBounds??[])bound.applyMatrix4(scene.matrixWorld)});
  let audioUnlocked=false;const audioGesture=()=>{audioUnlocked=true;audio.setVolume(settings.volume);audio.enable(!settings.muted&&!paused);living.volume(settings.volume);living.sound(!settings.muted&&!paused);commons.speaker.sound(!settings.muted&&!paused,settings.volume)};
- const input=bindGameInput(renderer.domElement,{interact,pause:()=>callbacks.onPauseToggle?.(),look:(x,y)=>rig.rotate(x,y,settings.stableCamera),zoom:rig.zoom,gesture:audioGesture,select:(x,y)=>{const rect=renderer.domElement.getBoundingClientRect(),ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);buildings.select(ray)}});
+ const input=bindGameInput(renderer.domElement,{interact,pause:()=>callbacks.onPauseToggle?.(),look:(x,y)=>rig.rotate(x,y,settings.stableCamera),zoom:rig.zoom,gesture:audioGesture,select:(x,y)=>{const rect=renderer.domElement.getBoundingClientRect(),ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);if(transport.civilizationLink.select(ray)){callbacks.onInfo?.();return}buildings.select(ray)}});
  const configure=()=>{const tier=qualityTiers[effectiveTier()];renderer.setPixelRatio(Math.min(devicePixelRatio,tier.pixelRatio));renderer.shadowMap.enabled=tier.shadows;if(sun.shadow.mapSize.width!==tier.shadowMapSize){sun.shadow.mapSize.set(tier.shadowMapSize,tier.shadowMapSize);sun.shadow.map?.dispose();sun.shadow.map=null}renderer.shadowMap.needsUpdate=true;presentation.quality(tier.bloom?'balanced':'low');living.volume(settings.volume)};
  const resize=()=>{renderer.setSize(host.clientWidth,host.clientHeight);presentation.resize(host.clientWidth,host.clientHeight);camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix()};configure();resize();rig.reset(astraOpeningView(camera.aspect));addEventListener('resize',resize);
  const describeQuality=()=>settings.quality==='auto'?`Graphics: Auto → ${qualityTiers[governor.tier].label}`:`Graphics: ${qualityTiers[settings.quality].label}`;
  const meter=createPerformanceMeter(renderer,text=>callbacks.onPerformance?.(`${text}\n${describeQuality()}`),({p95})=>{if(settings.quality==='auto'&&governor.sample(p95)){configure();resize()}});
  const shadowFollow=createShadowFollow(sun);
- function sceneryBlocked(x:number,z:number){return collideScenery(x,z,player.position.y)||machines.blocked(x,z,player.position.y)||artMoments.blocked(x,z,player.position.y)}
+ function sceneryBlocked(x:number,z:number){return collideScenery(x,z,player.position.y)||machines.blocked(x,z,player.position.y)||artMoments.blocked(x,z,player.position.y)||chronicle.blocked(x,z,player.position.y)}
 
  let last=performance.now(),place=0,time=0,shadowClock=0,footDistance=0,ambientClock=0,overlookSeen=false,lastCommons=false;const priorPosition=player.position.clone();const priorStages=exhibits.map(e=>e.snapshot.step);
  function tick(){
   if(disposed||document.hidden)return;frame=requestAnimationFrame(tick);const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.05);last=now;
   if(!paused&&!document.hidden){
    traversal.update(dt);simulation.tick(dt);machines.update();simUiClock+=dt;if(machineOpen&&simUiClock>.2){simUiClock=0;callbacks.onMachineTick?.()}
-   const axis=menuOpen?{x:0,z:0}:input.state.axes();const yaw=settings.stableCamera?.1:rig.yaw;const x=axis.x*Math.cos(yaw)+axis.z*Math.sin(yaw),z=-axis.x*Math.sin(yaw)+axis.z*Math.cos(yaw);
+  const axis=menuOpen||observedPlanet!==null?{x:0,z:0}:input.state.axes();const yaw=settings.stableCamera?.1:rig.yaw;const x=axis.x*Math.cos(yaw)+axis.z*Math.sin(yaw),z=-axis.x*Math.sin(yaw)+axis.z*Math.cos(yaw);
   const riding=transport.update(dt,x,z,settings.reducedMotion,input.state.keys.has('shift')?4.5:2.75);
+  transport.landscapes.forEach((landscape,index)=>landscape?.rotation.update(dt,settings.reducedMotion,index===observedPlanet));
    if(!riding&&!menuOpen&&!traversal.moving)moveCharacter(player,x,z,dt*(input.state.keys.has('shift')?4.5:2.75),transport.blocked,transport.height,transport.bounds);
-    const onMotherboard=transport.journey.current===0&&!transport.journey.mode;artAtmosphere.update(weather.snapshot,dt,onMotherboard);weather.update(dt,settings.reducedMotion,onMotherboard,buildings.getInside()!==null);if(onMotherboard)shadowFollow.follow(player.position,scene.scale.x);else sun.target.position.set(0,0,0);commons.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
+    const onMotherboard=transport.journey.current===0&&!transport.journey.mode&&observedPlanet===null;artAtmosphere.update(weather.snapshot,dt,onMotherboard);weather.update(dt,settings.reducedMotion,onMotherboard,buildings.getInside()!==null);if(onMotherboard)shadowFollow.follow(player.position,scene.scale.x);else sun.target.position.set(0,0,0);commons.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
     bulletins.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
+    chronicle.update(dt,settings.reducedMotion);
   if(!settings.reducedMotion){time+=dt;animated.fans.forEach((f:T.Object3D)=>f.rotation.y+=dt*.5);animated.gpu!.rotation.y+=dt*.35;pip.rotation.y=Math.sin(time*.7)*.2}awe.update(time,settings.reducedMotion);architecturalDetails.update(time,settings.reducedMotion);artMoments.update(time,settings.reducedMotion,weather.snapshot,onMotherboard);
    buildings.update(dt);exhibits.forEach((e,i)=>{if(e.snapshot.step!==priorStages[i]){if(buildings.getInside()===i)audio.cue('demo');priorStages[i]=e.snapshot.step}});const distance=player.position.distanceTo(priorPosition);if(distance<1)footDistance+=distance;priorPosition.copy(player.position);if(footDistance>.9){audio.cue('footstep');footDistance=0}ambientClock+=dt;if(ambientClock>12){ambientClock=0;audio.cue('creature')}audio.tick(place);const lifePrompt=living.update(dt,buildings.getInside()!==null,settings.reducedMotion);
    if(!overlookSeen&&player.position.y>8&&player.position.x>8.2&&player.position.z< -24&&player.position.z> -29){overlookSeen=true;callbacks.onNotice?.('Chassis overlook discovered · A whole kingdom is moving inside one machine. Return by the service bridge and lift.');audio.cue('pickup')}
-    const prompt=transport.prompt()??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:bulletins.prompt()||commons.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
+    const prompt=transport.prompt()??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:(chronicle.near(player.position)?'E \u00b7 Kingdom Chronicle':null)||bulletins.prompt()||commons.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
    if(prompt!==lastPrompt){lastPrompt=prompt;callbacks.onPrompt?.(prompt)}
   }
   const nearest=districts.reduce((best,d,i)=>Math.hypot(player.position.x-d.x,player.position.z-d.z)<Math.hypot(player.position.x-districts[best].x,player.position.z-districts[best].z)?i:best,0);if(nearest!==place){place=nearest;callbacks.onPlace(place)}
   const inCommons=transport.journey.current===0&&!transport.journey.mode&&player.position.z>49;if(inCommons!==lastCommons){lastCommons=inCommons;callbacks.onCommons?.(inCommons)}
-  rig.update(dt,buildings.getInside()!==null,settings,!!transport.journey.mode||transport.driving,inCommons?(player.position.z>142?14:10):buildings.getInside()===null&&transport.journey.current===0?4.5:1.5);avatar.position.y=transport.driving?2.7:0;if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>=qualityTiers[effectiveTier()].shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock=0}presentation.render();if(!document.hidden)meter(raw);
+  rig.update(dt,buildings.getInside()!==null,settings,!!transport.journey.mode||transport.driving,inCommons?(player.position.z>142?14:10):buildings.getInside()===null&&transport.journey.current===0?4.5:1.5);
+  if(observedPlanet!==null){const surface=transport.surfaces[observedPlanet];if(surface){const normal=transport.landscapes[observedPlanet]?.civilization?.logoNormal??new T.Vector3(0,.5,1).normalize();const center=surface.center.clone().multiplyScalar(scene.scale.x);const distance=surface.radius*scene.scale.x*Math.max(3.15,2.45/camera.aspect);camera.position.copy(center).addScaledVector(normal,distance);camera.up.set(0,1,0);camera.lookAt(center)}}
+  avatar.position.y=transport.driving?2.7:0;if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>=qualityTiers[effectiveTier()].shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock=0}presentation.render();if(!document.hidden)meter(raw);
  }
  const dispatchInteraction=createInteractionDispatcher([
   {id:'transport',run:()=>transport.interact()},
+  {id:'chronicle',run:()=>{if(!chronicle.near(player.position))return false;callbacks.onNotice?.(chronicle.details());return true}},
   {id:'lift',run:()=>traversal.interact()},
   {id:'interior',run:()=>{if(buildings.getInside()===null)return false;buildings.interact();return true}},
     {id:'commons',run:()=>commons.interact()},
@@ -113,7 +122,10 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  callbacks.onPlace(0);callbacks.onCommons?.(false);tick();callbacks.onReady();
  queueMicrotask(()=>{if(!disposed)weatherFeed=watchLocalWeather(value=>{if(!disposed)weather.set(value)})});
  queueMicrotask(()=>{if(!disposed)bulletinFeed=watchBulletins({market:bulletins.setMarket,news:bulletins.setNews},{active:()=>!disposed&&!paused&&!document.hidden&&transport.journey.current===0&&!transport.journey.mode})});
+ queueMicrotask(()=>{if(!disposed)forgeFeed=watchForge(snapshot=>{if(disposed)return;chronicle.set(snapshot);transport.landscapes[1]?.civilization?.setRepositories(snapshot)},{active:()=>!disposed&&!paused&&!document.hidden&&(transport.journey.current===0||transport.journey.current===1||observedPlanet===1)})});
  return {
+  observePlanet:(destination:number)=>{if(transport.journey.mode||!transport.surfaces[destination])return false;if(observedPlanet!==null)transport.landscapes[observedPlanet]?.rotation.reset();observedPlanet=destination;const identity=civilizationFor(transport.surfaces[destination]!.stop);callbacks.onNotice?.(identity?civilizations[identity].brand+' / '+civilizations[identity].name:'Cache Gardens');input.state.clear();input.setEnabled(false);weather.sky.update(weather.snapshot,0,settings.reducedMotion,false,true);return true},
+  stopObservation:()=>{if(observedPlanet!==null)transport.landscapes[observedPlanet]?.rotation.reset();observedPlanet=null;input.state.clear();input.setEnabled(!paused&&!menuOpen)},chronicle,
   renderStats:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,textures:renderer.info.memory.textures,geometries:renderer.info.memory.geometries}),
   bulletins,goBulletins:(kind:keyof typeof bulletinSites='markets')=>{if(paused||transport.journey.mode)return false;commons.voice.cancel();transport.home();player.position.set(bulletinSites[kind].x,bulletinView.y,bulletinView.z);rig.reset(bulletinCameraView(camera.aspect));input.state.clear();void bulletinFeed?.refresh();callbacks.onNotice?.(kind==='markets'?'Market Watch':'World Business');return true},
   weather,plaza:commons,goCommons:()=>{commons.voice.cancel();transport.home();const arrival=commonsArrival(camera.aspect);player.position.set(arrival.position.x,arrival.position.y,arrival.position.z);rig.reset(arrival.view);input.state.clear();callbacks.onNotice?.('Motherboard Commons')},
@@ -129,8 +141,8 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
     setPaused:(v:boolean)=>{paused=v;input.setEnabled(!paused&&!menuOpen);if(v){living.sound(false);audio.enable(false);commons.voice.cancel()}else if(audioUnlocked&&!settings.muted){audio.enable(true);living.sound(true)}},
   home,step:(dx:number,dz:number)=>{if(!paused&&!menuOpen&&!traversal.moving&&!transport.journey.mode){audioGesture();if(transport.driving)transport.update(.08,dx,dz,settings.reducedMotion);else if(!transport.stepSurface(dx,dz,1.8))moveCharacter(player,dx,dz,.75,transport.blocked,transport.height,transport.bounds)}},
   route:buildings.route,travel:(i:number)=>{if(paused||menuOpen||!districts[i])return;commons.voice.cancel();transport.home();player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
-    interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen);if(v)commons.voice.cancel()},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},
-    dispose:()=>{audio.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();bulletinFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);presentation.dispose();disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
+    interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen&&observedPlanet===null);if(v)commons.voice.cancel()},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},
+    dispose:()=>{audio.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();bulletinFeed?.dispose();forgeFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);presentation.dispose();disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
  };
 }
 

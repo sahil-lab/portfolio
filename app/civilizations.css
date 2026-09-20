@@ -1,0 +1,16 @@
+.civilization-observe{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin:14px 0 4px}
+.civilization-profile{display:flex!important;align-items:center;justify-content:space-between;min-height:44px;margin:8px 0 18px;font-size:13px}
+.civilization-passport{padding-top:8px;margin-top:22px;border-top:1px solid #9cbcaf38}
+.civilization-passport>span{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;margin:0 8px 8px 0;border:1px dashed #869d9b;color:#92a8a6;border-radius:4px;font-size:10px}
+.civilization-passport>span[data-stamped=true]{border:1px solid #acd8c6;color:#d9eddf;background:#b0dcbd0d}
+.kingdom[data-observing=true] .location,.kingdom[data-observing=true] .quest,.kingdom[data-observing=true] .map-card,.kingdom[data-observing=true] .interaction,.kingdom[data-observing=true] .walk-pad,.kingdom[data-observing=true] .touch-joystick,.kingdom[data-observing=true] .world-notice,.kingdom[data-observing=true] .topbar nav{display:none!important}
+.civilization-observation{position:absolute;inset:0;pointer-events:none;color:#f1f6fc;font-family:'Space Grotesk','Trebuchet MS',sans-serif}
+.civilization-observation header{position:absolute;left:32px;top:126px;max-width:calc(100% - 64px)}
+.civilization-observation header>span{display:flex;align-items:center;gap:8px;font-size:10px;color:#b8cedd}
+.civilization-observation h1{font:500 36px/1.15 'Fraunces',serif;margin:12px 0 6px;letter-spacing:0}
+.civilization-observation p{font-size:13px;color:#cad7e2;margin:0}
+.civilization-observation footer{position:absolute;bottom:82px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:0 16px}
+.civilization-observation button,.civilization-observation a{pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:10px 16px;border:1px solid #c9dae346;border-radius:5px;background:#18272de8;color:#edf4f8;font-size:12px;text-decoration:none}
+.civilization-observation a{background:#e4eef7;color:#15314c;border-color:#e4eef7}
+.civilization-observation img{width:17px;height:17px;object-fit:contain}
+@media(max-width:700px){.civilization-observation header{left:20px;top:92px;max-width:calc(100% - 40px)}.civilization-observation h1{font-size:30px}.civilization-observation header>span{font-size:8px}.civilization-observation footer{bottom:80px;gap:8px}.civilization-observation button,.civilization-observation a{font-size:11px;padding:9px 12px}.kingdom[data-observing=true] .topbar{height:62px}}

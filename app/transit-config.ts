@@ -3,9 +3,9 @@ export type TransitStop={id:string;name:string;subtitle:string;x:number;y:number
 /** Satellite worlds are computer components; local gravity stays vertical on their landing decks. */
 export const transitStops:readonly TransitStop[]=[
  {id:'motherboard',name:'Motherboard Central',subtitle:'Your workshop, projects, and seven living districts.',x:-36.5,y:.8,z:3,color:'#e9c687',theme:'home'},
- {id:'copper',name:'Copper Dunes',subtitle:'Wide copper deserts, solar groves and distant observatories.',x:-245,y:110,z:-285,color:'#d89563',theme:'copper',radius:78},
+ {id:'copper',name:'GitHub - The Forge',subtitle:'Black stone, white foundries. The world of things I build.',x:-245,y:110,z:-285,color:'#dce2e9',theme:'copper',radius:78},
  {id:'garden',name:'Cache Gardens',subtitle:'A vast green globe of forests and quiet horizon outposts.',x:0,y:160,z:-470,color:'#9dcab4',theme:'garden',radius:96},
- {id:'prism',name:'Prism Moon',subtitle:'Crystal landscapes beneath a sweeping aurora ring.',x:245,y:120,z:-285,color:'#b9a3df',theme:'prism',radius:84},
+ {id:'prism',name:'LinkedIn - The Citadel',subtitle:'Blue water, white towers. A city shaped by a professional journey.',x:245,y:120,z:-285,color:'#0a66c2',theme:'prism',radius:84},
 ];
 export type TransitMode='metro'|'rocket';
 export const resonatorOffset={x:5,z:-11};
