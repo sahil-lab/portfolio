@@ -86,7 +86,7 @@ export function createAweWorld(scene:T.Scene){
   for(let i=0;i<3;i++){block('Kafka_HorizonPartition',29+i*3,4,-54,1.2,.32,53,copper);for(let j=0;j<5;j++)block('Kafka_RetainedEvent',29+i*3,4.6,-47+j*9,.8,.7,1.3,amber)}
 
   // The enclosure dwarfs the player. Ceiling beams, sockets and fan housings read as machinery.
-  block('Chassis_Ceiling',0,72,-10,154,2,140,dark);
+  block('Chassis_Ceiling',0,72,-10,154,2,140,dark).userData.cameraSolid=true;
   for(let i=0;i<8;i++)block('Chassis_Crossbeam',-65+i*18,66,-10,1.2,12,140,copper);
   for(let i=0;i<5;i++){const z=-60+i*29;block('Chassis_LongitudinalBeam',0,68,z,154,5,1.8,sage);ring('Chassis_CoolingIntake',-57,41,z,7,.7,dark,true)}
   block('Chassis_LeftWall',-65,33,0,2,66,135,dark);block('Chassis_RightWall',66,33,0,2,66,135,dark);

@@ -2,13 +2,15 @@ import * as T from 'three';
 import {KingdomSimulation} from './simulation';
 import {districts} from './world-config';
 import type {buildWorldScenery} from './world-scenery';
-export const machineStations=districts.slice(1).map((d,i)=>({district:i+1,x:d.x-4,z:d.z+5,label:d.name+' terminal'}));
+import {createWoodenSign,type WoodenSignShape} from './wooden-sign';
+export const machineStations=districts.slice(1).map((d,i)=>({district:i+1,x:d.x+(i===1?3.6:-4),z:d.z+5,label:d.name+' terminal'}));
 /** Rendering is a projection of the same local state displayed by the terminal panel. */
 export function createDistrictMachines(scene:T.Scene,player:T.Group,animated:ReturnType<typeof buildWorldScenery>['animated'],sim:KingdomSimulation,open:(district:number)=>void){
  const root=new T.Group();root.name='DistrictMachines';scene.add(root);
  const mesh=(x:number,y:number,z:number,color:string,scale=.35)=>{const m=new T.Mesh(new T.BoxGeometry(scale,scale,scale),new T.MeshStandardMaterial({color,roughness:.7,emissive:color,emissiveIntensity:.15}));m.position.set(x,y,z);root.add(m);return m};
- function label(text:string,x:number,y:number,z:number){const c=document.createElement('canvas');c.width=768;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle='#123735';ctx.fillRect(0,0,768,96);ctx.fillStyle='#fff0d0';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText(text,384,58);const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),depthTest:true}));s.position.set(x,y,z);s.scale.set(5,.625,1);root.add(s);return s}
- machineStations.forEach(s=>{const m=mesh(s.x,.75,s.z,districts[s.district].color,.75);m.name=s.label;label('E · '+districts[s.district].name,s.x,2.1,s.z)});
+ const signSolids:{x:number;z:number;width:number}[]=[];
+ function label(text:string,x:number,z:number,width=2.7,height=1.6,shape:WoodenSignShape='shield'){const board=createWoodenSign(text,{width,height,shape});board.position.set(x,.45,z);root.add(board);signSolids.push({x,z,width});return board}
+ machineStations.forEach(s=>label('E · '+districts[s.district].name,s.x,s.z,3.2,2.05,s.district%2?'shield':'arch'));
  const cores=animated.cores;cores.forEach(m=>m.material=(m.material as T.Material).clone());
  const queue=Array.from({length:9},(_,i)=>mesh(-25+i*.5,1,-3,'#efc78e'));
  const records=sim.records.map((_,i)=>mesh(-1.8+(i%4)*1.2,1,35.5+Math.floor(i/4)*.7,'#dfb875',.5));
@@ -18,7 +20,7 @@ export function createDistrictMachines(scene:T.Scene,player:T.Group,animated:Ret
  const consumers=Array.from({length:6},(_,i)=>mesh(24,2+i%2*.4,-30+Math.floor(i/2)*1.6,i%2?'#a1b9ef':'#bce3a6',.25));
  const gpuLight=new T.PointLight('#ffc888',3,14);gpuLight.position.set(28,6,18);root.add(gpuLight);
  const hops=[new T.Vector3(-33,1.3,20),new T.Vector3(-28,1.3,19),new T.Vector3(-23,1.3,18),new T.Vector3(20,1.3,-8)];
- const hopNames=['Source NIC','Router A','Switch B','Destination'];hops.slice(0,3).forEach((p,i)=>label(hopNames[i],p.x,3,p.z));
+ const hopNames=['Source NIC','Router A','Switch B','Destination'];hops.slice(0,3).forEach((p,i)=>label(hopNames[i],p.x-(i===0?3:0),22,2.1,1,'arrow'));
  const path=new T.Line(new T.BufferGeometry(),new T.LineBasicMaterial({color:'#a4dcea'}));root.add(path);let dest='',gpuKey='';
  const nearest=()=>machineStations.find(s=>Math.hypot(player.position.x-s.x,player.position.z-s.z)<2.8&&player.position.y<3);
  function update(){
@@ -32,5 +34,5 @@ export function createDistrictMachines(scene:T.Scene,player:T.Group,animated:Ret
   podLights.forEach((m,i)=>{const pod=sim.pods.find(p=>p.node===i);(m.material as T.MeshStandardMaterial).color.set(!pod?'#526665':pod.ready?'#b5e6d3':'#e89b85');m.scale.y=pod?pod.ready?1:.4:.1});const routed=sim.pods.find(p=>p.id===sim.routed);if(routed)podRoute.position.x=-5+routed.node*5;
   sim.partitions.forEach((partition,p)=>{const start=Math.max(0,partition.length-16);for(let j=0;j<16;j++){const m=events[p*16+j];m.visible=j<partition.length;m.position.set(24+j*.65,1.6,-30+p*1.6)}['garden','archive'].forEach((group,g)=>consumers[p*2+g].position.x=24+T.MathUtils.clamp(sim.offsets[group][p]-start,0,16)*.65)});
  }
- update();return {update,prompt:()=>{const s=nearest();return s?'E · Operate '+districts[s.district].name:null},interact:()=>{const s=nearest();if(!s)return false;open(s.district);return true},near:()=>nearest()?.district??null};
+ update();return {update,blocked:(x:number,z:number,y:number)=>y<3&&signSolids.some(s=>Math.abs(x-s.x)<s.width/2+.4&&Math.abs(z-s.z)<.8),prompt:()=>{const s=nearest();return s?'E · Operate '+districts[s.district].name:null},interact:()=>{const s=nearest();if(!s)return false;open(s.district);return true},near:()=>nearest()?.district??null};
 }

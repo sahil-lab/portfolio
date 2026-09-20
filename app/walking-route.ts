@@ -2,17 +2,18 @@ export type GroundPoint={x:number;z:number};
 // Bounded grid search uses the same collision predicate as player movement.
 // Only cardinal edges are used, so routes cannot cut diagonally through corners.
 export function planWalkingRoute(start:GroundPoint,end:GroundPoint,blocked:(x:number,z:number)=>boolean):GroundPoint[]{
- const scale=2,side=201,offset=100;
+ const scale=2,side=201,offset=100,rows=379;
+ const inside=(x:number,z:number)=>Math.abs(x)<=offset&&z>=-offset&&z<=278;
  const id=(x:number,z:number)=>(z+offset)*side+x+offset;
  const point=(key:number)=>({x:(key%side-offset)/scale,z:(Math.floor(key/side)-offset)/scale});
  const clear=(a:GroundPoint,b:GroundPoint)=>{const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.1));for(let i=0;i<=steps;i++){const t=i/steps;if(blocked(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t))return false}return true};
  const sx=Math.round(start.x*scale),sz=Math.round(start.z*scale),ex=Math.round(end.x*scale),ez=Math.round(end.z*scale);
- if([sx,sz,ex,ez].some(v=>Math.abs(v)>offset))return [];
- const target=id(ex,ez),parents=new Int32Array(side*side).fill(-2),queue:number[]=[];
- for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){if(Math.abs(sx+dx)>offset||Math.abs(sz+dz)>offset)continue;const key=id(sx+dx,sz+dz);if(clear(start,point(key))){parents[key]=-1;queue.push(key)}}
+ if(!inside(sx,sz)||!inside(ex,ez))return [];
+ const target=id(ex,ez),parents=new Int32Array(side*rows).fill(-2),queue:number[]=[];
+ for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){if(!inside(sx+dx,sz+dz))continue;const key=id(sx+dx,sz+dz);if(clear(start,point(key))){parents[key]=-1;queue.push(key)}}
  if(!clear(point(target),end))return [];
  let reached=false;
- for(let head=0;head<queue.length;head++){const current=queue[head];if(current===target){reached=true;break}const a=point(current);for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=Math.round(a.x*scale)+dx,z=Math.round(a.z*scale)+dz;if(Math.abs(x)>offset||Math.abs(z)>offset)continue;const key=id(x,z);if(parents[key]!==-2||!clear(a,point(key)))continue;parents[key]=current;queue.push(key)}}
+ for(let head=0;head<queue.length;head++){const current=queue[head];if(current===target){reached=true;break}const a=point(current);for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=Math.round(a.x*scale)+dx,z=Math.round(a.z*scale)+dz;if(!inside(x,z))continue;const key=id(x,z);if(parents[key]!==-2||!clear(a,point(key)))continue;parents[key]=current;queue.push(key)}}
  if(!reached)return [];
  const path:GroundPoint[]=[end];for(let key=target;key!==-1;key=parents[key])path.push(point(key));path.push(start);path.reverse();
  // Compress straight runs without introducing any new corner-cutting edges.

@@ -11,8 +11,8 @@ export function TransitPanel({status,start,hub,arrive}:{status:TransitStatus;sta
  <h3>Choose your next stop</h3><div className="planet-destinations">{transitStops.map((stop,i)=><button key={stop.id} aria-pressed={selected===i} disabled={status.current===i||status.driving} onClick={()=>setChoice(i)} style={{'--planet-color':stop.color} as React.CSSProperties}><span className="planet-number">0{i+1}</span><span><strong>{stop.name}</strong><small>{stop.subtitle}</small></span>{status.current===i?<small>HERE</small>:status.visited.includes(stop.id)?<Check size={17} aria-label="Visited"/>:null}</button>)}</div>
  <div className="boarding-actions"><button className="transit-primary" disabled={!status.nearMetro||status.driving} onClick={()=>start(selected,'metro')}><TrainFront size={20}/> Board metro <small>15 sec · scenic route</small></button><button disabled={!status.nearRocket||status.driving} onClick={()=>start(selected,'rocket')}><Rocket size={20}/> Launch rocket <small>10 sec · express</small></button></div>
  <p className="boarding-help">{status.driving?'Park the rover with E before boarding.':status.nearMetro?'You are at the metro platform. Choose a destination and board.':status.nearRocket?'You are at the rocket pad. Choose a destination and launch.':'Walk to a platform or rocket pad to board. Look for the cream canopy and glowing launch ring.'}</p>
- {status.current===0&&!status.nearMetro&&!status.nearRocket&&<button onClick={hub}>Go to Motherboard Central</button>}
+ {!status.nearMetro&&!status.nearRocket&&<button onClick={hub}>{status.current===0?'Go to Motherboard Central':'Return to landing station'}</button>}
  </>}
  <div className="rover-tip"><Car size={26}/><p><strong>Your rover is waiting.</strong><br/>Press E beside a parked car. WASD, arrow keys, or the joystick drive it; E parks it and lets you step out.</p></div>
- <p className="transit-footnote">These are fictional satellite components inside the living computer. Landing decks use stable local gravity. Your portfolio and delivery progress travel with you.</p></section>
+ <p className="transit-footnote">Motherboard Central / Orbital transit authority</p></section>
 }

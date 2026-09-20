@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {batchScenery} from './static-batching';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
+import {metroDimensions,type MetroRig} from './transit-motion';
 export function createTransitModels(){
  const surface=createCraftMaterials();
  const cream=surface('#e6dbc1'),copper=surface('#b98659',0,.65),navy=surface('#203a45',0,.35),rubber=surface('#253c3c'),glow=surface('#d7ead9',.55);
@@ -16,16 +17,23 @@ export function createTransitModels(){
   const wheels:T.Mesh[]=[];for(const x of [-1.15,1.15])for(const z of [-1.1,1.1]){const tire=mesh(g,new T.CylinderGeometry(.51,.51,.34,20),rubber,x,.45,z);tire.rotation.z=Math.PI/2;wheels.push(tire);const hub=mesh(g,new T.CylinderGeometry(.27,.27,.37,16),copper,x,.45,z);hub.rotation.z=Math.PI/2}
   batchScenery(g,{wheels});return {root:g,wheels};
  }
- function train(){
-  const g=new T.Group();g.name='NeighborMetro';
-  for(let i=0;i<3;i++){const z=-i*5.3;box(g,navy,0,.45,z,2.8,.5,4.8);box(g,i===0?copper:cream,0,1,z,2.9,.65,4.6);box(g,navy,0,1.47,z,2.5,.14,4.2);
-   for(const side of [-1,1]){box(g,cream,side*1.38,1.62,z,.14,1,4.3);for(let j=0;j<3;j++){box(g,navy,side*1.47,1.78,z-1.25+j*1.25,.08,.55,.85)}box(g,copper,side*1.48,1.11,z,.09,.13,4.4)}
-   if(i>0)box(g,cream,0,2.34,z,3.03,.2,4.6);else {box(g,cream,0,2.34,z+1.55,3.03,.2,1.35);box(g,navy,0,1.82,z+2.16,2.5,.64,.08)}
-   for(const x of [-1.4,1.4])for(const dz of [-1.5,1.5]){const wheel=mesh(g,new T.CylinderGeometry(.38,.38,.2,12),navy,x,.28,z+dz);wheel.rotation.z=Math.PI/2}
-   if(i<2)box(g,copper,0,.65,z-2.65,.6,.3,.8);
+ function train():MetroRig{
+  const root=new T.Group();root.name='NeighborMetro';const carriages:MetroRig['carriages']=[],couplers:T.Mesh[]=[];
+  for(let index=0;index<metroDimensions.carCount;index++){
+   const body=new T.Group();body.name='MetroCar_'+index;root.add(body);
+   box(body,navy,0,.45,0,2.8,.5,4.8);box(body,index===0?copper:cream,0,1,0,2.9,.65,4.6);box(body,navy,0,1.47,0,2.5,.14,4.2);
+   for(const side of [-1,1]){box(body,cream,side*1.38,1.62,0,.14,1,4.3);for(let window=0;window<3;window++)box(body,navy,side*1.47,1.78,-1.25+window*1.25,.08,.55,.85);box(body,copper,side*1.48,1.11,0,.09,.13,4.4)}
+   if(index>0)box(body,cream,0,2.34,0,3.03,.2,4.6);else box(body,cream,0,2.34,1.55,3.03,.2,1.35);
+   if(index!==1){const end=index===0?1:-1;box(body,navy,0,1.82,end*2.16,2.5,.64,.08);for(const side of [-1,1])mesh(body,new T.SphereGeometry(.19,12,8),glow,side*.92,1.16,end*2.34)}
+   const axles:T.Group[]=[],wheels:T.Mesh[]=[];
+   for(let axleIndex=0;axleIndex<2;axleIndex++){
+    const axle=new T.Group();axle.name=`MetroAxle_${index}_${axleIndex}`;root.add(axle);axles.push(axle);
+    for(const side of [-1,1]){const wheel=mesh(axle,new T.CylinderGeometry(metroDimensions.wheelRadius,metroDimensions.wheelRadius,.2,20),navy,side*metroDimensions.gauge/2,metroDimensions.wheelRadius+metroDimensions.railRadius,0);wheel.rotation.z=Math.PI/2;wheel.name='MetroWheel';wheels.push(wheel)}
+   }
+   batchScenery(body,{});carriages.push({body,axles,wheels});
+   if(index<metroDimensions.carCount-1){const coupler=mesh(root,new T.CylinderGeometry(.13,.13,1,8),copper);coupler.name='MetroCoupler';couplers.push(coupler)}
   }
-  for(const x of [-.92,.92])mesh(g,new T.SphereGeometry(.19,12,8),glow,x,1.16,2.34);
-  batchScenery(g,{});return g;
+  return {root,carriages,couplers};
  }
  function rocket(color:string){
   const g=new T.Group();g.name='DiagnosticRocket';const paint=surface(color,0,.25);

@@ -1,19 +1,20 @@
-export type TransitStop={id:string;name:string;subtitle:string;x:number;y:number;z:number;color:string;theme:'home'|'copper'|'garden'|'prism'};
+import {createMetroPath,metroAxleSpan,metroDistance,rocketFlight} from './transit-motion';
+export type TransitStop={id:string;name:string;subtitle:string;x:number;y:number;z:number;color:string;theme:'home'|'copper'|'garden'|'prism';radius?:number};
 /** Satellite worlds are computer components; local gravity stays vertical on their landing decks. */
 export const transitStops:readonly TransitStop[]=[
- {id:'motherboard',name:'Motherboard Central',subtitle:'Your workshop, projects, and seven living districts.',x:-24,y:.8,z:8,color:'#e9c687',theme:'home'},
- {id:'copper',name:'Copper Dunes',subtitle:'A warm satellite of etched copper and solar ceramic.',x:-95,y:42,z:-140,color:'#d89563',theme:'copper'},
- {id:'garden',name:'Cache Gardens',subtitle:'A quiet green world where temporary memories bloom.',x:0,y:65,z:-190,color:'#9dcab4',theme:'garden'},
- {id:'prism',name:'Prism Moon',subtitle:'A small rendering world beneath a violet aurora ring.',x:95,y:46,z:-140,color:'#b9a3df',theme:'prism'},
+ {id:'motherboard',name:'Motherboard Central',subtitle:'Your workshop, projects, and seven living districts.',x:-36.5,y:.8,z:3,color:'#e9c687',theme:'home'},
+ {id:'copper',name:'Copper Dunes',subtitle:'Wide copper deserts, solar groves and distant observatories.',x:-245,y:110,z:-285,color:'#d89563',theme:'copper',radius:78},
+ {id:'garden',name:'Cache Gardens',subtitle:'A vast green globe of forests and quiet horizon outposts.',x:0,y:160,z:-470,color:'#9dcab4',theme:'garden',radius:96},
+ {id:'prism',name:'Prism Moon',subtitle:'Crystal landscapes beneath a sweeping aurora ring.',x:245,y:120,z:-285,color:'#b9a3df',theme:'prism',radius:84},
 ];
 export type TransitMode='metro'|'rocket';
+export const resonatorOffset={x:5,z:-11};
 export type Point3={x:number;y:number;z:number};
 export function transitPoint(from:TransitStop,to:TransitStop,t:number,mode:TransitMode='metro'):Point3{
- const u=Math.max(0,Math.min(1,t)),v=1-u,lift=mode==='metro'?65:85;
- // Shared northbound approaches keep rails above the square and away from cars/stalls.
- // A cubic curve joins both stations with matching arrival/departure tangents.
- const cubic=(a:number,b:number,c:number,d:number)=>v*v*v*a+3*v*v*u*b+3*v*u*u*c+u*u*u*d;
- return {x:cubic(from.x,from.x,to.x,to.x),y:cubic(from.y,from.y+lift,to.y+lift,to.y),z:cubic(from.z,from.z-100,to.z-100,to.z)};
+ if(mode==='rocket'){const point=rocketFlight(from,to,t).position;return {x:point.x,y:point.y,z:point.z}}
+ if(t<=0)return {x:from.x,y:from.y,z:from.z};if(t>=1)return {x:to.x,y:to.y,z:to.z};
+ const path=createMetroPath(from,to),point=path.sample(metroDistance(path,t)-metroAxleSpan/2).position;
+ return {x:point.x,y:point.y,z:point.z};
 }
 export class TransitJourney{
  current=0;destination=0;elapsed=0;duration=0;mode:TransitMode|null=null;

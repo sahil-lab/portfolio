@@ -30,6 +30,14 @@ test('camera responds to moving doors on the next frame',()=>{
  door.position.z=3;rig.update(.016,false,defaultSettings);assert.ok(camera.position.z<2.8);
  door.visible=false;rig.update(.1,false,defaultSettings);assert.ok(camera.position.z>2.8);
 });
+test('vehicle camera stays below the chassis ceiling during an orbital climb',()=>{
+ const {createAweWorld}=require('../app/awe-world.ts'),{disposeScene}=require('../app/scene-resources.ts');
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1,.1,1000);
+ createAweWorld(scene);scene.add(player);scene.scale.setScalar(2);player.position.set(-33.8089,69.3805,-73.7353);scene.updateMatrixWorld(true);
+ const rig=createGameCamera(camera,scene,player);rig.update(.02,false,defaultSettings,true);
+ assert.ok(camera.position.y<141.7);assert.ok(camera.position.y>player.getWorldPosition(new T.Vector3()).y);
+ disposeScene(scene);
+});
 test('save validation preserves inventory conservation, rejects corrupt/version-mismatched data, safely restarts charging',()=>{
  assert.equal(parseSave('{broken').delivery,null);assert.equal(parseSave('{"version":99}').delivery,null);const round=new DeliveryRound();round.prepare();assert.equal(validateDelivery(round.snapshot).phase,'idle');round.tick(3);round.collect();round.deliver('owl');round.discover('kiln','Compiler kiln');const saved=validateDelivery(round.snapshot);assert.deepEqual(saved.delivered,['owl']);assert.equal(saved.stock,3);assert.equal(validateDelivery({...saved,inventory:4}),null);assert.equal(validateDelivery({...saved,delivered:['owl','owl']}),null);const restored=new DeliveryRound();restored.restore(saved);assert.equal(restored.deliver('owl'),false);assert.deepEqual(restored.snapshot.discoveries,['kiln']);
 });
