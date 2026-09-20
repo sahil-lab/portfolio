@@ -25,6 +25,8 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {createWeatherWorld} from './weather-world';
 import {watchLocalWeather} from './weather-state';
 import {createCreativePlaza,commonsSpawn} from './creative-plaza';
+import {createBulletinWorld,bulletinSites,bulletinView,bulletinCameraView} from './bulletin-world';
+import {watchBulletins} from './bulletin-feed';
 import {districts,districtDestinations,workshopSpawn} from './world-config';
 export {districts} from './world-config';
 export type WorldCallbacks={onPlace:(i:number)=>void;onReady:()=>void;onInteract:(i:number)=>void;onVoiceEnabled?:()=>void;onCommons?:(inside:boolean)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onExhibit?:(i:number)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void;onNotice?:(s:string)=>void;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onPauseToggle?:()=>void;onPerformance?:(s:string)=>void;onMachine?:(i:number)=>void;onMachineTick?:()=>void;onTransit?:(s:TransitStatus)=>void;onTransitOpen?:()=>void};
@@ -41,12 +43,13 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  let settings={...initialSettings},paused=false,menuOpen=false,disposed=false,frame=0,machineOpen=false,simUiClock=0; const simulation=new KingdomSimulation();const machines=createDistrictMachines(scene,player,animated,simulation,i=>{machineOpen=true;simulation.message= districts[i].name+": choose a control to operate the local model. State lasts until reload.";callbacks.onMachine?.(i)});
  const traversal=createTraversal(scene,player);const collideScenery=sceneryCollision(physicalBoxes,obstacles);
  let buildingPrompt='',lastPrompt='';
- const buildings=addProjectBuildings(scene,player,{externalBlocked:(x,z)=>living.blocked(x,z)||muralBlocked(x,z)||sceneryBlocked(x,z)||awe.blocked(x,z,player.position.y)||weather.blocked(x,z,player.position.y)||commons.blocked(x,z,player.position.y),...callbacks,onPrompt:(text:string)=>{buildingPrompt=text}});
+ const buildings=addProjectBuildings(scene,player,{externalBlocked:(x,z)=>living.blocked(x,z)||muralBlocked(x,z)||sceneryBlocked(x,z)||awe.blocked(x,z,player.position.y)||weather.blocked(x,z,player.position.y)||commons.blocked(x,z,player.position.y)||bulletins.blocked(x,z,player.position.y),...callbacks,onPrompt:(text:string)=>{buildingPrompt=text}});
  const living=createLivingWorld(scene,player,courier,{...callbacks,initialDelivery,onSound:cue=>audio.cue(cue)});
  const weather=createWeatherWorld(scene,player,sun);let weatherFeed:ReturnType<typeof watchLocalWeather>|undefined;
  const commons=createCreativePlaza(scene,player,{notice:text=>callbacks.onNotice?.(text),subtitle:text=>callbacks.onSubtitle?.(text),sound:()=>audio.cue('pickup'),enableVoice:()=>{settings={...settings,muted:false};commons.speaker.sound(true,settings.volume);callbacks.onVoiceEnabled?.()}});
+ const bulletins=createBulletinWorld(scene,player,text=>callbacks.onNotice?.(text));let bulletinFeed:ReturnType<typeof watchBulletins>|undefined;
  const rig=createGameCamera(camera,scene,player);
- const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y),ground:traversal.height,change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup')});
+ const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:traversal.height,change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup')});
  // Double world dimensions while retaining the courier's original apparent body size.
  // Gameplay coordinates remain local so doors, stairs, routes and collision agree.
  scene.scale.setScalar(2);player.scale.setScalar(.5);pip.scale.setScalar(.5);
@@ -68,21 +71,23 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   const riding=transport.update(dt,x,z,settings.reducedMotion,input.state.keys.has('shift')?4.5:2.75);
    if(!riding&&!menuOpen&&!traversal.moving)moveCharacter(player,x,z,dt*(input.state.keys.has('shift')?4.5:2.75),transport.blocked,transport.height,transport.bounds);
     const onMotherboard=transport.journey.current===0&&!transport.journey.mode;weather.update(dt,settings.reducedMotion,onMotherboard,buildings.getInside()!==null);commons.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
+    bulletins.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
    if(!settings.reducedMotion){time+=dt;animated.fans.forEach((f:T.Object3D)=>f.rotation.y+=dt*.5);animated.gpu!.rotation.y+=dt*.35;pip.rotation.y=Math.sin(time*.7)*.2}awe.update(time,settings.reducedMotion);
    buildings.update(dt);exhibits.forEach((e,i)=>{if(e.snapshot.step!==priorStages[i]){if(buildings.getInside()===i)audio.cue('demo');priorStages[i]=e.snapshot.step}});const distance=player.position.distanceTo(priorPosition);if(distance<1)footDistance+=distance;priorPosition.copy(player.position);if(footDistance>.9){audio.cue('footstep');footDistance=0}ambientClock+=dt;if(ambientClock>12){ambientClock=0;audio.cue('creature')}audio.tick(place);const lifePrompt=living.update(dt,buildings.getInside()!==null,settings.reducedMotion);
    if(!overlookSeen&&player.position.y>8&&player.position.x>8.2&&player.position.z< -24&&player.position.z> -29){overlookSeen=true;callbacks.onNotice?.('Chassis overlook discovered · A whole kingdom is moving inside one machine. Return by the service bridge and lift.');audio.cue('pickup')}
-    const prompt=transport.prompt()??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:commons.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
+    const prompt=transport.prompt()??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:bulletins.prompt()||commons.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
    if(prompt!==lastPrompt){lastPrompt=prompt;callbacks.onPrompt?.(prompt)}
   }
   const nearest=districts.reduce((best,d,i)=>Math.hypot(player.position.x-d.x,player.position.z-d.z)<Math.hypot(player.position.x-districts[best].x,player.position.z-districts[best].z)?i:best,0);if(nearest!==place){place=nearest;callbacks.onPlace(place)}
   const inCommons=transport.journey.current===0&&!transport.journey.mode&&player.position.z>49;if(inCommons!==lastCommons){lastCommons=inCommons;callbacks.onCommons?.(inCommons)}
-  rig.update(dt,buildings.getInside()!==null,settings,!!transport.journey.mode||transport.driving,inCommons?10:1.5);avatar.position.y=transport.driving?2.7:0;if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>.125){renderer.shadowMap.needsUpdate=true;shadowClock=0}renderer.render(scene,camera);if(!document.hidden)meter(raw);
+  rig.update(dt,buildings.getInside()!==null,settings,!!transport.journey.mode||transport.driving,inCommons?(player.position.z>142?14:10):1.5);avatar.position.y=transport.driving?2.7:0;if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>.125){renderer.shadowMap.needsUpdate=true;shadowClock=0}renderer.render(scene,camera);if(!document.hidden)meter(raw);
  }
  const dispatchInteraction=createInteractionDispatcher([
   {id:'transport',run:()=>transport.interact()},
   {id:'lift',run:()=>traversal.interact()},
   {id:'interior',run:()=>{if(buildings.getInside()===null)return false;buildings.interact();return true}},
     {id:'commons',run:()=>commons.interact()},
+    {id:'bulletins',run:()=>bulletins.interact()},
     {id:'weather',run:()=>{if(!weather.near())return false;callbacks.onNotice?.(weather.details());return true}},
   {id:'district-machine',run:()=>machines.interact()},
   {id:'resident',run:()=>living.interact()},
@@ -94,7 +99,9 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  const home=()=>{commons.voice.cancel();transport.home();player.position.set(workshopSpawn.x,workshopSpawn.y,workshopSpawn.z);place=0;callbacks.onPlace(0);rig.reset();input.state.clear()};
  callbacks.onPlace(0);callbacks.onCommons?.(false);tick();callbacks.onReady();
  queueMicrotask(()=>{if(!disposed)weatherFeed=watchLocalWeather(value=>{if(!disposed)weather.set(value)})});
+ queueMicrotask(()=>{if(!disposed)bulletinFeed=watchBulletins({market:bulletins.setMarket,news:bulletins.setNews},{active:()=>!disposed&&!paused&&!document.hidden&&transport.journey.current===0&&!transport.journey.mode})});
  return {
+  bulletins,goBulletins:(kind:keyof typeof bulletinSites='markets')=>{if(paused||transport.journey.mode)return false;commons.voice.cancel();transport.home();player.position.set(bulletinSites[kind].x,bulletinView.y,bulletinView.z);rig.reset(bulletinCameraView(camera.aspect));input.state.clear();void bulletinFeed?.refresh();callbacks.onNotice?.(kind==='markets'?'Market Watch':'World Business');return true},
   weather,plaza:commons,goCommons:()=>{commons.voice.cancel();transport.home();player.position.set(commonsSpawn.x,commonsSpawn.y,commonsSpawn.z);rig.reset({yaw:0,pitch:.23,zoom:Math.max(54,Math.min(160,40/camera.aspect)),focusHeight:10});input.state.clear();callbacks.onNotice?.('Motherboard Commons')},
   goPixel:()=>{if(paused)return false;commons.voice.cancel();transport.home();player.position.set(-24,.8,81);rig.reset({yaw:0,pitch:.18,zoom:Math.max(28,Math.min(90,24/camera.aspect)),focusHeight:10});input.state.clear();return true},
   transport,goTransitHub:()=>{commons.voice.cancel();transport.station();rig.reset();input.state.clear()},
@@ -109,7 +116,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   home,step:(dx:number,dz:number)=>{if(!paused&&!menuOpen&&!traversal.moving&&!transport.journey.mode){audioGesture();if(transport.driving)transport.update(.08,dx,dz,settings.reducedMotion);else if(!transport.stepSurface(dx,dz,1.8))moveCharacter(player,dx,dz,.75,transport.blocked,transport.height,transport.bounds)}},
   route:buildings.route,travel:(i:number)=>{if(paused||menuOpen||!districts[i])return;commons.voice.cancel();transport.home();player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
     interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen);if(v)commons.voice.cancel()},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},
-    dispose:()=>{audio.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
+    dispose:()=>{audio.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();bulletinFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
  };
 }
 

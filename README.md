@@ -26,6 +26,16 @@ Use **Commons** to visit the expanded southern motherboard. Its large screen sta
 
 The screen and the entire motherboard, including Motherboard Central, share one weather snapshot. Daylight shows the sun; nighttime shows the moon and stars, with matching ambient light. Clouds span the motherboard and commons in proportion to reported cloud cover; rain and snow density respond to reported precipitation. Weather refreshes every ten minutes using the location already approved in this session. A failed refresh keeps the last report and labels it as such. Day/night follows the provider's local `is_day` value rather than an unrelated accelerated game clock.
 
+### Market and news boards
+
+**Travel > Market board** and **Travel > News board** lead to two large screens in the open square south of the shops. The motherboard and walking routes extend to the new area. The market screen pages through verified stock prices, percentage changes, market caps and original quote timestamps, with a rotating band of gold, silver, oil, gas, copper, corn and wheat futures. The news screen displays attributed business headlines and a continuously scrolling headline strip. E advances either board; reduced motion stops automatic scrolling and paging.
+
+These use **free, periodically refreshed snapshots, not an exchange-grade real-time feed**. The market loader attempts up to 10,000 records from Yahoo Finance's public largest-market-cap screener. Its available universe is US-listed shares and international ADR/OTC listings, not a complete worldwide ranking. During verification it provided 2,259 valid USD-priced listings plus eight futures contracts. The board shows actual coverage out of the 10,000 target and ranks only the returned USD market caps; it never substitutes fake prices or compares unconverted market caps in different currencies. Closed-session prices, provider delays, futures units and original timestamps are labeled.
+
+The browser checks same-origin `/api/bulletins/markets` and `/api/bulletins/news` every five minutes while the motherboard is active. Server instances cache stock/futures snapshots for fifteen minutes and headlines for five minutes, coalesce simultaneous requests, bound payload sizes and reject redirects. Initial failures show unavailable data; refresh failures keep the last report with a stale label and its original timestamp. No API keys, credentials, visitor location or paid subscriptions are used for these boards. Public endpoints can change or rate-limit; verify provider and exchange redistribution terms before commercial use.
+
+Market source: [Yahoo Finance](https://finance.yahoo.com/markets/stocks/large-cap/). Headline sources: [BBC Business](https://www.bbc.com/news/business) and [CNBC Business](https://www.cnbc.com/business/), using their public RSS feeds. Only headlines, source links and publication timestamps are retained, not article bodies. The current top 50 unique headlines are ordered by publication time. Dates on the screens are UTC. RSS changes are not guaranteed to arrive immediately.
+
 Pixel is an original pixel-art portrait in the commons. Approach the front of the painting and press **E** to start listening, then press **E** again to stop and send your question. Pixel speaks the hosted reply, animates its lips, and displays its text on the painting and in the existing subtitles. There is no chat panel, text field, microphone button or separate recording interface. The **Pixel** navigation command only takes you within speaking range; it never opens the microphone. The existing touch **Interact** button performs the same start/stop action as E.
 
 ### Pixel's public AI and voice input
@@ -69,6 +79,7 @@ Start with [phase completion and remaining work](docs/phase-delivery.md), [asset
 - `app/delivery-state.ts`, `exhibit-state.ts`: delivery and project state machines.
 - `app/character-controller.ts`, `game-camera.ts`, `game-input.ts`, `persistence.ts`: movement, camera, input and saves.
 - `app/weather-state.ts`, `weather-world.ts`, `weather-sky.ts`: permission-aware weather refresh, fallback data, the large display and synchronized sky/atmosphere.
+- `app/bulletin-data.ts`, `bulletin-feed.ts`, `bulletin-world.ts`, `lib/bulletin-feeds.ts`: quote/headline validation, cached server feeds and the two in-world bulletin displays. `scripts/check-bulletins.cjs` verifies live data and desktop/mobile rendering through an isolated Playwright/Edge session.
 - `app/creative-plaza.ts`, `portrait-speaker.ts`: spaced-out shop models, interactive vending and the locally voiced pixel portrait.
 - `app/painting-ai.ts`, `painting-conversation.ts`, `painting-speech.ts`, `painting-interaction.ts`: anonymous hosted inference, session context, explicit start/stop recognition and Pixel's in-world E interaction.
 - `app/planet-surface.ts`, `planet-geography.ts`: globe terrain, local gravity, road/river elevation and full-surface movement.

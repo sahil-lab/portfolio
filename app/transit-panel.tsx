@@ -1,9 +1,9 @@
 'use client';
 import {useState} from 'react';
-import {TrainFront,Rocket,Car,Orbit,Check} from 'lucide-react';
+import {TrainFront,Rocket,Car,Orbit,Check,ChartNoAxesCombined,Newspaper} from 'lucide-react';
 import {transitStops,type TransitMode} from './transit-config';
 import type {TransitStatus} from './transit-world';
-export function TransitPanel({status,start,hub,arrive}:{status:TransitStatus;start:(destination:number,mode:TransitMode)=>void;hub:()=>void;arrive:()=>void}){
+export function TransitPanel({status,start,hub,arrive,bulletins}:{status:TransitStatus;start:(destination:number,mode:TransitMode)=>void;hub:()=>void;arrive:()=>void;bulletins?:(kind:'markets'|'news')=>void}){
  const [choice,setChoice]=useState(1);const selected=choice===status.current?(status.current+1)%transitStops.length:choice;
  return <section className="transit-panel"><p className="eyebrow">NEIGHBOR WORLDS / ORBITAL LINE</p><h2>The computer is bigger<br/>than you thought.</h2><p>Ride above the motherboard to three satellite worlds. Walk their gardens, drive a rover, and return by metro or ion rocket.</p>
  <div className="transit-current"><Orbit size={20}/><span>{status.mode?'Travelling to '+transitStops[status.destination].name:transitStops[status.current].name}</span><b>{status.mode?status.progress+'%':'STATION '+(status.current+1)}</b></div>
@@ -14,5 +14,6 @@ export function TransitPanel({status,start,hub,arrive}:{status:TransitStatus;sta
  {!status.nearMetro&&!status.nearRocket&&<button onClick={hub}>{status.current===0?'Go to Motherboard Central':'Return to landing station'}</button>}
  </>}
  <div className="rover-tip"><Car size={26}/><p><strong>Your rover is waiting.</strong><br/>Press E beside a parked car. WASD, arrow keys, or the joystick drive it; E parks it and lets you step out.</p></div>
+ {bulletins&&!status.mode&&<><h3>Motherboard Commons</h3><div className="boarding-actions"><button disabled={status.driving} onClick={()=>bulletins('markets')}><ChartNoAxesCombined size={20}/> Market board</button><button disabled={status.driving} onClick={()=>bulletins('news')}><Newspaper size={20}/> News board</button></div></>}
  <p className="transit-footnote">Motherboard Central / Orbital transit authority</p></section>
 }

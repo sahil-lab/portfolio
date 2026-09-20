@@ -10,7 +10,7 @@ import {createPlanetSurface,createPlanetLandscape,planetPoint,moveOnPlanet,reset
 
 export type TransitStatus={current:number;mode:TransitMode|null;destination:number;progress:number;driving:boolean;nearMetro:boolean;nearRocket:boolean;visited:string[]};
 export const emptyTransit:TransitStatus={current:0,mode:null,destination:1,progress:0,driving:false,nearMetro:false,nearRocket:false,visited:['motherboard']};
-const bounds={minX:-400,maxX:400,minZ:-650,maxZ:139};
+const bounds={minX:-400,maxX:400,minZ:-650,maxZ:209};
 
 export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  blocked:(x:number,z:number,y:number)=>boolean;ground:(x:number,z:number,y:number)=>number|null;
@@ -95,7 +95,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   moveOnPlanet(player,surface,dx,dz,distance,position=>surfaceBlocked(position,driving?2.25:.45));return true;
  }
  function height(x:number,z:number,previous:number){
-  if(journey.current===0)return x< -50||x>39.3||z< -50||z>139?null:callbacks.ground(x,z,previous);
+  if(journey.current===0)return x< -50||x>39.3||z< -50||z>209?null:callbacks.ground(x,z,previous);
   const s=current();return Math.hypot(x-s.x,z-(s.z-3))<28&&Math.abs(previous-s.y)<.5?s.y:null;
  }
  function publish(force=false){const s:TransitStatus={current:journey.current,mode:journey.mode,destination:journey.destination,progress:Math.round(journey.progress*100),driving:carIndex!==null,nearMetro:nearMetro(),nearRocket:nearRocket(),visited:[...visited]};const key=JSON.stringify(s);if(force||key!==lastStatus){lastStatus=key;callbacks.change(s)}}
