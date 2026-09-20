@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './transit.css';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 .skill-activate{margin-top:9px;padding:10px 14px;min-height:44px;border:1px solid #b1c899;background:#294d43;color:#e8eed8;border-radius:7px;text-align:left}

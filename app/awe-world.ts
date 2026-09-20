@@ -49,22 +49,22 @@ export function createAweWorld(scene:T.Scene){
   instances('MemoryForest_BookWindows',new T.BoxGeometry(.26,.85,.1),amber,Array.from({length:112},(_,i)=>({x:14+(i%4)*5+Math.floor(i/4)%3*.8,y:5+Math.floor(i/12)*3.6,z:-13.2})));
   for(let y=7;y<=39;y+=8)ring('MemoryForest_ReadingHalo',22,y,-17,8,.09,cream);
 
-  column('DreamFoundry_Column',32,13,18,5,22,dark,16);
-  ring('DreamFoundry_Iris',32,26,18,11,.6,rose,true);
-  ring('DreamFoundry_ColorWheel',32,26,18,8,.24,cyan,true);
-  for(let i=0;i<9;i++){const a=i/9*Math.PI*2;column('DreamFoundry_PigmentWell',32+Math.cos(a)*10,2,18+Math.sin(a)*10,.8,3,i%2?rose:cyan)}
-  instances('DreamFoundry_CyanPixels',new T.BoxGeometry(.45,.45,.45),cyan,Array.from({length:35},(_,i)=>({x:25+(i%7)*2.2,y:8+Math.floor(i/7)*2.9,z:10+(i%3)*3})));
-  instances('DreamFoundry_RosePixels',new T.BoxGeometry(.4,.4,.4),rose,Array.from({length:28},(_,i)=>({x:26+(i%7)*2.1,y:11+Math.floor(i/7)*3.1,z:14+(i%4)*2.2})));
+  column('DreamFoundry_Column',51,13,18,5,22,dark,16);
+  ring('DreamFoundry_Iris',51,26,18,11,.6,rose,true);
+  ring('DreamFoundry_ColorWheel',51,26,18,8,.24,cyan,true);
+  for(let i=0;i<9;i++){const a=i/9*Math.PI*2;column('DreamFoundry_PigmentWell',51+Math.cos(a)*10,2,18+Math.sin(a)*10,.8,3,i%2?rose:cyan)}
+  instances('DreamFoundry_CyanPixels',new T.BoxGeometry(.45,.45,.45),cyan,Array.from({length:35},(_,i)=>({x:46+(i%7)*2.2,y:8+Math.floor(i/7)*2.9,z:10+(i%3)*3})));
+  instances('DreamFoundry_RosePixels',new T.BoxGeometry(.4,.4,.4),rose,Array.from({length:28},(_,i)=>({x:47+(i%7)*2.1,y:11+Math.floor(i/7)*3.1,z:14+(i%4)*2.2})));
 
-  for(let i=0;i<4;i++){
-    const x=-44+i*5;
+  for(let i=0;i<3;i++){
+    const x=-59+i*3;
     column('Network_RouterTower',x,15,23,1.3,29,dark);
     ring('Network_RouterAntenna',x,30,23,2.5,.18,cyan);
     for(let y=8;y<30;y+=6)block('Network_RouterSignal',x,y,24.5,1.8,.35,.12,cyan);
   }
   for(let i=0;i<3;i++){
-    const x=-44+i*5;
-    const rail=block('Network_ElevatedSkyway',x,17,18,1, .35,32,copper);rail.rotation.y=-.1;
+    const x=-59+i*3;
+    const rail=block('Network_ElevatedSkyway',x,17,18,1, .35,51,copper);rail.rotation.y=-.1;
   }
   for(let i=0;i<5;i++){
     const x=-11+i*5.5;
@@ -111,13 +111,13 @@ export function createAweWorld(scene:T.Scene){
   root.traverse(o=>{if(o instanceof T.Mesh)o.castShadow=false});
 
   // A restrained data drift makes the gigantic, otherwise static air feel inhabited.
-  const dustGeo=new T.SphereGeometry(.075,6,4),dust=new T.InstancedMesh(dustGeo,cream,84);dust.name='Atmosphere_DataDust';root.add(dust);const dummy=new T.Object3D();
+  const dustGeo=new T.SphereGeometry(.075,6,4),dust=new T.InstancedMesh(dustGeo,cream,30);dust.name='Atmosphere_DataDust';root.add(dust);const dummy=new T.Object3D();
   const seed=(n:number)=>{const v=Math.sin(n*128.43+8.719)*43758.5453;return v-Math.floor(v)};
   function update(t:number,reduced:boolean){
     const pulse=.5+.5*Math.sin(t*1.25);amber.emissiveIntensity=reduced?.44:.42+pulse*.32;cyan.emissiveIntensity=reduced?.22:.2+pulse*.18;
     for(const b of skillBeacons){const active=b.key===selectedSkill;b.beam.visible=b.halo.visible=active;if(active)b.m.opacity=reduced?.5:.35+pulse*.38}
-    for(let i=0;i<84;i++){dummy.position.set(-47+seed(i+1)*94,1+seed(i+101)*40+(reduced?0:Math.sin(t*.28+i)*.55),-45+seed(i+200)*92);dummy.scale.setScalar(.45+seed(i+301)*1.7);dummy.updateMatrix();dust.setMatrixAt(i,dummy.matrix)}dust.instanceMatrix.needsUpdate=true;
+    for(let i=0;i<30;i++){dummy.position.set(-47+seed(i+1)*94,1+seed(i+101)*40+(reduced?0:Math.sin(t*.28+i)*.55),-45+seed(i+200)*92);dummy.scale.setScalar(.45+seed(i+301)*1.7);dummy.updateMatrix();dust.setMatrixAt(i,dummy.matrix)}dust.instanceMatrix.needsUpdate=true;
   }
   update(0,false);
-  return {update,root,activateSkill:(key:string)=>{selectedSkill=key;update(0,true);return skillSites[key]??null}};
+  return {update,root,blocked:(x:number,z:number,y:number)=>y<16&&((Math.hypot(x+29,z+24)<9.3)||([15,20,25,30].some(px=>Math.abs(x-px)<1.1&&Math.abs(z+16)<1.6))),activateSkill:(key:string)=>{selectedSkill=key;update(0,true);return skillSites[key]??null}};
 }

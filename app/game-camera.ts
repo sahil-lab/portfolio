@@ -1,22 +1,22 @@
 import * as T from 'three';
 import type {Settings} from './persistence';
 export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player:T.Group){
-  let yaw=.1,pitch=.35,zoom=24,distance=24;
+  let yaw=.1,pitch=.45,zoom=34,distance=34;
   const target=new T.Vector3(),wanted=new T.Vector3(),direction=new T.Vector3(),ray=new T.Ray(),hit=new T.Vector3();
   const boxes:T.Box3[]=[];const movingBounds:{mesh:T.Mesh;box:T.Box3}[]=[];let clock=2;
   return {
     get yaw(){return yaw},
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,.16,1.15)},
-    zoom:(amount:number)=>{zoom=T.MathUtils.clamp(zoom+amount,5,45)},
-    reset:()=>{yaw=.1;pitch=.35;zoom=24;distance=24},
-    update:(dt:number,inside:boolean,settings:Settings)=>{
-      clock+=dt;if(clock>1){clock=0;boxes.length=0;movingBounds.length=0;boxes.push(...(scene.userData.staticCameraBounds??[]));scene.traverse(o=>{if(o instanceof T.Mesh&&o.userData.cameraSolid)movingBounds.push({mesh:o,box:new T.Box3()})})}
+    zoom:(amount:number)=>{zoom=T.MathUtils.clamp(zoom+amount,5,80)},
+    reset:()=>{yaw=.1;pitch=.45;zoom=34;distance=34},
+    update:(dt:number,inside:boolean,settings:Settings,vehicle=false)=>{
+      clock+=dt;if(clock>1){clock=0;boxes.length=0;movingBounds.length=0;scene.traverse(o=>{boxes.push(...(o.userData.staticCameraBounds??[]));if(o instanceof T.Mesh&&o.userData.cameraSolid)movingBounds.push({mesh:o,box:new T.Box3()})})}
       // Door leaves and lifts can move between frames. Refresh their bounds without allocating.
       for(const entry of movingBounds){entry.mesh.updateWorldMatrix(true,false);entry.box.setFromObject(entry.mesh).expandByScalar(.3)}
-      target.copy(player.position);target.y+=1.5;
+      player.getWorldPosition(target);target.y+=1.5;
       const angle=settings.stableCamera?.38:pitch,rotation=settings.stableCamera?.1:yaw;
       direction.set(Math.sin(rotation)*Math.cos(angle),Math.sin(angle),Math.cos(rotation)*Math.cos(angle));
-      const desired=inside?Math.min(zoom,11):zoom;
+      const desired=vehicle?Math.max(zoom,46):inside?Math.min(zoom,16):zoom;
       let safe=desired;ray.set(target,direction);
       for(const box of boxes){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
       for(const {mesh,box} of movingBounds){if(!mesh.visible||box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
