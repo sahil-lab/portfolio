@@ -17,10 +17,10 @@ test('commons venues have separated lots and a clear central promenade',()=>{
 test('weather screen switches rain and snow without changing the readable default details',()=>{
   const scene=new T.Scene(),player=new T.Group(),sun=new T.DirectionalLight(),weather=createWeatherWorld(scene,player,sun);
   assert.ok(scene.getObjectByName('Weather_Display'));assert.equal(weather.snapshot.temperature,25);
-  weather.update(.1,false,true,false);assert.equal(scene.getObjectByName('Weather_Rain').visible,false);assert.equal(scene.getObjectByName('Weather_Clouds').visible,true);
-  weather.set({...defaultWeather,kind:'rain',label:'Rain',cloudCover:90});weather.update(.1,false,true,false);assert.equal(scene.getObjectByName('Weather_Rain').visible,true);
-  weather.set({...defaultWeather,kind:'snow',label:'Snow',temperature:-2});weather.update(.1,false,true,false);assert.equal(scene.getObjectByName('Weather_Snow').visible,true);assert.equal(scene.getObjectByName('Weather_Rain').visible,false);
-  weather.set({...defaultWeather,kind:'cold',label:'Cold',temperature:-3});weather.update(.1,false,true,false);assert.ok(sun.color.b>sun.color.r);assert.equal(scene.getObjectByName('Weather_Snow').visible,false);
+  weather.update(.1,false,true,false,true);assert.equal(scene.getObjectByName('Weather_Rain').visible,false);assert.equal(scene.getObjectByName('Weather_Clouds').visible,true);
+  weather.set({...defaultWeather,kind:'rain',label:'Rain',cloudCover:90});weather.update(.1,false,true,false);assert.equal(scene.getObjectByName('Weather_Rain').visible,true,'rain starts within the first frames and then builds');
+  weather.update(.1,false,true,false,true);weather.set({...defaultWeather,kind:'snow',label:'Snow',temperature:-2});weather.update(.1,false,true,false,true);assert.equal(scene.getObjectByName('Weather_Snow').visible,true);assert.equal(scene.getObjectByName('Weather_Rain').visible,false);
+  weather.set({...defaultWeather,kind:'cold',label:'Cold',temperature:-3});weather.update(.1,false,true,false,true);assert.ok(sun.color.b>sun.color.r);assert.equal(scene.getObjectByName('Weather_Snow').visible,false);
   weather.update(.1,true,false,false);assert.equal(scene.getObjectByName('Weather_Snow').visible,false);assert.equal(weather.blocked(11.5,63,.8),true);assert.equal(weather.blocked(0,70,.8),false);disposeScene(scene);
 });
 

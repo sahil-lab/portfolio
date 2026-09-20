@@ -9,7 +9,8 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>){
     let parent:T.Object3D|null=o;while(parent){if(dynamic.has(parent))return;parent=parent.parent}
     if(o.userData.cameraSolid)collision.push(new T.Box3().setFromObject(o).expandByScalar(.3));
     const worldPosition=new T.Vector3().setFromMatrixPosition(o.matrixWorld);
-    const m=o.material,key=[m.color.getHex(),m.emissive.getHex(),m.emissiveIntensity,m.roughness,m.metalness,m.transparent,m.opacity,m.side,Math.floor(worldPosition.x/20),Math.floor(worldPosition.z/20)].join('/');
+    const m=o.material,physical=m instanceof T.MeshPhysicalMaterial?m:null;
+    const key=[m.type,m.color.getHex(),m.emissive.getHex(),m.emissiveIntensity,m.roughness,m.metalness,m.envMapIntensity,m.roughnessMap?.uuid,m.bumpMap?.uuid,m.bumpScale,physical?.clearcoat,physical?.clearcoatRoughness,physical?.transmission,m.transparent,m.opacity,m.side,Math.floor(worldPosition.x/20),Math.floor(worldPosition.z/20)].join('/');
     const list=groups.get(key)??[];list.push(o);groups.set(key,list);
   });
   scene.userData.staticCameraBounds=collision;

@@ -6,21 +6,23 @@ import {batchScenery} from './static-batching';
 export function createAweWorld(scene:T.Scene){
   const root=new T.Group();root.name='LivingComputer_Megastructure';scene.add(root);
   const material=createCraftMaterials();
-  const cream=material('#c9c0a7'),copper=material('#aa704e',0,.65),dark=material('#20343b',0,.32),sage=material('#77978b'),amber=material('#e8a64d',.58),cyan=material('#55bcc0',.4),rose=material('#bd6a8b',.28);
+  const cream=material('#deebe7'),copper=material('#c4a771',0,.68),dark=material('#1c3640',0,.4),sage=material('#679d91'),amber=material('#f5ce86',.72),cyan=material('#6ae9d6',.6),rose=material('#e79180',.35);
   const block=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,m:T.Material)=>{const o=new T.Mesh(craftedBox(w,h,d),m);o.name=name;o.position.set(x,y,z);o.receiveShadow=true;root.add(o);return o};
   const column=(name:string,x:number,y:number,z:number,r:number,h:number,m:T.Material,segments=12)=>{const o=new T.Mesh(new T.CylinderGeometry(r,r,h,segments),m);o.name=name;o.position.set(x,y,z);root.add(o);return o};
   const ring=(name:string,x:number,y:number,z:number,r:number,tube:number,m:T.Material,vertical=false)=>{const o=new T.Mesh(new T.TorusGeometry(r,tube,8,64),m);o.name=name;o.position.set(x,y,z);if(!vertical)o.rotation.x=Math.PI/2;root.add(o);return o};
   function instances(name:string,geometry:T.BufferGeometry,m:T.Material,positions:{x:number;y:number;z:number;sx?:number;sy?:number;sz?:number}[]){const mesh=new T.InstancedMesh(geometry,m,positions.length);const dummy=new T.Object3D();positions.forEach((p,i)=>{dummy.position.set(p.x,p.y,p.z);dummy.scale.set(p.sx??1,p.sy??1,p.sz??1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});mesh.name=name;mesh.computeBoundingSphere();root.add(mesh);return mesh}
 
   // A vertical cut through the outer PCB: the layers below remain visible from the RAM and GPU roads.
-  block('Abyss_DarkGap',47,-.03,0,15,.12,100,dark);
+  block('Abyss_DarkGap',47,-19,0,15,.12,100,dark);
   for(let layer=0;layer<5;layer++){
     const y=-2.5-layer*3.5;
-    block('Abyss_ExposedBoard_'+layer,47,y,0,18,.55,100,layer%2?sage:dark);
-    for(const side of [-1,1])block('Abyss_CopperSeam',47+side*9,y+.15,0,.2,.12,100,copper);
+    for(const side of [-1,1]){
+      block('Abyss_ExposedBoard_'+layer,47+side*(7.2-layer*.34),y,0,1.2+layer*.16,.55,98,layer%2?sage:dark);
+      block('Abyss_CopperSeam',47+side*(6.7-layer*.34),y+.15,0,.12,.07,98,copper);
+    }
   }
   instances('Abyss_DescendingVias',new T.CylinderGeometry(.28,.28,.24,8),amber,Array.from({length:110},(_,i)=>({x:42+(i%7)*1.8,y:-1-(i%5)*3.5,z:-47+Math.floor(i/7)*6.2})));
-  instances('Abyss_SubstrateRibs',new T.BoxGeometry(.4,2,1),copper,Array.from({length:70},(_,i)=>({x:40+(i%5)*3.6,y:-3-Math.floor(i/14)*3.5,z:-45+(i%14)*6.8})));
+  instances('Abyss_SubstrateRibs',new T.BoxGeometry(.25,2,1),copper,Array.from({length:56},(_,i)=>({x:i%2?54:40.4,y:-3-Math.floor(i/14)*3.5,z:-45+(i%14)*6.8})));
   block('Abyss_WalkwayRim',40,.12,0,.7,.3,96,cream);
   block('Abyss_SafetyRail',40,1.2,0,.12,.13,96,copper);
   instances('Abyss_RailPosts',new T.BoxGeometry(.16,1.5,.16),copper,Array.from({length:25},(_,i)=>({x:40,y:.8,z:-46+i*3.8})));
@@ -36,7 +38,7 @@ export function createAweWorld(scene:T.Scene){
   for(const dx of [-.85,.85])for(const dy of [-.9,.9])block('ProcessorCathedral_ComputeTile',-29+dx,10+dy,-17.6,1.35,1.42,.08,copper);
   for(let i=0;i<7;i++){block('ProcessorCathedral_EtchedTrace',-31+i*.65,7.9,-17.58,.07,.55,.03,dark);block('ProcessorCathedral_EtchedTrace',-31+i*.65,12.1,-17.58,.07,.55,.03,dark)}
   die.castShadow=true;
-  for(let i=0;i<4;i++)ring('ProcessorCathedral_ClockHalo',-29,17+i*2.7,-24,5.4+i*.6,.16,i%2?copper:amber);
+  ring('ProcessorCathedral_CrownSeat',-29,15.7,-24,5.4,.09,copper);
   instances('ProcessorCathedral_HeatFins',craftedBox(.65,14,1.6),copper,Array.from({length:26},(_,i)=>{const a=.7+i/25*(Math.PI*2-1.4);return{x:-29+Math.sin(a)*8.8,y:9,z:-24+Math.cos(a)*8.8}}));
   instances('ProcessorCathedral_ContactPins',craftedBox(.2,1.1,.3),copper,Array.from({length:16},(_,i)=>({x:-31.2+(i%8)*.63,y:6.4+Math.floor(i/8)*7.2,z:-17.7})));
   instances('ProcessorCathedral_TraceLights',new T.BoxGeometry(.17,.09,1),amber,Array.from({length:32},(_,i)=>({x:-42+(i%8)*3.5,y:.32,z:-30+Math.floor(i/8)*2.1,sz:2.8})));
@@ -50,11 +52,9 @@ export function createAweWorld(scene:T.Scene){
   for(let y=7;y<=39;y+=8)ring('MemoryForest_ReadingHalo',22,y,-17,8,.09,cream);
 
   column('DreamFoundry_Column',51,13,18,5,22,dark,16);
-  ring('DreamFoundry_Iris',51,26,18,11,.6,rose,true);
-  ring('DreamFoundry_ColorWheel',51,26,18,8,.24,cyan,true);
+  ring('DreamFoundry_Iris',51,26,18,11,.22,rose,true);
+  ring('DreamFoundry_ColorWheel',51,26,18,8,.09,copper,true);
   for(let i=0;i<9;i++){const a=i/9*Math.PI*2;column('DreamFoundry_PigmentWell',51+Math.cos(a)*10,2,18+Math.sin(a)*10,.8,3,i%2?rose:cyan)}
-  instances('DreamFoundry_CyanPixels',new T.BoxGeometry(.45,.45,.45),cyan,Array.from({length:35},(_,i)=>({x:46+(i%7)*2.2,y:8+Math.floor(i/7)*2.9,z:10+(i%3)*3})));
-  instances('DreamFoundry_RosePixels',new T.BoxGeometry(.4,.4,.4),rose,Array.from({length:28},(_,i)=>({x:47+(i%7)*2.1,y:11+Math.floor(i/7)*3.1,z:14+(i%4)*2.2})));
 
   for(let i=0;i<3;i++){
     const x=-59+i*3;
@@ -86,10 +86,18 @@ export function createAweWorld(scene:T.Scene){
   for(let i=0;i<3;i++){block('Kafka_HorizonPartition',29+i*3,4,-54,1.2,.32,53,copper);for(let j=0;j<5;j++)block('Kafka_RetainedEvent',29+i*3,4.6,-47+j*9,.8,.7,1.3,amber)}
 
   // The enclosure dwarfs the player. Ceiling beams, sockets and fan housings read as machinery.
-  block('Chassis_Ceiling',0,72,-10,154,2,140,dark).userData.cameraSolid=true;
-  for(let i=0;i<8;i++)block('Chassis_Crossbeam',-65+i*18,66,-10,1.2,12,140,copper);
-  for(let i=0;i<5;i++){const z=-60+i*29;block('Chassis_LongitudinalBeam',0,68,z,154,5,1.8,sage);ring('Chassis_CoolingIntake',-57,41,z,7,.7,dark,true)}
-  block('Chassis_LeftWall',-65,33,0,2,66,135,dark);block('Chassis_RightWall',66,33,0,2,66,135,dark);
+  for(const side of [-1,1]){
+    block('Chassis_GalleryBase',side*65,2,0,2,8,135,dark);
+    block('Chassis_GalleryCornice',side*65,49,0,1.4,.8,135,cream);
+    block('Chassis_GalleryLight',side*64.7,48.5,0,.1,.12,134,cyan);
+    for(let bay=0;bay<7;bay++)block('Chassis_GalleryColumn',side*65,25,-59+bay*20,.65,47,.65,copper);
+  }
+  for(const z of [-52,-7,38]){
+    const points=Array.from({length:33},(_,index)=>{const angle=index/32*Math.PI;return new T.Vector3(Math.cos(angle)*65,26+Math.sin(angle)*35,z)});
+    const arch=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),64,.42,8,false),cream);arch.name='Chassis_OpenAtriumRib';root.add(arch);
+    const inlay=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(point=>point.clone().add(new T.Vector3(0,-.48,0)))),64,.075,5,false),copper);inlay.name='Chassis_AtriumGoldInlay';root.add(inlay);
+    for(const side of [-1,1])ring('Chassis_CoolingIntake',side*65,32,z,5,.24,copper,true);
+  }
   instances('Chassis_WallSocketLights',new T.BoxGeometry(.22,1.2,2.2),amber,Array.from({length:32},(_,i)=>({x:i<16?-63.8:64.8,y:20+Math.floor(i%16/8)*15,z:-54+(i%8)*14})));
 
   const skillSites:Record<string,[number,number,number,string]>={

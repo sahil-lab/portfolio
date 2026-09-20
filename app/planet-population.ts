@@ -54,6 +54,7 @@ export function createPlanetPopulation(parent:T.Object3D,surface:PlanetSurface,t
   const nearest=(position:T.Vector3,distance=4)=>residents.filter(resident=>resident.position.distanceToSquared(position)<distance*distance).sort((first,second)=>first.position.distanceToSquared(position)-second.position.distanceToSquared(position))[0];
   function say(resident:Resident){talking=resident;until=clock+6;nextTalk=clock+13;speech.setText(resident.dialogue.next());return resident.name+': '+speech.text}
   function update(dt:number,reduced:boolean,player:T.Group,active:boolean){
+    root.visible=active;
     const step=Math.max(0,Math.min(dt,.1));clock+=step;
     if(active){
       for(const resident of residents){

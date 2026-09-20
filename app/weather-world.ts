@@ -52,10 +52,10 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   const rain=new T.LineSegments(rainGeometry,new T.LineBasicMaterial({color:'#a9ddf4',transparent:true,opacity:.55,depthWrite:false}));rain.name='Weather_Rain';rain.frustumCulled=false;root.add(rain);
   const snow=new T.Points(snowGeometry,new T.PointsMaterial({color:'#f3fbff',size:.16,transparent:true,opacity:.88,depthWrite:false}));snow.name='Weather_Snow';snow.frustumCulled=false;root.add(snow);
   paint();
-  function update(dt:number,reduced:boolean,active:boolean,inside:boolean){
+  function update(dt:number,reduced:boolean,active:boolean,inside:boolean,instant=false){
     lastActive=active;lastInside=inside;lastReduced=reduced;
     if(!reduced)clock+=Math.max(0,Math.min(dt,.1));
-    const atmosphere=sky.update(weather,dt,reduced,active),frozen=weather.kind==='snow'||weather.kind==='sleet';
+    const atmosphere=sky.update(weather,dt,reduced,active,instant),frozen=weather.kind==='snow'||weather.kind==='sleet';
     rain.visible=active&&!inside&&atmosphere.rainCount>0;snow.visible=active&&!inside&&atmosphere.snowCount>0;
     rainGeometry.setDrawRange(0,atmosphere.rainCount*2);snowGeometry.setDrawRange(0,atmosphere.snowCount);
     if(rain.visible||snow.visible){
@@ -67,8 +67,8 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
       rain.position.set(player.position.x,Math.max(0,player.position.y-.8),player.position.z);snow.position.copy(rain.position);rainGeometry.attributes.position.needsUpdate=true;snowGeometry.attributes.position.needsUpdate=true;
     }
   }
-  update(0,false,true,false);
-  return {root,sky,update,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
+  update(0,false,true,false,true);
+  return {root,sky,update,tint:sky.tint,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
     blocked:(x:number,z:number,y:number)=>Math.abs(z-63)<1.1&&(y>3.8&&Math.abs(x)<14.7||[-11.5,11.5].some(post=>Math.abs(x-post)<1.7)),
     near:()=>player.position.y<3&&Math.hypot(player.position.x,player.position.z-70)<6,
     details:()=>`${weather.label}. ${Math.round(weather.temperature)}\u00b0C, feels like ${Math.round(weather.feelsLike)}\u00b0C. Wind ${Math.round(weather.wind)} km/h. Humidity ${weather.humidity}%. ${weather.status}.`,

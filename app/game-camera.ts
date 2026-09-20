@@ -1,14 +1,14 @@
 import * as T from 'three';
 import type {Settings} from './persistence';
 export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player:T.Group){
-  let yaw=.1,pitch=.45,zoom=34,distance=34,focusHeight=1.5,stableYaw=.1,stablePitch=.38;
+  let yaw=.1,pitch=.42,zoom=46,eased=46,distance=46,focusHeight=1.5,stableYaw=.1,stablePitch=.38;
   const target=new T.Vector3(),wanted=new T.Vector3(),direction=new T.Vector3(),ray=new T.Ray(),hit=new T.Vector3();
   const boxes:T.Box3[]=[];const movingBounds:{mesh:T.Mesh;box:T.Box3}[]=[];let clock=2;
   return {
     get yaw(){return yaw},
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,.16,1.15)},
     zoom:(amount:number)=>{zoom=T.MathUtils.clamp(zoom+amount,5,160)},
-    reset:(view:{yaw?:number;pitch?:number;zoom?:number;focusHeight?:number}={})=>{yaw=view.yaw??.1;pitch=view.pitch??.45;zoom=view.zoom??34;distance=zoom;focusHeight=view.focusHeight??1.5;stableYaw=view.yaw??.1;stablePitch=view.pitch??.38},
+    reset:(view:{yaw?:number;pitch?:number;zoom?:number;focusHeight?:number}={})=>{yaw=view.yaw??.1;pitch=view.pitch??.42;zoom=view.zoom??46;eased=zoom;distance=zoom;focusHeight=view.focusHeight??1.5;stableYaw=view.yaw??.1;stablePitch=view.pitch??.38},
     update:(dt:number,inside:boolean,settings:Settings,vehicle=false,targetHeight=1.5)=>{
       clock+=dt;if(clock>1){clock=0;boxes.length=0;movingBounds.length=0;scene.traverse(o=>{boxes.push(...(o.userData.staticCameraBounds??[]));if(o instanceof T.Mesh&&o.userData.cameraSolid)movingBounds.push({mesh:o,box:new T.Box3()})})}
       // Door leaves and lifts can move between frames. Refresh their bounds without allocating.
@@ -17,7 +17,9 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
       const angle=settings.stableCamera?stablePitch:pitch,rotation=settings.stableCamera?stableYaw:yaw;
       direction.set(Math.sin(rotation)*Math.cos(angle),Math.sin(angle),Math.cos(rotation)*Math.cos(angle));
       if(player.userData.surfaceFrame instanceof T.Quaternion)direction.applyQuaternion(player.userData.surfaceFrame);
-      const desired=vehicle?Math.max(zoom,46):inside?Math.min(zoom,16):zoom;
+      // Wheel/pinch zoom eases toward its target; only obstruction clamping below is allowed to snap.
+      eased=T.MathUtils.damp(eased,zoom,8,dt);
+      const desired=vehicle?Math.max(eased,46):inside?Math.min(eased,16):eased;
       let safe=desired;ray.set(target,direction);
       for(const box of boxes){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
       for(const {mesh,box} of movingBounds){if(!mesh.visible||box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
