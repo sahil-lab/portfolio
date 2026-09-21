@@ -9,7 +9,7 @@ test('composed moments preserve arrival and primary roads and only trunks add co
   for(const route of routes)for(let step=0;step<=80;step++){
     const progress=step/80,x=T.MathUtils.lerp(route.from.x,route.to.x,progress),z=T.MathUtils.lerp(route.from.z,route.to.z,progress);assert.equal(art.blocked(x,z,.8),false);
   }
-  assert.equal(art.trees.length,2);assert.equal(art.rims.length,3);disposeScene(scene);
+  assert.equal(art.trees.length,2);assert.equal(art.rims.length,require('../app/transit-config.ts').transitStops.length-1);disposeScene(scene);
 });
 
 test('clock and ripple motion freeze and atmosphere never writes opaque depth',()=>{
@@ -25,7 +25,7 @@ test('opening camera looks past the vault houses with the courier and mural in f
     const view=astraOpeningView(aspect),camera=new T.PerspectiveCamera(50,aspect,.1,4000),target=new T.Vector3(0,1.6+view.focusHeight,48);
     const direction=new T.Vector3(Math.sin(view.yaw)*Math.cos(view.pitch),Math.sin(view.pitch),Math.cos(view.yaw)*Math.cos(view.pitch));
     camera.position.copy(target).addScaledVector(direction,view.zoom);camera.lookAt(target);camera.updateMatrixWorld();
-    for(const point of [new T.Vector3(0,3,48),new T.Vector3(-9.6,9.2,24.4)]){const projected=point.project(camera);assert.ok(Math.abs(projected.x)<.9&&Math.abs(projected.y)<.9)}
+    for(const point of [new T.Vector3(0,3,48),new T.Vector3(-17.53,6.9,28.4)]){const projected=point.project(camera);assert.ok(Math.abs(projected.x)<.9&&Math.abs(projected.y)<.9)}
     const ray=new T.Ray(camera.position.clone(),target.clone().sub(camera.position).normalize());
     const vault=new T.Box3(new T.Vector3(-9.85,0,76.3),new T.Vector3(-2.15,9,83.7));assert.equal(ray.intersectBox(vault,new T.Vector3()),null);
   }

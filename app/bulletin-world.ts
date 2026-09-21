@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {emptyMarket,emptyNews,quoteFreshness,type MarketBulletin,type NewsBulletin,type MarketQuote} from './bulletin-data';
 import {createWoodenSign} from './wooden-sign';
+import {createReadableDisplay} from './readable-display';
+import {cityBlock} from './city-architecture';
 
 export const bulletinSites={markets:{x:-24,z:156,width:30,height:16.875},news:{x:18,z:156,width:30,height:16.875}};
 export const bulletinView={x:-24,y:.8,z:181};
@@ -15,14 +17,14 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
   const root=new T.Group();root.name='MarketNewsSquare';scene.add(root);
   let market={...emptyMarket},news={...emptyNews},stocks:MarketQuote[]=[],commodities:MarketQuote[]=[],page=0,newsIndex=0,commodityIndex=0,scroll=0,tickerWidth=2000,marketClock=0,newsClock=0,paintClock=0,dirty=true,lastMinute=-1;
   let previousReduced=false;
-  const metal=new T.MeshStandardMaterial({color:'#263c42',metalness:.4,roughness:.56}),trim=new T.MeshStandardMaterial({color:'#a6b3ab',metalness:.28,roughness:.62});
-  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material=metal){const mesh=new T.Mesh(new T.BoxGeometry(width,height,depth),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh}
+  const metal=new T.MeshPhysicalMaterial({color:'#edf1e7',metalness:.12,roughness:.38,clearcoat:.4}),trim=new T.MeshStandardMaterial({color:'#e5bb81',metalness:.35,roughness:.4});
+  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material=metal){const mesh=new T.Mesh(cityBlock(width,height,depth,.4),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh}
   const boards=Object.entries(bulletinSites).map(([kind,site])=>{
     const frame=box(kind+'_BoardFrame',site.x,12,site.z,site.width+1.4,site.height+1.4,1);frame.userData.cameraSolid=true;
     for(const side of [-1,1]){box(kind+'_BoardPost',site.x+side*12.5,1.85,site.z,.8,3.7,1.1).userData.cameraSolid=true;box(kind+'_BoardFoot',site.x+side*12.5,.16,site.z,2.8,.32,3.4,trim)}
     const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1152;const context=canvas.getContext('2d')!;
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
-    const display=new T.Mesh(new T.PlaneGeometry(site.width,site.height),new T.MeshBasicMaterial({map:texture,toneMapped:false}));display.name=kind==='markets'?'Market_Display':'News_Display';display.position.set(site.x,12,site.z+.54);root.add(display);
+    const {front:display}=createReadableDisplay(root,kind==='markets'?'Market_Display':'News_Display',texture,site.width,site.height,1,new T.Vector3(site.x,12,site.z));
     box(kind+'_StatusTrim',site.x,12+site.height/2+.5,site.z+.25,site.width,.13,.3,new T.MeshBasicMaterial({color:kind==='markets'?'#9ce1c6':'#e9bc83'}));
     return {kind,site,canvas,context,texture,display};
   });
@@ -30,7 +32,7 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
   box('Bulletin_Boulevard',0,.025,171,7,.12,75,pathMaterial);box('Bulletin_ReadingWalk',-3,.03,181,82,.13,4,pathMaterial);
   const sign=createWoodenSign('MARKETS & NEWS',{width:4,height:1.5,shape:'arrow'});sign.position.set(7,.12,141);root.add(sign);
   const accessible=()=>player.position.y<3&&player.position.y>=0;
-  const near=(site:typeof bulletinSites.markets)=>accessible()&&Math.abs(player.position.x-site.x)<13&&player.position.z>site.z+1&&player.position.z<site.z+29;
+  const near=(site:typeof bulletinSites.markets)=>accessible()&&Math.abs(player.position.x-site.x)<13&&Math.abs(player.position.z-site.z)>1&&Math.abs(player.position.z-site.z)<29;
   function base(context:CanvasRenderingContext2D,title:string,kicker:string,color:string){
     context.fillStyle='#0c252c';context.fillRect(0,0,2048,1152);context.fillStyle='#25444a';
     for(let x=0;x<2048;x+=32)for(let y=0;y<1152;y+=32)context.fillRect(x,y,2,2);

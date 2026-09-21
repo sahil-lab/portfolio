@@ -3,6 +3,7 @@ import {districts,routes} from './world-config';
 import {addWorkshopMural} from './packet-press-asset';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 import {createAstraSubstrate} from './astra-geology';
+import {createCityBuilding} from './city-architecture';
 export function buildWorldScenery(scene:T.Scene){
  const mat=createCraftMaterials();
  const mesh=(geo:T.BufferGeometry,c:string,x:number,y:number,z:number,group:T.Object3D=scene,em=0)=>{const m=new T.Mesh(geo,mat(c,em));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;group.add(m);return m};
@@ -12,24 +13,17 @@ export function buildWorldScenery(scene:T.Scene){
  const ball=(x:number,y:number,z:number,r:number,c:string,g:T.Object3D=scene,em=0)=>mesh(new T.SphereGeometry(r,16,12),c,x,y,z,g,em);
  const line=(points:T.Vector3[],color:string,r=.07,g:T.Object3D=scene)=>mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),32,r,6,false),color,0,0,0,g);
  function label(text:string,x:number,y:number,z:number,color='#cae1ce',scale=1){const c=document.createElement('canvas');c.width=768;c.height=100;const cx=c.getContext('2d')!;cx.font='600 34px monospace';cx.textAlign='center';cx.fillStyle=color;cx.fillText(text,384,59);const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),depthTest:true,depthWrite:false,transparent:true}));sp.position.set(x,y,z);sp.scale.set(12*scale,1.56*scale,1);scene.add(sp);return sp}
- createAstraSubstrate(scene,mat('#205950'),mat('#172d34'));
+ createAstraSubstrate(scene,mat('#83b4a1'),mat('#456b66'));
  for(let i=0;i<18;i++){const x=-51+i*6;if(x+5>40)continue;line([new T.Vector3(x,-.12,50),new T.Vector3(x,-.12,10+i%5),new T.Vector3(x+5,-.12,5+i%5),new T.Vector3(x+5,-.12,-49)],i%3?'#467061':'#ae8b50',.035);cyl(x,-.08,43-i%4,.18,.08,'#b39c62')}
  routes.forEach(route=>{const a=new T.Vector3(route.from.x,.01,route.from.z),b=new T.Vector3(route.to.x,.01,route.to.z),delta=b.clone().sub(a);const road=box((a.x+b.x)/2,.03,(a.z+b.z)/2,3,.15,delta.length(),'#c6d8d1');road.rotation.y=Math.atan2(delta.x,delta.z);for(let i=0;i<delta.length();i+=4){const p=a.clone().lerp(b,i/delta.length());box(p.x,.15,p.z,.12,.035,.45,'#6b9c8e')}});
  const animated:{fans:T.Object3D[];cores:T.Mesh[];shelves:T.Mesh[];pods:T.Group[];events:T.Mesh[];packet:T.Mesh|null;gpu:T.Mesh|null;press:T.Mesh|null}={fans:[],cores:[],shelves:[],pods:[],events:[],packet:null,gpu:null,press:null};const obstacles:{x:number,z:number,w:number,d:number,y:number,h:number}[]=[];
  function house(x:number,z:number,color:string,h=3,y=0){
-  const g=new T.Group();scene.add(g);
-  box(x,y+h/2,z,3.7,h,3.2,color,g);box(x,y+.18,z,3.85,.35,3.35,'#4c5c54',g);
-    box(x,y+h+.13,z,4.2,.26,3.7,'#deebe7',g);box(x,y+h+.38,z,3.9,.24,3.45,'#a0bcb5',g);
-  box(x,y+1.05,z+1.63,1.2,2.1,.1,'#b99e73',g);box(x,y+1,z+1.71,.94,1.95,.06,'#1d3436',g);
-  box(x,y+2.2,z+1.85,1.65,.15,.65,'#d6c6a5',g);
-  for(const side of [-1,1]){box(x+side,y+h*.65,z+1.65,.85,.9,.16,'#856c52',g);box(x+side,y+h*.65,z+1.76,.64,.65,.07,'#ffe0a0',g,.35);box(x+side,y+h*.65-.45,z+1.8,1,.12,.35,'#d4c5a5',g)}
-  for(let i=0;i<3;i++)box(x-1+i*.3,y+h+.53,z+.7,.13,.1,.85,'#3b504c',g);
-  obstacles.push({x,z,w:3.7,d:3.2,y,h});return g;
+  const building=createCityBuilding({accent:color,height:h});const g=building.root;g.position.set(x,y,z);scene.add(g);
+  obstacles.push({x,z,w:3.7,d:3.2,y,h:h+.35});return g;
  }
  function lamp(x:number,z:number){cyl(x,1.7,z,.07,2.7,'#365450');cyl(x,2.83,z,.26,.1,'#cfb47b');const glass=cyl(x,3.05,z,.18,.4,'#d4f8e8');glass.material.emissiveIntensity=.8;cyl(x,3.3,z,.32,.09,'#cfb47b')}
- districts.forEach((d,i)=>{cyl(d.x,.1,d.z,8,.45,'#244e48');cyl(d.x,.35,d.z,7.6,.18,i===0?'#568679':'#3e6c63');if(i!==5)label(d.name.toUpperCase(),d.x,8,d.z,d.color,.65);lamp(d.x-6,d.z+3);lamp(d.x+6,d.z+3);if(i>0)house(d.x+3,d.z-2,d.color,3)});
- cyl(0,.55,19,5.8,.5,'#c6d9cf');label('PACKET PRESS',1,5.1,17,'#f4e3bc',.55);const muralBlocked=addWorkshopMural(scene);
- for(let i=0;i<5;i++)box(-2+i*.8,.7,23.8+i*.1,.65,.3,.9,'#a7aa88');
+ districts.forEach((d,i)=>{if(i===0)return;cyl(d.x,.1,d.z,8,.45,'#244e48');cyl(d.x,.35,d.z,7.6,.18,'#3e6c63');if(i!==5)label(d.name.toUpperCase(),d.x,8,d.z,d.color,.65);lamp(d.x-6,d.z+3);lamp(d.x+6,d.z+3);house(d.x+3,d.z-2,d.color,i===2?3:5.4)});
+ const muralBlocked=addWorkshopMural(scene);
  for(let i=0;i<3;i++){const x=-24+i*3;box(x,2.1,-7,2.2,3.4,2.4,'#ad7849');animated.cores.push(box(x,3,-5.76,1.5,1.4,.08,'#f1a94e',scene,.6));for(let j=0;j<4;j++)box(x,4+j*.18,-7,2.5,.09,2.6,'#574e39')};cyl(-24,4,-11,.8,8,'#806f49');ball(-24,8.2,-11,.85,'#ffd684',scene,.8);
  for(let row=0;row<3;row++){box(17+row*2.7,2.2,-10,2.3,3.5,1.4,'#315a50');for(let j=0;j<4;j++)animated.shelves.push(box(16.3+row*2.7+j*.45,2.5,-9.2,.3,1.4,.4,'#91cbb0'))}box(21.1,6.3,-10.8,.2,3,2.6,'#83b6a0');box(24.9,6.3,-10.8,.2,3,2.6,'#83b6a0');box(23,6.3,-12.1,4,3,.2,'#83b6a0');box(23,8,-10.8,4.2,.3,2.8,'#b6c6a2');
  animated.gpu=mesh(new T.IcosahedronGeometry(1.8,0),'#d29afb',28,2.9,18);cyl(28,.8,18,2.6,.8,'#656282');box(33,3,14,6,4,.3,'#323650');box(33,3,14.2,5.4,3.2,.1,'#a783c5',scene,.3);

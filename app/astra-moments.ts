@@ -9,7 +9,7 @@ import {districts} from './world-config';
 import type {WeatherSnapshot} from './weather-state';
 
 export const astraTreeSites=[{x:9,z:-1,scale:1},{x:12,z:117,scale:.8}] as const;
-export const astraOpeningView=(aspect:number)=>({yaw:.5,pitch:.24,zoom:aspect<.85?46:36,focusHeight:4.5});
+export const astraOpeningView=(aspect:number)=>({yaw:.5,pitch:.74,zoom:aspect<.85?72:54,focusHeight:6});
 
 export function createAstraMoments(scene:T.Scene){
   const root=new T.Group();root.name='Astra_ComposedMoments';scene.add(root);

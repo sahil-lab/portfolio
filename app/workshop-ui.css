@@ -1,0 +1,24 @@
+.kingdom[data-atlas-open=false] .map-card{display:none!important}
+.kingdom[data-ready][data-atlas-open=true] .map-card{display:block!important;z-index:6}
+.kingdom .controls button[aria-expanded=true]{color:#e8d9af;background:#294b45;border:1px solid #c4d4ad45;border-radius:5px}
+.kingdom[data-neighborhood=true] .vignette{background:linear-gradient(180deg,#0c222c85,transparent 24%,transparent 78%,#0d282f70)}
+.kingdom[data-neighborhood=true] .location{top:112px;left:30px;max-width:300px}
+.kingdom[data-neighborhood=true] .location h1{font-size:26px;text-shadow:0 2px 12px #142f3690}
+.kingdom[data-neighborhood=true] .location p{font-size:11px;max-width:260px}
+.kingdom[data-neighborhood=true] .district-tag{display:none}
+.kingdom[data-neighborhood=true] .interaction{background:#173237dc;box-shadow:0 8px 24px #0b28241a;max-width:min(500px,calc(100vw - 350px))}
+.kingdom[data-neighborhood=true] .topbar{border-bottom-color:#d6e4d71c}
+@media(max-width:1000px){
+  .kingdom[data-ready][data-atlas-open=true] .map-card{right:20px;bottom:220px;max-height:calc(100% - 290px);overflow-y:auto}
+  .kingdom[data-neighborhood=true] .interaction{max-width:none}
+  .kingdom[data-neighborhood=true] .location{left:20px;top:110px}
+}
+@media(max-width:700px){
+  .kingdom[data-neighborhood=true] .location{top:calc(165px + env(safe-area-inset-top));max-width:calc(100% - 40px)}
+  .kingdom[data-neighborhood=true] .location h1{font-size:24px}
+}
+@media(max-width:389px){.kingdom[data-neighborhood=true] .location{top:calc(165px + env(safe-area-inset-top))}.kingdom[data-neighborhood=true] .location h1{font-size:22px}}
+@media(max-height:600px) and (min-width:701px){
+  .kingdom[data-neighborhood=true] .location{top:82px}.kingdom[data-neighborhood=true] .location h1{font-size:23px}
+  .kingdom[data-ready][data-atlas-open=true] .map-card{bottom:72px;max-height:calc(100% - 145px);overflow-y:auto}
+}

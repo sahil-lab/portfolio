@@ -33,7 +33,7 @@ export function createMetroPath(from:TransitStop,to:TransitStop){
   const curve=new T.CurvePath<T.Vector3>();segments.forEach(segment=>{segment.arcLengthDivisions=2048;curve.add(segment)});const length=curve.getLength();
   function sample(distance:number){
     const fraction=T.MathUtils.clamp(distance/length,0,1),position=curve.getPoint(fraction);
-    const tangent=distance<=0?new T.Vector3(0,0,-1):distance>=length?new T.Vector3(0,0,1):curve.getTangent(fraction);
+    const tangent=distance<=0?new T.Vector3(0,0,-1):distance>=length?new T.Vector3(0,0,1):curve.getPoint(Math.min(1,(distance+.001)/length)).sub(curve.getPoint(Math.max(0,(distance-.001)/length)));
     if(distance<0)position.addScaledVector(tangent,distance);
     if(distance>length)position.addScaledVector(tangent,distance-length);
     return pathFrame(position,tangent);
@@ -76,30 +76,32 @@ export function placeMetro(train:MetroRig,path:MetroPath,distance:number,reverse
   });
 }
 
-type RocketPath={curve:T.CatmullRomCurve3;attitudes:T.Quaternion[]};
+type RocketPath={curve:T.CatmullRomCurve3;attitudes:T.Quaternion[];length:number};
 const rocketPaths=new WeakMap<TransitStop,WeakMap<TransitStop,RocketPath>>();
+const rocketTravel=(progress:number,length:number)=>length>3300?T.MathUtils.smootherstep(progress,0,1):progress*progress*(3-2*progress);
 function rocketPath(from:TransitStop,to:TransitStop){
   let destinations=rocketPaths.get(from);if(!destinations){destinations=new WeakMap();rocketPaths.set(from,destinations)}
   const existing=destinations.get(to);if(existing)return existing;
   const start=new T.Vector3(from.x+10,from.y,from.z+2),end=new T.Vector3(to.x+10,to.y,to.z+2);
+  const longJourney=start.distanceTo(end)>3000;
   const approach=(point:T.Vector3,stop:TransitStop)=>stop.theme==='home'
-    ?[point.clone(),point.clone().add(new T.Vector3(0,12,0)),point.clone().add(new T.Vector3(0,32,-9)),new T.Vector3(point.x,48,-40),new T.Vector3(point.x,54,-98)]
+    ?[point.clone(),point.clone().add(new T.Vector3(0,12,0)),point.clone().add(new T.Vector3(0,32,-9)),new T.Vector3(point.x,48,-40),new T.Vector3(point.x,54,-98),...(longJourney?[new T.Vector3(point.x,120,-138),new T.Vector3(point.x,200,-138)]:[])]
     :[point.clone(),point.clone().add(new T.Vector3(0,12,0)),point.clone().add(new T.Vector3(0,42,0))];
   const departure=approach(start,from),arrival=approach(end,to);
   const middle=departure[departure.length-1].clone().lerp(arrival[arrival.length-1],.5);middle.y=Math.max(from.y,to.y)+100;
   const curve=new T.CatmullRomCurve3([...departure,middle,...arrival.reverse()],false,'centripetal');curve.arcLengthDivisions=2048;
-  const attitudes=[new T.Quaternion()],samples=400;
+  const length=curve.getLength(),attitudes=[new T.Quaternion()],samples=400;
   for(let sample=1;sample<=samples;sample++){
-    const progress=sample/samples,travel=progress*progress*(3-2*progress);
+    const progress=sample/samples,travel=rocketTravel(progress,length);
     const target=new T.Quaternion().setFromUnitVectors(vertical,curve.getTangentAt(travel).normalize());
     target.slerp(new T.Quaternion(),T.MathUtils.smoothstep(progress,.48,.72));
     attitudes.push(attitudes[sample-1].clone().rotateTowards(target,20/samples));
   }
-  const path={curve,attitudes};destinations.set(to,path);return path;
+  const path={curve,attitudes,length};destinations.set(to,path);return path;
 }
 
 export function rocketFlight(from:TransitStop,to:TransitStop,progress:number){
-  const elapsed=T.MathUtils.clamp(progress,0,1),travel=elapsed*elapsed*(3-2*elapsed),{curve,attitudes}=rocketPath(from,to);
+  const elapsed=T.MathUtils.clamp(progress,0,1),{curve,attitudes,length}=rocketPath(from,to),travel=rocketTravel(elapsed,length);
   const position=elapsed===0?new T.Vector3(from.x+10,from.y,from.z+2):elapsed===1?new T.Vector3(to.x+10,to.y,to.z+2):curve.getPointAt(travel);
   const tangent=curve.getTangentAt(travel).normalize();
   const sample=elapsed*(attitudes.length-1),index=Math.floor(sample);

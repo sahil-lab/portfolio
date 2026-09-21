@@ -1,10 +1,17 @@
 import * as T from 'three';
+import {motherboardBounds} from './world-config';
+import {lowerWorks} from './city-districts';
 
 export const substrateOpening={left:40,right:57,north:-49,south:49};
 
 export function createAstraSubstrate(parent:T.Object3D,paint:T.Material,base:T.Material){
   const root=new T.Group();root.name='Astra_MotherboardGeology';parent.add(root);
   function slab(name:string,left:number,right:number,north:number,south:number,y:number,height:number,material:T.Material){
+    const holeLeft=lowerWorks.x-lowerWorks.width/2,holeRight=lowerWorks.x+lowerWorks.width/2,holeNorth=lowerWorks.z-lowerWorks.depth/2,holeSouth=lowerWorks.z+lowerWorks.depth/2;
+    if(left<holeLeft&&right>holeRight&&north<holeNorth&&south>holeSouth){
+      slab(name+'_West',left,holeLeft,north,south,y,height,material);slab(name+'_East',holeRight,right,north,south,y,height,material);
+      slab(name+'_North',holeLeft,holeRight,north,holeNorth,y,height,material);slab(name+'_South',holeLeft,holeRight,holeSouth,south,y,height,material);return;
+    }
     const mesh=new T.Mesh(new T.BoxGeometry(right-left,height,south-north),material);mesh.name=name;
     mesh.position.set((left+right)/2,y,(north+south)/2);mesh.receiveShadow=true;root.add(mesh);
   }
@@ -15,6 +22,11 @@ export function createAstraSubstrate(parent:T.Object3D,paint:T.Material,base:T.M
     slab(name+'_Walkable',-edge,40,north,south,y,height,material);
     slab(name+'_NorthCap',40,edge,north,-49,y,height,material);
     slab(name+'_SouthCap',40,edge,49,south,y,height,material);
+    const border=name==='Astra_Foundation'?2:0;
+    slab(name+'_CityWest',motherboardBounds.minX-border,-edge,motherboardBounds.minZ-border,motherboardBounds.maxZ+border,y,height,material);
+    slab(name+'_CityEast',edge,motherboardBounds.maxX+border,motherboardBounds.minZ-border,motherboardBounds.maxZ+border,y,height,material);
+    slab(name+'_CityNorth',-edge,edge,motherboardBounds.minZ-border,north,y,height,material);
+    slab(name+'_CitySouth',-edge,edge,south,motherboardBounds.maxZ+border,y,height,material);
   }
   return root;
 }

@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {defaultWeather,type WeatherSnapshot} from './weather-state';
 import {createWeatherSky} from './weather-sky';
+import {createReadableDisplay} from './readable-display';
+import {cityBlock} from './city-architecture';
 
 export const weatherScreenSite={x:0,z:63,width:27,height:12};
 export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.DirectionalLight){
@@ -8,12 +10,12 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   let weather={...defaultWeather},clock=0,lastActive=true,lastInside=false,lastReduced=false;
   const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1024;const context=canvas.getContext('2d')!;
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
-  const frameMaterial=new T.MeshStandardMaterial({color:'#25363f',roughness:.48,metalness:.45});
+  const frameMaterial=new T.MeshPhysicalMaterial({color:'#eff3e9',roughness:.38,metalness:.12,clearcoat:.4});
   function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material){
-    const mesh=new T.Mesh(new T.BoxGeometry(width,height,depth),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh;
+    const mesh=new T.Mesh(cityBlock(width,height,depth,.4),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh;
   }
   box('Weather_Display_Frame',0,10,63,28.4,13.4,.9,frameMaterial).userData.cameraSolid=true;
-  const screen=new T.Mesh(new T.PlaneGeometry(27,12),new T.MeshBasicMaterial({map:texture,toneMapped:false}));screen.name='Weather_Display';screen.position.set(0,10,63.48);root.add(screen);
+  createReadableDisplay(root,'Weather_Display',texture,27,12,.9,new T.Vector3(0,10,63));
   for(const side of [-1,1]){
     box('Weather_Display_Post',side*11.5,2,63,.75,4,1,frameMaterial).userData.cameraSolid=true;
     box('Weather_Display_Foot',side*11.5,.25,63,2.8,.5,3.5,frameMaterial);
@@ -70,7 +72,7 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   update(0,false,true,false,true);
   return {root,sky,update,tint:sky.tint,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
     blocked:(x:number,z:number,y:number)=>Math.abs(z-63)<1.1&&(y>3.8&&Math.abs(x)<14.7||[-11.5,11.5].some(post=>Math.abs(x-post)<1.7)),
-    near:()=>player.position.y<3&&Math.hypot(player.position.x,player.position.z-70)<6,
+    near:()=>player.position.y<3&&Math.hypot(player.position.x,Math.abs(player.position.z-63)-7)<6,
     details:()=>`${weather.label}. ${Math.round(weather.temperature)}\u00b0C, feels like ${Math.round(weather.feelsLike)}\u00b0C. Wind ${Math.round(weather.wind)} km/h. Humidity ${weather.humidity}%. ${weather.status}.`,
   };
 }

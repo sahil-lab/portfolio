@@ -19,5 +19,6 @@ test('ceramic and metal finishes share subtle grain but retain independent anima
   assert.equal(ceramic.roughnessMap,metal.roughnessMap);assert.equal(signal.emissiveIntensity,.8);
   const other=create('#cceae5');ceramic.emissiveIntensity=2;assert.equal(other.emissiveIntensity,0);
   assert.ok(ceramic.bumpScale<.01);assert.ok(ceramic.roughnessMap.image.width<=64);
+  assert.ok(ceramic.roughness>=.6);assert.ok(metal.roughness>=.4);assert.ok(ceramic.clearcoat<=.25);assert.ok(ceramic.bumpScale<.005);
   ceramic.roughnessMap.dispose();for(const material of [ceramic,metal,signal,other])material.dispose();
 });

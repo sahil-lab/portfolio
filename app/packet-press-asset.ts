@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { DeliverySnapshot } from './delivery-state';
+import {refinePacketPress} from './press-craft';
 
 /** Asset animation is sampled by simulation progress, never a competing timer. */
 export function createPacketPress(parent: T.Object3D) {
@@ -11,6 +12,7 @@ export function createPacketPress(parent: T.Object3D) {
   let mixer: T.AnimationMixer | undefined;
   let clip: T.AnimationClip | undefined;
   let action: T.AnimationAction | undefined;
+  let crafted:ReturnType<typeof refinePacketPress>|undefined;
   let disposed = false;
   let sampledTime=-1,lastStock=-1;
   const bounds = new T.Box3(new T.Vector3(-1.3, 0, 15.55), new T.Vector3(3.3, 5, 20.05));
@@ -20,6 +22,7 @@ export function createPacketPress(parent: T.Object3D) {
   new GLTFLoader().load('/assets/packet-press.glb', gltf => {
     if (disposed) { disposeObject(gltf.scene); return; }
     root.add(gltf.scene);
+    crafted=refinePacketPress(gltf.scene,root);
     root.updateMatrixWorld(true);
     gltf.scene.traverse(o => {
       if (o.name.startsWith('Collision_')) { bounds.setFromObject(o); o.visible = false;o.userData.cameraSolid=true; }
@@ -57,6 +60,7 @@ export function createPacketPress(parent: T.Object3D) {
         m.emissiveIntensity = charged ? .8 : 0;
       });
       if (chamber) chamber.emissiveIntensity = state.phase === 'preparing' ? .25 + Math.sin(progress * Math.PI * 12) ** 2 * .65 : .12;
+      crafted?.update(t,state.phase==='preparing');
     },
     dispose: () => { disposed = true; mixer?.stopAllAction(); },
   };
@@ -67,11 +71,11 @@ function disposeObject(root: T.Object3D) {
 }
 
 export function addWorkshopMural(scene: T.Scene) {
-  const wall = new T.Mesh(new T.BoxGeometry(8.4, 8.4, .35), new T.MeshStandardMaterial({ color: '#dfcbae', roughness: .95 }));
-  wall.name = 'Workshop_BackWall'; wall.userData.cameraSolid=true; wall.position.set(-4.8, 4.6, 12); wall.castShadow = true; wall.receiveShadow = true; scene.add(wall);
+  const wall = new T.Mesh(new T.BoxGeometry(.2, 3.6, 3.6), new T.MeshStandardMaterial({ color: '#c4b187', roughness: .65,metalness:.25 }));
+  wall.name = 'Workshop_BackWall'; wall.userData.cameraSolid=true; wall.position.set(-8.88, 3.45, 14.2); wall.castShadow = true; wall.receiveShadow = true; scene.add(wall);
   const texture = new T.TextureLoader().load('/assets/workshop-mural.webp');
   texture.colorSpace = T.SRGBColorSpace; texture.anisotropy = 4;
-  const mural = new T.Mesh(new T.PlaneGeometry(8, 8), new T.MeshBasicMaterial({ map: texture, toneMapped: false }));
-  mural.name = 'Workshop_Mural'; mural.position.set(-4.8, 4.6, 12.19); scene.add(mural);
-  return (x: number, z: number) => x > -9.4 && x < -.2 && z > 11.4 && z < 12.6;
+  const mural = new T.Mesh(new T.PlaneGeometry(3.35, 3.35), new T.MeshBasicMaterial({ map: texture, toneMapped: false }));
+  mural.name = 'Workshop_Mural'; mural.position.set(-8.765, 3.45, 14.2); mural.rotation.y=Math.PI/2; scene.add(mural);
+  return (x: number, z: number) => x > -9.18 && x < -8.45 && z > 12.05 && z < 16.3;
 }

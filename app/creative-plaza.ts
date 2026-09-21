@@ -1,9 +1,11 @@
 import * as T from 'three';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 import {createWoodenSign} from './wooden-sign';
+import {createReadableDisplay} from './readable-display';
 import {PortraitSpeaker} from './portrait-speaker';
 import {PaintingInteraction} from './painting-interaction';
 import {batchScenery} from './static-batching';
+import {addShopArchitecture} from './shop-architecture';
 
 export const commonsSpawn={x:0,y:.8,z:98};
 export function commonsArrival(aspect:number){
@@ -22,8 +24,8 @@ export const commonsVenues=[
 
 export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{notice:(text:string)=>void;subtitle:(text:string)=>void;sound:()=>void;enableVoice?:()=>void}){
   const root=new T.Group();root.name='MotherboardCommons';scene.add(root);const surface=createCraftMaterials();
-  const ink=surface('#233c43'),cream=surface('#deebe7'),copper=surface('#c8ac74',0,.65),teal=surface('#4c9b8c'),rose=surface('#de9289'),blue=surface('#82aab7');
-  const glass=new T.MeshPhysicalMaterial({color:'#376876',metalness:.38,roughness:.18,clearcoat:.9,clearcoatRoughness:.12});
+  const ink=surface('#233c43'),cream=surface('#f1f2e9'),copper=surface('#c9ad7b',0,.65),teal=surface('#198c91'),rose=surface('#e47f87'),blue=surface('#4b91b3');
+  const glass=new T.MeshPhysicalMaterial({color:'#1988ba',metalness:.3,roughness:.22,clearcoat:.75,clearcoatRoughness:.2});
   const foliage=surface('#417c5c'),newGrowth=surface('#a3c783'),petal=surface('#efb79a'),soil=surface('#29433b');
   const leafGeometry=new T.SphereGeometry(1,8,6),stemGeometry=new T.CylinderGeometry(.025,.04,1.2,6);
   const speaker=new PortraitSpeaker(callbacks.subtitle);let clock=0,lastMouth=-1,lastText='',lastBlink=false,lastStatus='';const dispensed:{mesh:T.Object3D;until:number}[]=[];
@@ -45,12 +47,17 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
     }
     const flower=mesh(parent,'Planter_Blossom',new T.IcosahedronGeometry(.18,1),petal,x,raised+1.8,z);flower.scale.set(1,.7,1);
   }
-  function plate(parent:T.Object3D,text:string,x:number,y:number,z:number,width:number){
+  function mountedPlate(parent:T.Object3D,name:string,texture:T.Texture,x:number,y:number,z:number,width:number,height:number,backZ=-z){
+    box(parent,name+'_Housing',copper,x,y,z-.16,width+.2,height+.2,.24);
+    box(parent,name+'_Housing_Back',copper,x,y,backZ+.16,width+.2,height+.2,.24);
+    createReadableDisplay(parent,name,texture,width,height,z-backZ-.08,new T.Vector3(x,y,(z+backZ)/2));
+  }
+  function plate(parent:T.Object3D,text:string,x:number,y:number,z:number,width:number,backZ=-z){
     const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const context=canvas.getContext('2d')!;
     context.fillStyle='#203b42';context.fillRect(0,0,512,128);context.strokeStyle='#cfb67e';context.lineWidth=2;context.strokeRect(8,8,496,112);
     context.font='600 41px "Trebuchet MS", sans-serif';context.textAlign='center';context.textBaseline='middle';context.fillStyle='#e9dfba';context.fillText(text,256,65,460);
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
-    mesh(parent,'Shop_EnamelPlaque',new T.PlaneGeometry(width,width/4),new T.MeshBasicMaterial({map:texture,toneMapped:false}),x,y,z);
+    mountedPlate(parent,'Shop_EnamelPlaque',texture,x,y,z,width,width/4,backZ);
   }
   box(root,'Commons_Boulevard',cream,0,.03,91,7,.13,91);
   for(const side of [-1,1])box(root,'Commons_Boulevard_Inlay',copper,side*3.15,.12,91,.055,.025,91);
@@ -78,7 +85,8 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       if(venue.width>10)plant(group,side*(venue.width/2-.85),venue.depth/2-.85,.47);
     }
     if(venue.id==='kettle'){
-      const body=mesh(group,'Kettle_Body',new T.SphereGeometry(5.4,32,20),teal,0,5,0);body.scale.set(1,1,.85);
+      const profile=new T.CatmullRomCurve3([[0,.6],[3.2,.6],[4.5,1.2],[5.35,3.6],[5.15,6.5],[4.4,8.2],[3.1,9.6],[0,9.6]].map(([radius,height])=>new T.Vector3(radius,height,0)));
+      const body=mesh(group,'Kettle_Body',new T.LatheGeometry(profile.getPoints(40).map(point=>new T.Vector2(Math.max(0,point.x),point.y)),56),teal);body.scale.z=.85;
       mesh(group,'Kettle_Lid',new T.CylinderGeometry(3.1,3.8,.6,32),copper,0,10,0);mesh(group,'Kettle_Knob',new T.SphereGeometry(.7,16,10),ink,0,10.8,0);
       const handle=mesh(group,'Kettle_Handle',new T.TorusGeometry(3.1,.5,10,32,Math.PI*1.65),copper,-5,5.3,0);handle.rotation.z=2.1;
       const spout=new T.CatmullRomCurve3([new T.Vector3(3.8,4,0),new T.Vector3(6.4,4.7,0),new T.Vector3(7.9,7.4,0)]);
@@ -94,17 +102,17 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       title(group,'THE COPPER KETTLE',-5.9,7.9,4.5);
     }else if(venue.id==='shoe'){
       const shape=new T.Shape();shape.moveTo(-6.2,.7);shape.lineTo(6.4,.7);shape.quadraticCurveTo(7.7,1.1,6.5,3);shape.quadraticCurveTo(5.3,4.4,1.6,4.7);shape.lineTo(-.6,8.9);shape.quadraticCurveTo(-3.5,10.2,-5.7,8.5);shape.lineTo(-6.5,2);shape.closePath();
-      const geometry=new T.ExtrudeGeometry(shape,{depth:7,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.2,bevelThickness:.2});geometry.translate(0,0,-3.5);
+      const geometry=new T.ExtrudeGeometry(shape,{depth:7,bevelEnabled:true,bevelSegments:3,steps:1,bevelSize:.23,bevelThickness:.23});geometry.translate(0,0,-3.5);
       mesh(group,'Sneaker_Upper',geometry,rose);box(group,'Sneaker_Sole',cream,0,.8,0,14,1.2,8.3);
       box(group,'Sneaker_Outsole',ink,0,.4,0,14.12,.16,8.4);
       for(let tread=0;tread<15;tread++)box(group,'Sneaker_SoleGroove',ink,-6.4+tread*.9,.64,4.2,.065,.25,.02);
-      for(let stripe=0;stripe<5;stripe++){const lace=box(group,'Sneaker_Lace',cream,-1+stripe*.85,7.9-stripe*.62,3.76,2.7,.23,.3);lace.rotation.z=-.35}
+      for(let stripe=0;stripe<5;stripe++){const x=-1+stripe*.85,y=7.9-stripe*.62;const curve=new T.CatmullRomCurve3([new T.Vector3(x-1.2,y+.42,3.87),new T.Vector3(x,y+.12,4.02),new T.Vector3(x+1.2,y-.42,3.87)]);mesh(group,'Sneaker_Lace',new T.TubeGeometry(curve,12,.09,8,false),cream)}
       const seam=new T.CatmullRomCurve3([new T.Vector3(-5.8,1.5,3.73),new T.Vector3(-5.3,7.9,3.73),new T.Vector3(-2.9,8.8,3.73),new T.Vector3(.6,4.1,3.73),new T.Vector3(5.9,2.7,3.73)]);
       mesh(group,'Sneaker_PipedSeam',new T.TubeGeometry(seam,40,.045,5,false),cream);
       for(let eyelet=0;eyelet<5;eyelet++)for(const side of [-1,1])mesh(group,'Sneaker_BrassEyelet',new T.TorusGeometry(.18,.035,5,16),copper,-1+eyelet*.85+side*1.2,7.9-eyelet*.62-side*.42,3.87);
       box(group,'Sneaker_Door',ink,-3.8,2.5,3.85,2.5,3.5,.2);
       for(const x of [1.9,4.5]){box(group,'Sneaker_WindowRim',cream,x,2.9,3.82,1.84,1.64,.2);box(group,'Sneaker_Window',glass,x,2.9,3.98,1.6,1.4,.12)}
-      plate(group,'SOLE / 01',3.8,1.25,4.24,2.4);
+      plate(group,'SOLE / 01',-1.2,1.25,4.3,2.4);
       title(group,'SOLE STUDIO',3.5,9.6,4.5);
     }else if(venue.id==='radio'){
       box(group,'Radio_Cabinet',blue,0,4.3,0,12,8,6);box(group,'Radio_Bezel',cream,0,4.5,3.15,11.2,6.8,.3);
@@ -118,8 +126,8 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       for(const x of [2,4.2]){mesh(group,'Radio_DialBezel',new T.TorusGeometry(.6,.045,5,28),copper,x,4.4,3.72);box(group,'Radio_DialIndex',cream,x,4.64,3.88,.065,.24,.025)}
       box(group,'Radio_Door',ink,2.9,1.9,3.45,2.3,3.1,.2);
       const aerial=mesh(group,'Radio_Aerial',new T.CylinderGeometry(.07,.13,7,8),copper,4,11,0);aerial.rotation.z=-.32;
-      plate(group,'FREQUENCY HOUSE',-2.2,1.12,3.36,5.1);
-      title(group,'FREQUENCY HOUSE',-5,6.4,4.5);
+      plate(group,'FREQUENCY HOUSE',-2.2,1.12,3.36,5.1,-3.16);
+      title(group,'FREQUENCY HOUSE',-8.6,4.5,4.5);
     }else{
       const paint=venue.id==='books'?blue:venue.id==='juice'?surface('#dfb855'):rose;
       box(group,'Vending_Cabinet',paint,0,2.9,0,3,5.5,2.3);box(group,'Vending_Window',ink,-.4,3.35,1.2,1.6,2.9,.16);
@@ -131,19 +139,27 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       }
       for(let button=0;button<3;button++)mesh(group,'Vending_Button',new T.SphereGeometry(.13,8,6),cream,1,3.8-button*.5,1.3);
       for(let shelf=0;shelf<3;shelf++)box(group,'Vending_Shelf',copper,-.4,2.19+shelf*.8,1.42,1.72,.045,.31);
-      plate(group,venue.id==='books'?'PAPERBACK':venue.id==='juice'?'CITRUS':'CLOUD',0,4.99,1.25,2.5);
+      plate(group,venue.id==='books'?'PAPERBACK':venue.id==='juice'?'CITRUS':'CLOUD',0,4.99,1.36,2.5,-1.25);
       box(group,'Vending_Tray',ink,0,.9,1.3,2,.65,.5);
       const item=mesh(group,'Dispensed_Item',new T.CylinderGeometry(.23,.19,.6,10),cream,0,1.3,1.65);item.visible=false;dispensed.push({mesh:item,until:0});
       title(group,venue.name.toUpperCase(),-2.7,1.8,2.9);
+    }
+    if(venue.id==='kettle'||venue.id==='shoe'||venue.id==='radio'){
+      const storefront=addShopArchitecture(group,venue.id),wordmark=storefront.getObjectByName('Shop_BuildingWordmark') as T.Mesh<T.PlaneGeometry,T.MeshBasicMaterial>;
+      const {x,y,z}=wordmark.position,{width,height}=wordmark.geometry.parameters;
+      const displayZ=z+(venue.id==='shoe'?.12:0);
+      mountedPlate(storefront,wordmark.name,wordmark.material.map!,x,y,displayZ,width,height,venue.id==='kettle'?-4.61:-displayZ);
+      wordmark.removeFromParent();wordmark.geometry.dispose();wordmark.material.dispose();
     }
   });
   const portrait=new T.Group();portrait.name='Pixel_Portrait';portrait.position.set(-24,0,73);root.add(portrait);
   box(portrait,'Portrait_Frame',copper,0,7.2,0,9.1,11.2,.65).userData.cameraSolid=true;
   box(portrait,'Portrait_InnerFrame',ink,0,7.2,.36,8.5,10.6,.2);
+  box(portrait,'Portrait_InnerFrame_Back',ink,0,7.2,-.36,8.5,10.6,.2);
   for(const x of [-3,3])box(portrait,'Portrait_Post',ink,x,1.8,0,.3,3.6,.5);
   const canvas=document.createElement('canvas');canvas.width=768;canvas.height=1024;const context=canvas.getContext('2d')!;
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.magFilter=T.NearestFilter;texture.anisotropy=4;
-  mesh(portrait,'Portrait_AnimatedCanvas',new T.PlaneGeometry(8,10.2),new T.MeshBasicMaterial({map:texture,toneMapped:false}),0,7.2,.49);
+  createReadableDisplay(portrait,'Portrait_AnimatedCanvas',texture,8,10.2,.9,new T.Vector3(0,7.2,0));
   function paintPortrait(blink:boolean){
     context.fillStyle='#153a53';context.fillRect(0,0,768,1024);
     const pixel=(x:number,y:number,width:number,height:number,color:string)=>{context.fillStyle=color;context.fillRect(x*16,y*16,width*16,height*16)};

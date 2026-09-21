@@ -279,11 +279,11 @@
   .kingdom .brandmark svg { width: 19px; height: 19px; }
   .kingdom .brand small { display: inline; font-size: 11px; margin: 0 5px 0 0; }
   .kingdom .brand b { display: inline; font-size: 14px; }
-  .kingdom[data-ready] .topbar nav { display: grid; grid-template-columns: repeat(8,minmax(0,1fr)); gap: 2px; width: 100%; margin: 0; }
+  .kingdom[data-ready] .topbar nav { display: grid; grid-template-columns: repeat(5,minmax(44px,1fr)); gap: 2px; width: 100%; margin: 0; }
   .kingdom[data-ready] .topbar nav button { width: 100%; min-width: 0; height: 44px; padding: 0; border-radius: 4px; background: #19373d40; }
   .kingdom[data-ready] .topbar nav .nav-projects { color: var(--hud-mint); background: #bdebd61c; border-color: #bdebd63b; }
   .kingdom .nav-divider { display: none; }
-  .kingdom[data-ready] .location { left: 19px; top: calc(122px + env(safe-area-inset-top)); max-width: calc(100vw - 38px); }
+  .kingdom[data-ready] .location { left: 19px; top: calc(165px + env(safe-area-inset-top)); max-width: calc(100vw - 38px); }
   .kingdom[data-ready] .location h1 { font-size: 25px; line-height: 1.16; margin: 8px 0 0; }
   .kingdom .location .eyebrow { font-size: 8px; gap: 7px; }
   .kingdom .location-line { width: 16px; }
@@ -297,7 +297,7 @@
 }
 
 @media (max-width: 389px) {
-  .kingdom[data-ready] .topbar nav { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .kingdom[data-ready] .topbar nav { grid-template-columns: repeat(5,minmax(44px,1fr)); }
   .kingdom[data-ready] .location { top: calc(165px + env(safe-area-inset-top)); }
   .kingdom[data-ready] .location h1 { font-size: 22px; }
   .kingdom[data-ready] .interaction { right: 12px; width: calc(100vw - 151px); }
@@ -322,4 +322,32 @@
   .kingdom *,
   .kingdom *::before,
   .kingdom *::after { animation: none !important; transition: none !important; }
+}
+
+.kingdom .controls { gap: 12px; }
+.kingdom .controls .exploration-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.kingdom .camera-presets,
+.kingdom .movement-presets { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--hud-line); border-radius: 6px; background: var(--hud-glass); }
+.kingdom .controls .exploration-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; height: 44px; padding: 0 10px; border: 1px solid transparent; border-radius: 3px; font: 500 11px 'Space Grotesk', sans-serif; letter-spacing: 0; white-space: nowrap; }
+.kingdom .controls .exploration-controls button span { display: inline; color: inherit; }
+.kingdom .controls .exploration-controls button[aria-pressed=true] { background: var(--hud-mint); color: var(--hud-ink); }
+.kingdom .controls .exploration-controls button:hover:not(:disabled):not([aria-pressed=true]) { background: #bdebd61c; }
+.kingdom .controls .exploration-controls button:focus-visible { outline: 2px solid var(--hud-gold); outline-offset: 2px; }
+.kingdom .controls .exploration-controls button:disabled { opacity: .45; cursor: default; }
+.kingdom .controls .world-actions { flex-shrink: 0; }
+@media (min-width: 701px) and (max-width: 1120px) {
+  .kingdom .controls .world-status { display: none; }
+}
+@media (max-width: 700px) {
+  .kingdom[data-ready] .controls { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 56px 44px; align-content: center; column-gap: 8px; row-gap: 0; height: 108px; left: 12px; right: 12px; }
+  .kingdom .controls .exploration-controls { grid-column: 1 / -1; grid-row: 1; justify-content: center; gap: 8px; }
+  .kingdom .controls .world-status { grid-column: 1; grid-row: 2; }
+  .kingdom .controls .world-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; }
+  .kingdom .controls .exploration-controls button { padding-inline: 8px; }
+  .kingdom .camera-presets svg,
+  .kingdom .movement-presets svg { display: none; }
+  .kingdom[data-ready] .interaction { bottom: calc(120px + env(safe-area-inset-bottom)); }
+  .kingdom[data-ready] .touch-joystick { bottom: calc(122px + env(safe-area-inset-bottom)); }
+  .kingdom .world-notice { bottom: 266px; }
+  .kingdom .subtitle { bottom: 316px; }
 }

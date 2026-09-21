@@ -1,4 +1,8 @@
 import {projects} from './portfolio';
+export const motherboardDimensions={width:1100,depth:2640,centerZ:79,scale:10} as const;
+export const motherboardBounds={minX:-550,maxX:550,minZ:-1241,maxZ:1399} as const;
+export const cityArrival={x:150,y:.8,z:103};
+export const cityCameraView=(aspect:number)=>({yaw:.08,pitch:.26,zoom:Math.max(90,Math.min(180,74/aspect)),focusHeight:12.5});
 export type District={name:string;subtitle:string;x:number;z:number;color:string};
 export const districts:District[]=[
  {name:'Bootloader Workshop',subtitle:'Somewhere small. At the start of something big.',x:0,z:19,color:'#b3d69d'},

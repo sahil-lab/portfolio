@@ -1,6 +1,7 @@
 import * as T from 'three';
 import type {MetroPath} from './transit-motion';
 import * as resume from './resume-data.json';
+import {createReadableDisplay} from './readable-display';
 
 export function createCivilizationLink(parent:T.Object3D,path:MetroPath){
   const root=new T.Group();root.name='ForgeCitadel_DataBridge';parent.add(root);
@@ -18,7 +19,8 @@ export function createCivilizationLink(parent:T.Object3D,path:MetroPath){
   resume.experience.slice().reverse().forEach((record,index)=>{context.fillStyle='#f1f5fa';context.font='700 25px "Trebuchet MS", sans-serif';context.fillText(record.name,48,326+index*80,675);context.fillStyle='#a7c4db';context.font='500 19px "Trebuchet MS", sans-serif';context.fillText(record.dates,48,355+index*80,675)});
   context.fillStyle='#ccdfed';context.font='500 21px "Trebuchet MS", sans-serif';context.fillText(resume.education.name,48,1050,675);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
-  const documentPlane=new T.Mesh(new T.PlaneGeometry(8,11.66),new T.MeshBasicMaterial({map:texture,transparent:true,opacity:.92,toneMapped:false,side:T.DoubleSide}));documentPlane.position.z=.15;satellite.add(documentPlane);
+  const {front:documentPlane}=createReadableDisplay(satellite,'OrbitalResume_Display',texture,8,11.66,.25,new T.Vector3());
+  documentPlane.material.transparent=true;documentPlane.material.opacity=.92;
   let elapsed=0;
   const update=(dt:number,reduced:boolean)=>{
     if(!reduced)elapsed+=dt;

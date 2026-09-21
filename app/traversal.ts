@@ -27,7 +27,7 @@ export function createTraversal(scene:T.Scene,player:T.Group){
     update:(dt:number)=>{const riding=aboard();const delta=T.MathUtils.clamp(target-y,-2*dt,2*dt);y+=delta;lift.position.y=y-.15;if(riding)player.position.y=y;moving=Math.abs(y-target)>.001},
     height:(x:number,z:number,previous:number):number|null=>{
       // The exposed outer board is a cut, not a painted floor. The rail marks its edge.
-      if(x>39.3&&z>-49&&z<49)return null;
+      if(x>39.3&&x<56&&z>-49&&z<49)return null;
       if(Math.abs(x)<1.3&&Math.abs(z+21)<1.3&&Math.abs(previous-y)<.45)return y;
       const ramp=rampHeight(r,x,z);if(ramp!==null&&Math.abs(previous-ramp)<.5)return ramp;
       for(const s of upperSurfaces)if(Math.abs(x-s.x)<s.width/2-.25&&Math.abs(z-s.z)<s.depth/2-.2&&Math.abs(previous-s.y)<.5)return s.y;

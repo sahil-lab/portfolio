@@ -7,3 +7,12 @@ test('new rounds require completion and an explicit command, and preserve discov
 
 const {createCourier}=require('../app/courier.ts');
 test('modeled capsule visibility matches inventory and facial parts remain addressable',()=>{const c=createCourier();for(let count=0;count<=4;count++){c.update(.016,count);assert.equal(c.parts.cargo.filter(part=>part.visible).length,count)}assert.equal(c.parts.leftEye.name,'left eye');assert.equal(c.parts.rightEye.name,'right eye');assert.equal(c.parts.smile.name,'smile');c.gesture('greeting');c.update(.1,2);assert(c.parts.rightArm.rotation.z<0)});
+
+test('courier equipment has fitted sockets and a molded carrier without changing its cargo contract',()=>{
+ const courier=createCourier(),sockets=[];courier.root.traverse(object=>{if(object.name==='Courier_CapsuleSocket')sockets.push(object)});
+ assert.equal(sockets.length,4);assert.equal(courier.parts.tray.getObjectByName('tray base').geometry.type,'RoundedBoxGeometry');
+ assert.ok(courier.root.getObjectByName('Courier_PowerPack'));assert.ok(courier.root.getObjectByName('navy face panel').material.clearcoat>.5);
+ assert.ok(courier.parts.rightArm.getObjectByName('Courier_WristCuff'));assert.ok(courier.parts.leftFoot.getObjectByName('Courier_BootSole'));
+ for(const count of [4,1,0,3]){courier.update(.02,count);assert.equal(courier.parts.cargo.filter(object=>object.visible).length,count)}
+ require('../app/scene-resources.ts').disposeScene(courier.root);
+});

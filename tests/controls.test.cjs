@@ -1,9 +1,17 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,f);
-const T=require('three');const {moveCharacter}=require('../app/character-controller.ts');const {createTraversal}=require('../app/traversal.ts');const {parseSave,validateDelivery,defaultSettings}=require('../app/persistence.ts');const {DeliveryRound}=require('../app/delivery-state.ts');const {createGameCamera}=require('../app/game-camera.ts');
+const T=require('three');const {moveCharacter,movementSpeed}=require('../app/character-controller.ts');const {createTraversal}=require('../app/traversal.ts');const {parseSave,validateDelivery,defaultSettings}=require('../app/persistence.ts');const {DeliveryRound}=require('../app/delivery-state.ts');const {createGameCamera}=require('../app/game-camera.ts');
 test('movement remains consistent across frame rates, slides against walls, and recovers invalid positions',()=>{
  const travel=hz=>{const p=new T.Group();p.position.set(0,.8,0);for(let i=0;i<hz;i++)moveCharacter(p,1,0,5.5/hz,()=>false,()=>.8);return p.position.x};assert.ok(Math.abs(travel(30)-travel(144))<1e-8);
  const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[0,.8,24]);
+});
+test('skating is faster than walking and remains frame-rate independent without tunneling through walls',()=>{
+ assert.equal(movementSpeed('walk'),4);assert.equal(movementSpeed('skate'),9);assert.equal(movementSpeed('skate',true),14);assert.ok(movementSpeed('walk',true)>movementSpeed('walk'));
+ for(const mode of ['walk','skate'])for(const boost of [false,true]){
+  const speed=movementSpeed(mode,boost),travel=hz=>{const player=new T.Group();player.position.y=.8;for(let frame=0;frame<hz;frame++)moveCharacter(player,1,0,speed/hz,()=>false,()=>.8);return player.position.x};
+  assert.ok(Math.abs(travel(30)-speed)<1e-8);assert.ok(Math.abs(travel(144)-speed)<1e-8);
+  const player=new T.Group();player.position.y=.8;moveCharacter(player,1,0,speed*.2,x=>x>=1&&x<=1.3,()=>.8);assert.ok(player.position.x<1);
+ }
 });
 test('RAM ramp reaches the balcony and guarded edges prevent falling; lift carries rider both ways',()=>{
  const p=new T.Group(),s=new T.Scene();p.position.set(15,.8,-.8);const nav=createTraversal(s,p);
@@ -29,6 +37,30 @@ test('camera responds to moving doors on the next frame',()=>{
  const rig=createGameCamera(camera,scene,player);rig.update(.02,false,defaultSettings);assert.ok(camera.position.z>10);
  door.position.z=3;rig.update(.016,false,defaultSettings);assert.ok(camera.position.z<2.8);
  door.visible=false;rig.update(.1,false,defaultSettings);assert.ok(camera.position.z>2.8);
+});
+test('camera presets switch between close, far and eye-level first person without changing heading',()=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1,.1,1000);scene.add(player);scene.scale.setScalar(2);player.position.set(4,.8,-6);
+ const rig=createGameCamera(camera,scene,player),target=()=>player.getWorldPosition(new T.Vector3()).addScaledVector(player.up,1.5);
+ rig.setMode('close');rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.position.distanceTo(target())-12)<1e-8);assert.equal(player.visible,true);
+ rig.rotate(40,0,false);const yaw=rig.yaw;rig.setMode('far');rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.position.distanceTo(target())-46)<1e-8);assert.equal(rig.yaw,yaw);
+ rig.setMode('first-person');rig.update(.016,false,defaultSettings);assert.ok(camera.position.distanceTo(target())<1e-8);assert.equal(player.visible,false);
+ const forward=camera.getWorldDirection(new T.Vector3());assert.ok(forward.dot(new T.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)))>.999);
+ rig.rotate(0,-200,false);rig.zoom(100);rig.update(.016,false,defaultSettings);assert.ok(camera.getWorldDirection(new T.Vector3()).y>.5);assert.ok(camera.position.distanceTo(target())<1e-8);
+ rig.reset();rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.getWorldDirection(new T.Vector3()).y)<1e-8);
+ rig.setMode('close');rig.reset();rig.update(.016,false,defaultSettings);assert.equal(player.visible,true);assert.ok(Math.abs(camera.position.distanceTo(target())-12)<1e-8);
+});
+test('first person follows a planet surface frame and restores the avatar on exit',()=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera();scene.add(player);player.up.set(1,0,0);player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),player.up);
+ const rig=createGameCamera(camera,scene,player);rig.setMode('first-person');rig.update(.016,false,defaultSettings,false,2.5);
+ assert.ok(camera.position.distanceTo(new T.Vector3(2.5,0,0))<1e-8);assert.deepEqual(camera.up.toArray(),[1,0,0]);assert.equal(player.visible,false);
+ const expected=new T.Vector3(-Math.sin(rig.yaw),0,-Math.cos(rig.yaw)).applyQuaternion(player.userData.surfaceFrame);assert.ok(camera.getWorldDirection(new T.Vector3()).dot(expected)>.999);
+ rig.setMode('far');rig.update(.016,false,defaultSettings);assert.equal(player.visible,true);
+});
+test('camera and movement preferences survive saves and default safely for older saves',()=>{
+ const saved=settings=>parseSave(JSON.stringify({version:1,settings})).settings;
+ assert.equal(saved({}).cameraMode,'close');assert.equal(saved({}).movementMode,'skate');
+ for(const cameraMode of ['first-person','close','far'])for(const movementMode of ['walk','skate']){const restored=saved({...defaultSettings,cameraMode,movementMode});assert.equal(restored.cameraMode,cameraMode);assert.equal(restored.movementMode,movementMode)}
+ assert.equal(saved({cameraMode:'invalid'}).cameraMode,'close');assert.equal(saved({movementMode:'invalid'}).movementMode,'skate');
 });
 test('vehicle camera can climb through the open atrium without an invisible ceiling',()=>{
  const {createAweWorld}=require('../app/awe-world.ts'),{disposeScene}=require('../app/scene-resources.ts');

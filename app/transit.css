@@ -2,6 +2,13 @@
 @media(max-width:700px){.kingdom .topbar nav{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}.kingdom .topbar .brand{display:none}.kingdom .topbar{padding-block:5px}.kingdom .location{top:119px}.kingdom .location h1{font-size:23px}.journey-hud{top:155px;width:calc(100% - 26px);font-size:13px}.transit-panel h2{font-size:31px}.planet-destinations button{padding:12px 10px}}
 
 .kingdom[data-satellite=true] .map-card,.kingdom[data-satellite=true] .quest{display:none}
+.city-district-menu{margin:18px 0 26px}
+.transit-panel .city-district-menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;margin:0;padding:12px 0;background:transparent;border:0;border-bottom:1px solid #b8d0be26;border-radius:0;text-align:left;color:#e9f0df}
+.city-district-menu button>span{flex:1;min-width:0}
+.city-district-menu strong,.city-district-menu small{display:block;overflow-wrap:anywhere}
+.city-district-menu strong{font-size:14px;font-weight:500}
+.city-district-menu small{color:#a7c1b5;font-size:11px;margin-top:4px}
+.transit-panel .city-district-menu button:hover{color:#e7d0a5;background:#bedec409}
 .guide-dismiss{position:absolute;right:8px;top:6px;color:#dae2c9;background:none;border:0;font-size:24px}
 .world-notice{position:absolute;z-index:4;left:50%;bottom:190px;transform:translateX(-50%);max-width:min(590px,85vw);padding:10px 16px;border-radius:10px;background:#17382feb;color:#f2e6c6;font-size:14px;line-height:1.5;pointer-events:none}
 @media(max-width:1000px){.world-notice{bottom:238px;font-size:13px;width:85vw}}

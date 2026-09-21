@@ -1,7 +1,9 @@
 import type {DeliverySnapshot} from './delivery-state';
 import {isQualityChoice,type QualityChoice} from './quality-tiers';
-export type Settings={muted:boolean;volume:number;stableCamera:boolean;reducedMotion:boolean;quality:QualityChoice};
-export const defaultSettings:Settings={muted:true,volume:.6,stableCamera:false,reducedMotion:false,quality:'auto'};
+export type CameraMode='first-person'|'close'|'far';
+export type MovementMode='walk'|'skate';
+export type Settings={muted:boolean;volume:number;stableCamera:boolean;reducedMotion:boolean;quality:QualityChoice;cameraMode:CameraMode;movementMode:MovementMode};
+export const defaultSettings:Settings={muted:true,volume:.6,stableCamera:false,reducedMotion:false,quality:'auto',cameraMode:'close',movementMode:'skate'};
 export type SaveData={version:1;settings:Settings;delivery:DeliverySnapshot|null};
 export const SAVE_KEY='living-computer-kingdom:v1';
 const validRecipients=['owl','chameleon','cloud','tortoises'];
@@ -24,7 +26,7 @@ export function parseSave(raw:string|null):SaveData {
   try {
     if(!raw)return fallback;const data=JSON.parse(raw);if(data.version!==1)return fallback;
     const s=data.settings??{};
-    return {version:1,delivery:validateDelivery(data.delivery),settings:{muted:typeof s.muted==='boolean'?s.muted:true,volume:Number.isFinite(s.volume)?Math.max(0,Math.min(1,s.volume)):.6,stableCamera:s.stableCamera===true,reducedMotion:s.reducedMotion===true,quality:isQualityChoice(s.quality)?s.quality:'auto'}};
+    return {version:1,delivery:validateDelivery(data.delivery),settings:{muted:typeof s.muted==='boolean'?s.muted:true,volume:Number.isFinite(s.volume)?Math.max(0,Math.min(1,s.volume)):.6,stableCamera:s.stableCamera===true,reducedMotion:s.reducedMotion===true,quality:isQualityChoice(s.quality)?s.quality:'auto',cameraMode:s.cameraMode==='first-person'||s.cameraMode==='far'?s.cameraMode:'close',movementMode:s.movementMode==='walk'?'walk':'skate'}};
   } catch{return fallback;}
 }
 export function loadSave():SaveData {try{const raw=localStorage.getItem(SAVE_KEY);const saved=parseSave(raw);if(!raw)saved.settings.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;return saved}catch{return parseSave(null)}}

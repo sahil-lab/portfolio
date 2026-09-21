@@ -3,6 +3,7 @@ require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const T=require('three');
 const {createWoodenSign}=require('../app/wooden-sign.ts');
 const {disposeScene}=require('../app/scene-resources.ts');
+const {createReadableDisplay}=require('../app/readable-display.ts');
 const draws=[];
 global.document={createElement:()=>{
   const canvas={width:0,height:0};
@@ -25,6 +26,17 @@ test('wooden signs have distinct carved silhouettes, grounded supports and two r
     silhouettes.push(Array.from(board.geometry.getAttribute('position').array));disposeScene(sign);
   }
   assert.notDeepEqual(silhouettes[0],silhouettes[1]);assert.notDeepEqual(silhouettes[1],silhouettes[2]);
+});
+
+test('live displays share an updating texture with separate outward, unmirrored front and back faces',()=>{
+  const root=new T.Group(),texture=new T.Texture(),{front,back}=createReadableDisplay(root,'LiveBoard',texture,12,6,1,new T.Vector3(0,4,2));root.updateMatrixWorld(true);
+  assert.equal(front.material.map,back.material.map);assert.equal(front.geometry,back.geometry);
+  for(const [face,side] of [[front,1],[back,-1]]){
+    const normal=new T.Vector3(0,0,1).transformDirection(face.matrixWorld);assert.ok(normal.z*side>.99);assert.ok(face.matrixWorld.determinant()>0);
+    const origin=face.position.clone().addScaledVector(normal,4),hits=new T.Raycaster(origin,normal.negate()).intersectObject(face);assert.ok(hits.length>0);
+    assert.ok((face.position.z-2)*side>.5);
+  }
+  disposeScene(root);
 });
 
 test('lettering clears both bevelled caps but stays recessed behind the carved borders',()=>{

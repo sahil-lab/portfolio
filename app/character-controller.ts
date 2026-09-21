@@ -1,5 +1,7 @@
 import {Group,Vector3} from 'three';
 import {workshopSpawn} from './world-config';
+import type {MovementMode} from './persistence';
+export function movementSpeed(mode:MovementMode,boost=false){return mode==='skate'?(boost?14:9):(boost?6.5:4)}
 export function moveCharacter(player:Group,x:number,z:number,distance:number,blocked:(x:number,z:number)=>boolean,height:(x:number,z:number,previous:number)=>number|null,bounds={minX:-50,maxX:50,minZ:-50,maxZ:49}){
   const steps=Math.max(1,Math.ceil(distance/.15));
   for(let i=0;i<steps;i++){

@@ -3,7 +3,8 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 /** Batch immutable scenery by material and spatial tile, retaining camera collision bounds. */
 export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>){
   const dynamic=new Set<T.Object3D>();Object.values(animated).forEach(v=>{for(const item of Array.isArray(v)?v:[v])if(item instanceof T.Object3D)dynamic.add(item)});
-  const groups=new Map<string,T.Mesh[]>();const collision:T.Box3[]=[];scene.updateMatrixWorld(true);
+  const groups=new Map<string,T.Mesh[]>();const collision:T.Box3[]=[...(scene.userData.staticCameraBounds??[])];scene.updateWorldMatrix(true,true);
+  const inverseRoot=new T.Matrix4().copy(scene.matrixWorld).invert();
   scene.traverse(o=>{
     if(!(o instanceof T.Mesh)||o instanceof T.InstancedMesh||!(o.material instanceof T.MeshStandardMaterial)||o.material.map)return;
     let parent:T.Object3D|null=o;while(parent){if(dynamic.has(parent))return;parent=parent.parent}
@@ -20,11 +21,11 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>){
     const signatures=list.map(o=>JSON.stringify({type:o.geometry.type,parameters:(o.geometry as T.BoxGeometry).parameters}));
     if(list.length>=4&&signatures.every(key=>key===signatures[0])&&(list[0].geometry as T.BoxGeometry).parameters){
       const mesh=new T.InstancedMesh(list[0].geometry.clone(),list[0].material,list.length);
-      list.forEach((o,i)=>mesh.setMatrixAt(i,o.matrixWorld));mesh.computeBoundingSphere();mesh.name='SceneryInstances';mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+      list.forEach((o,i)=>mesh.setMatrixAt(i,new T.Matrix4().multiplyMatrices(inverseRoot,o.matrixWorld)));mesh.computeBoundingSphere();mesh.name='SceneryInstances';mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
       for(const o of list){o.removeFromParent();o.geometry.dispose();if(o.material!==mesh.material)(o.material as T.Material).dispose()}
       continue;
     }
-    const geometries=list.map(o=>{const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);if(!g.index)return g;const flat=g.toNonIndexed();g.dispose();return flat});
+    const geometries=list.map(o=>{const g=o.geometry.clone();g.applyMatrix4(new T.Matrix4().multiplyMatrices(inverseRoot,o.matrixWorld));if(!g.index)return g;const flat=g.toNonIndexed();g.dispose();return flat});
     const merged=mergeGeometries(geometries);geometries.forEach(g=>g.dispose());if(!merged)continue;
     const mesh=new T.Mesh(merged,list[0].material);mesh.name='SceneryBatch';mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
     const retained=list[0].material;

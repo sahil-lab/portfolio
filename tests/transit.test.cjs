@@ -9,7 +9,7 @@ const context=new Proxy({measureText(text){return {width:text.length*parseFloat(
 global.document={createElement:()=>({width:0,height:0,getContext:()=>context})};
 
 test('all satellite journeys complete once, reject duplicate starts, and return home',()=>{
- for(let destination=1;destination<4;destination++)for(const mode of ['metro','rocket']){
+ for(let destination=1;destination<transitStops.length;destination++)for(const mode of ['metro','rocket']){
   const j=new TransitJourney();assert.equal(j.start(-1,mode),false);assert.equal(j.start(0,mode),false);assert.equal(j.start(destination,mode),true);assert.equal(j.start(2,mode),false);
   let arrivals=0;for(let i=0;i<1100;i++)arrivals+=j.tick(1/60)?1:0;assert.equal(arrivals,1);assert.equal(j.current,destination);assert.equal(j.mode,null);
   assert.equal(j.start(0,mode),true);for(let i=0;i<1100;i++)j.tick(1/60);assert.equal(j.current,0);

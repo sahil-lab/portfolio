@@ -4,6 +4,7 @@ import * as outlines from './civilization-logo-outlines.json';
 import {civilizationFor,civilizations,careerTimeline,careerCredentials,careerSkills,type Civilization} from './civilization-config';
 import {planetPoint,planetUp,planetGeography,type PlanetSurface} from './planet-geography';
 import type {ForgeSnapshot} from './forge-feed';
+import {createReadableDisplay} from './readable-display';
 
 type Contour={outline:number[][];holes:number[][][]};
 const logoNormal=new T.Vector3(0,.42,.9075241044).normalize();
@@ -46,6 +47,7 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
   const trim=new T.MeshStandardMaterial({color:palette.metal,roughness:.33,metalness:.72});
   const beacon=new T.MeshStandardMaterial({color:palette.light,emissive:palette.light,emissiveIntensity:.52,roughness:.3});
   const water=new T.MeshPhysicalMaterial({color:'#0a66c2',roughness:.3,metalness:.2,clearcoat:.65,clearcoatRoughness:.2});
+  water.userData.surface='water';
   const buildings:{position:T.Vector3;radius:number}[]=[],cameraBounds:T.Box3[]=[];
   function curvedShape(shape:T.Shape,name:string,material:T.Material,height:number,depth:number){
     const source=new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:16});
@@ -98,8 +100,8 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
     context.font='500 25px "Trebuchet MS", sans-serif';context.fillStyle=identity==='github'?'#adb8c7':'#516c83';context.fillText(detail,384,204,690);
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
     const previous=parent.getObjectByName('Civilization_RecordPlaque') as T.Mesh<T.PlaneGeometry,T.MeshBasicMaterial>|undefined;
-    if(previous){previous.removeFromParent();previous.material.map?.dispose();previous.material.dispose();previous.geometry.dispose()}
-    const sign=new T.Mesh(new T.PlaneGeometry(width,width/3),new T.MeshBasicMaterial({map:texture,toneMapped:false}));sign.position.set(0,3.7,3.65);sign.name='Civilization_RecordPlaque';parent.add(sign);
+    if(previous){parent.getObjectByName('Civilization_RecordPlaque_Back')?.removeFromParent();previous.removeFromParent();previous.material.map?.dispose();previous.material.dispose();previous.geometry.dispose()}
+    createReadableDisplay(parent,'Civilization_RecordPlaque',texture,width,width/3,7.22,new T.Vector3(0,3.7,0));
   }
   const names=identity==='github'?palette.districts:careerTimeline.map(record=>record.name);
   names.forEach((name,index)=>{

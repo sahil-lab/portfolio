@@ -3,8 +3,8 @@ import {createCraftMaterials} from './crafted-surfaces';
 import {districts,routes} from './world-config';
 
 export const kingdomPalette={
-  pearl:'#deebe7',jade:'#205950',ink:'#172d34',brass:'#cfb47b',
-  silver:'#afc9ca',signal:'#7cf0dc',coral:'#ed8d79',blue:'#84bfd8',
+  pearl:'#f4f3e9',jade:'#459e89',ink:'#30434c',brass:'#e3bd79',
+  silver:'#c3dbdc',signal:'#9bf3dd',coral:'#f18d83',blue:'#84c9e4',
 };
 
 export function finishKingdomMaterials(scene:T.Object3D){
@@ -15,8 +15,12 @@ export function finishKingdomMaterials(scene:T.Object3D){
       if(finished.has(material)||!(material instanceof T.MeshStandardMaterial))continue;
       finished.add(material);
       material.dithering=true;
-      material.envMapIntensity=Math.max(material.envMapIntensity,material.metalness>.35?1.15:.72);
-      if(!material.map)material.roughness=Math.min(material.roughness,material.metalness>.35?.4:.64);
+      const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.vertexColors||material.userData.surface==='natural',ceramic=material.userData.surface==='ceramic';
+      if(!polished&&!natural&&!ceramic&&!material.map){
+        material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.3:.38,material.metalness>.35?.48:.58);
+        if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,.32,.55);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.22,.34)}
+      }
+      material.envMapIntensity=polished?Math.min(material.envMapIntensity,1.05):natural?.45:T.MathUtils.clamp(material.envMapIntensity,.55,.95);
       if(material.map)material.map.anisotropy=Math.max(material.map.anisotropy,4);
     }
   });
@@ -43,6 +47,7 @@ export function createKingdomAccents(scene:T.Scene){
   const districtRing=new T.TorusGeometry(7.72,.045,5,96).rotateX(Math.PI/2);
   const innerRing=new T.TorusGeometry(6.65,.025,4,80).rotateX(Math.PI/2);
   districts.forEach((district,index)=>{
+    if(index===0)return;
     mesh('District_MachinedRim',districtRing,brass,district.x,.47,district.z);
     mesh('District_EngravedOrbit',innerRing,pearl,district.x,.465,district.z);
     for(let tick=0;tick<32;tick++){
@@ -53,7 +58,6 @@ export function createKingdomAccents(scene:T.Scene){
       const x=district.x+side*6,z=district.z+3;
       pins.push({x,y:.55,z});lights.push({x,y:.63,z});
     }
-    if(index===0)mesh('Workshop_InlaidMedallion',new T.TorusGeometry(5.48,.025,4,96).rotateX(Math.PI/2),brass,district.x,.815,district.z);
   });
   instances('District_PrecisionTicks',new T.BoxGeometry(.055,.025,.22),brass,ticks);
   instances('District_LuminairePlinths',new T.CylinderGeometry(.48,.6,.13,20),ink,pins);

@@ -33,7 +33,7 @@ export function createWeatherSky(scene:T.Scene,sun:T.DirectionalLight){
       }`,
     side:T.BackSide,depthWrite:false,toneMapped:false,fog:false,
   });
-  const dome=new T.Mesh(new T.SphereGeometry(1400,32,16),atmosphereMaterial);dome.name='Kingdom_AtmosphericVault';dome.renderOrder=-1000;dome.frustumCulled=false;scene.add(dome);
+  const dome=new T.Mesh(new T.SphereGeometry(6000,32,16),atmosphereMaterial);dome.name='Kingdom_AtmosphericVault';dome.renderOrder=-1000;dome.frustumCulled=false;scene.add(dome);
   const lights:{light:T.Light;intensity:number;color:T.Color}[]=[];
   scene.traverse(object=>{if(object instanceof T.Light&&object!==sun)lights.push({light:object,intensity:object.intensity,color:object.color.clone()})});
   const initialSun={position:sun.position.clone(),intensity:sun.intensity,color:sun.color.clone()};

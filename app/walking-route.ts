@@ -1,11 +1,15 @@
+import {motherboardBounds} from './world-config';
 export type GroundPoint={x:number;z:number};
 // Bounded grid search uses the same collision predicate as player movement.
 // Only cardinal edges are used, so routes cannot cut diagonally through corners.
 export function planWalkingRoute(start:GroundPoint,end:GroundPoint,blocked:(x:number,z:number)=>boolean):GroundPoint[]{
- const scale=2,side=201,offset=100,rows=519;
- const inside=(x:number,z:number)=>Math.abs(x)<=offset&&z>=-offset&&z<=418;
- const id=(x:number,z:number)=>(z+offset)*side+x+offset;
- const point=(key:number)=>({x:(key%side-offset)/scale,z:(Math.floor(key/side)-offset)/scale});
+ const legacy=[start,end].every(point=>Math.abs(point.x)<=50&&point.z>=-50&&point.z<=209),scale=legacy?2:1;
+ const minX=legacy?-100:Math.floor(Math.max(motherboardBounds.minX+1,Math.min(start.x,end.x)-32)),maxX=legacy?100:Math.ceil(Math.min(motherboardBounds.maxX-1,Math.max(start.x,end.x)+32));
+ const minZ=legacy?-100:Math.floor(Math.max(motherboardBounds.minZ+1,Math.min(start.z,end.z)-32)),maxZ=legacy?418:Math.ceil(Math.min(motherboardBounds.maxZ-1,Math.max(start.z,end.z)+32));
+ const side=maxX-minX+1,rows=maxZ-minZ+1;
+ const inside=(x:number,z:number)=>x>=minX&&x<=maxX&&z>=minZ&&z<=maxZ;
+ const id=(x:number,z:number)=>(z-minZ)*side+x-minX;
+ const point=(key:number)=>({x:(key%side+minX)/scale,z:(Math.floor(key/side)+minZ)/scale});
  const clear=(a:GroundPoint,b:GroundPoint)=>{const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.1));for(let i=0;i<=steps;i++){const t=i/steps;if(blocked(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t))return false}return true};
  const sx=Math.round(start.x*scale),sz=Math.round(start.z*scale),ex=Math.round(end.x*scale),ez=Math.round(end.z*scale);
  if(!inside(sx,sz)||!inside(ex,ez))return [];

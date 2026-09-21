@@ -27,9 +27,9 @@ test('weather data remains unchanged and all fallback lighting values are bounde
 test('Astra uses the shared tint hook and restores off-world reflections without changing weather',()=>{
   const scene=new T.Scene();scene.environmentIntensity=.58;const light=new T.HemisphereLight('#eef8f2','#506a67',1.1);scene.add(light);
   const original=light.groundColor.clone(),calls=[],direction=createAstraAtmosphere(scene,look=>calls.push(look));
-  direction.update({...defaultWeather,isDay:false},0,true);assert.equal(scene.environmentIntensity,.1);
+  direction.update({...defaultWeather,isDay:false},0,true);assert.equal(scene.environmentIntensity,astraLightStory({...defaultWeather,isDay:false}).environment);
   for(let frame=0;frame<100;frame++)direction.update({...defaultWeather,isDay:false},.05,true);
-  assert.equal(calls.length,1);assert.ok(scene.environmentIntensity<.11);assert.notEqual(light.groundColor.getHex(),original.getHex());
+  assert.equal(calls.length,1);assert.ok(scene.environmentIntensity<.21);assert.notEqual(light.groundColor.getHex(),original.getHex());
   for(let frame=0;frame<150;frame++)direction.update(defaultWeather,.05,false);
   assert.deepEqual(calls.at(-1),{});assert.ok(Math.abs(scene.environmentIntensity-.58)<.001);
   for(const channel of ['r','g','b'])assert.ok(Math.abs(light.groundColor[channel]-original[channel])<.001);

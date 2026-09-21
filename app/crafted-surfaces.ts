@@ -15,7 +15,7 @@ export function createCraftMaterials(){
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
     seed=(Math.imul(seed,1664525)+1013904223)>>>0;
     const grain=(seed>>>24)/255;
-    const value=Math.round(226+grain*12+Math.sin(y*.54+x*.07)*3);
+    const value=Math.round(237+grain*8+Math.sin(y*.54+x*.07)*2);
     const i=(y*size+x)*4;data[i]=data[i+1]=data[i+2]=value;data[i+3]=255;
   }
   const grain=new T.DataTexture(data,size,size,T.RGBAFormat);grain.name='Paint_SubtleBrushGrain';
@@ -24,9 +24,9 @@ export function createCraftMaterials(){
     const metallic=metalness>.3;
     const material=new T.MeshPhysicalMaterial({
       color,emissive:color,emissiveIntensity:glow,metalness,
-      roughness:metallic?.32:.48,roughnessMap:grain,bumpMap:grain,bumpScale:.008,
-      clearcoat:metallic?.24:.38,clearcoatRoughness:.3,
-      envMapIntensity:metallic?1.15:.8,
+      roughness:metallic?.44:.62,roughnessMap:grain,bumpMap:grain,bumpScale:.0035,
+      clearcoat:metallic?.16:.22,clearcoatRoughness:.42,
+      envMapIntensity:metallic?.95:.65,
     });
     material.name=metallic?'Kingdom_SatinMetal':'Kingdom_GlazedCeramic';
     return material;

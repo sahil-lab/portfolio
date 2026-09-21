@@ -4,12 +4,12 @@ import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 import {metroDimensions,type MetroRig} from './transit-motion';
 export function createTransitModels(){
  const surface=createCraftMaterials();
- const cream=surface('#deebe7'),copper=surface('#c4a773',0,.65),navy=surface('#203a45',0,.35),rubber=surface('#253c3c'),glow=surface('#d7f1d9',.75),glass=surface('#346a74',0,.42);
+ const cream=surface('#f9f0dd'),copper=surface('#d3b77f',0,.55),navy=surface('#304650',0,.22),rubber=surface('#293638'),glow=surface('#fff0bc',.65),glass=surface('#298fab',0,.3);
  glass.roughness=.18;glass.clearcoat=.9;rubber.roughness=.85;rubber.clearcoat=0;
  const mesh=(g:T.Object3D,geo:T.BufferGeometry,m:T.Material,x=0,y=0,z=0)=>{const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;g.add(o);return o};
  const box=(g:T.Object3D,m:T.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>mesh(g,craftedBox(w,h,d),m,x,y,z);
  function rover(color:string){
-  const g=new T.Group();g.name='Rover';const paint=surface(color,0,.24);
+  const g=new T.Group();g.name='Rover';const paint=surface(color,0,.07);paint.roughness=.35;paint.clearcoat=.5;paint.clearcoatRoughness=.24;paint.userData.surface='ceramic';
   box(g,navy,0,.4,0,2.1,.48,3.25);box(g,paint,0,.8,0,2.25,.68,3.5);box(g,cream,0,1.08,.85,2.05,.23,1.42);
   box(g,navy,0,1.15,-.25,1.7,.18,1.6);box(g,copper,0,.55,1.85,2.35,.23,.18);box(g,copper,0,.55,-1.8,2.35,.23,.18);
   for(const x of [-1.05,1.05]){box(g,paint,x,1.3,-.2,.16,.65,1.8);box(g,copper,x,1.66,.54,.09,.75,.09)}
@@ -17,6 +17,11 @@ export function createTransitModels(){
     box(g,cream,0,1.64,.62,.075,.68,.04);box(g,glow,0,.59,1.94,1.4,.04,.035);
     for(const side of [-1,1])box(g,copper,side*1.14,.91,0,.035,.055,2.85);
   for(const x of [-.73,.73]){mesh(g,new T.SphereGeometry(.16,12,8),glow,x,.95,1.75);box(g,copper,x,1,-1.76,.3,.15,.06)}
+  for(const side of [-1,1]){
+    const bezel=mesh(g,new T.TorusGeometry(.19,.035,6,16),cream,side*.73,.95,1.77);bezel.name='Rover_HeadlightBezel';
+    const mirror=box(g,cream,side*1.29,1.63,.57,.25,.18,.18);mirror.name='Rover_WingMirror';
+    box(g,navy,side*.46,1.32,-.56,.66,.46,.54);box(g,cream,side*.46,1.31,-.275,.51,.27,.035);
+  }
   const wheels:T.Mesh[]=[];for(const x of [-1.15,1.15])for(const z of [-1.1,1.1]){const tire=mesh(g,new T.CylinderGeometry(.51,.51,.34,20),rubber,x,.45,z);tire.rotation.z=Math.PI/2;wheels.push(tire);const hub=mesh(g,new T.CylinderGeometry(.27,.27,.37,16),copper,x,.45,z);hub.rotation.z=Math.PI/2}
   batchScenery(g,{wheels});return {root:g,wheels};
  }

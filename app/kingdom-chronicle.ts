@@ -1,6 +1,7 @@
 import * as T from 'three';
 import * as resume from './resume-data.json';
 import {emptyForge,type ForgeSnapshot} from './forge-feed';
+import {createReadableDisplay} from './readable-display';
 
 export const chronicleSite={x:-45.2,z:14,width:10.8,height:7.4};
 
@@ -28,7 +29,7 @@ export function createKingdomChronicle(scene:T.Scene){
   const strip=box('Chronicle_UpdateStrip',4.1,1.48,.94,.8,.42,.02,paper);
   const canvas=document.createElement('canvas');canvas.width=1800;canvas.height=1200;const context=canvas.getContext('2d')!;
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
-  const display=new T.Mesh(new T.PlaneGeometry(10.8,7.2),new T.MeshBasicMaterial({map:texture,toneMapped:false}));display.position.set(0,5.7,.34);display.name='Chronicle_VerifiedDisplay';root.add(display);
+  createReadableDisplay(root,'Chronicle_VerifiedDisplay',texture,10.8,7.2,.65,new T.Vector3(0,5.7,0));
   let snapshot:ForgeSnapshot={...emptyForge},printing=0;
   function paint(){
     const lines=chronicleLines(snapshot);context.fillStyle='#101b24';context.fillRect(0,0,1800,1200);

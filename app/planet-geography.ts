@@ -1,5 +1,6 @@
 import * as T from 'three';
 import type {TransitStop} from './transit-config';
+import {realmApproachDistance,realmRelief,realmSiteDistance} from './realm-layout';
 
 export type PlanetSurface={stop:TransitStop;radius:number;center:T.Vector3;capHeight:number};
 export const roadLatitudes=[.46,0,-.48];
@@ -24,7 +25,7 @@ export function riverLatitude(longitude:number,river:number,theme:TransitStop['t
 }
 export function planetGeography(surface:PlanetSurface,direction:T.Vector3){
   const latitude=Math.asin(T.MathUtils.clamp(direction.y,-1,1)),longitude=Math.atan2(direction.z,direction.x);
-  const road=roadDistance(surface.radius,direction);
+  const road=Math.min(roadDistance(surface.radius,direction),realmApproachDistance(surface.stop,surface.radius,direction));
   const river=Math.min(...[0,1].map(index=>Math.abs(latitude-riverLatitude(longitude,index,surface.stop.theme))*surface.radius));
   const clearance=T.MathUtils.smoothstep(road,4.2,20),landing=1-T.MathUtils.smoothstep(direction.y,.82,.92);
   let mountain=0;
@@ -33,6 +34,7 @@ export function planetGeography(surface:PlanetSurface,direction:T.Vector3){
     const ridge=Math.max(0,1-separation/(29+index%3*5));
     mountain+=ridge*ridge*(surface.stop.theme==='prism'?23:surface.stop.theme==='garden'?19:16);
   });
+  if(surface.stop.worldKind)mountain=realmRelief(surface.stop.worldKind,direction)*T.MathUtils.smoothstep(realmSiteDistance(surface.stop,surface.radius,direction),2,13);
   const bank=1-T.MathUtils.smoothstep(river,2.2,6),water=river<2.7&&road>3.7&&direction.y<.8;
   const height=(mountain*clearance*T.MathUtils.smoothstep(river,3.5,19)-bank*1.65*T.MathUtils.smoothstep(road,3.5,5))*landing;
   return {height,road,river,water,mountain};
