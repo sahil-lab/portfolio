@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reference Dog | 3D Study</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root{color-scheme:light;font-family:'Palatino Linotype',Palatino,serif;color:#263535;background:#c9cecf;letter-spacing:0}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{position:fixed;inset:0;display:block;max-width:100vw;max-height:100dvh;touch-action:none}
+    header{position:fixed;left:28px;top:25px;pointer-events:none}header small{font:11px 'Trebuchet MS',sans-serif;color:#506463}h1{font-size:26px;font-weight:400;margin:6px 0}
+    #status{position:fixed;right:28px;top:30px;font:12px 'Trebuchet MS',sans-serif;color:#4b6060}
+    footer{position:fixed;bottom:max(22px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:15px;max-width:calc(100% - 24px);font:12px 'Trebuchet MS',sans-serif}
+    nav{display:flex;align-items:center;gap:2px;padding:3px;background:#edf1efeb;border:1px solid #a4b4ae;border-radius:5px}
+    button{font:inherit;letter-spacing:0;white-space:nowrap;min-height:44px;min-width:44px;padding:0 12px;border:0;border-radius:3px;background:transparent;color:#293c38;cursor:pointer}
+    button[aria-pressed=true]{background:#315c52;color:#f9fcfa}button:focus-visible,input:focus-visible{outline:2px solid #326b5c;outline-offset:3px}
+    label{display:flex;align-items:center;gap:7px;white-space:nowrap}input{accent-color:#315c52;width:18px;height:18px}
+    #download{border:1px solid #9aaba6;background:#f5f6ef}button:disabled{opacity:.5;cursor:wait}
+    @media(max-width:640px){header{left:18px;top:18px}h1{font-size:22px}#status{right:18px;top:22px;font-size:10px}footer{width:calc(100% - 24px);flex-wrap:wrap;gap:8px}nav{flex:1 0 100%;justify-content:center}nav button{flex:1;padding:0 8px}label{margin-right:16px}}
+  </style>
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+</head>
+<body>
+  <header><small>MULTI-VIEW STUDY / 08</small><h1>Reference Dog</h1></header>
+  <output id="status">Preparing model</output>
+  <footer>
+    <nav aria-label="Model view"><button data-view="three-quarter" aria-pressed="true">3/4</button><button data-view="front" aria-pressed="false">Front</button><button data-view="side" aria-pressed="false">Side</button><button data-view="rear" aria-pressed="false">Rear</button><button data-view="face" aria-pressed="false">Face</button></nav>
+    <label><input id="rotate" type="checkbox">Turntable</label>
+    <button id="download" disabled>Download GLB</button>
+  </footer>
+  <script type="module" src="/studio.mjs"></script>
+</body>
+</html>

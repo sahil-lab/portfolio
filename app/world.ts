@@ -42,6 +42,8 @@ import {createWorkshopNeighborhood} from './workshop-neighborhood';
 import {createCityPublicSpaces} from './city-public-spaces';
 import {createCityExpansion} from './city-expansion';
 import {cityDistricts,type CityDistrictKind} from './city-districts';
+import {createRoamingDog} from './roaming-dog';
+import {createGoldMonument} from './gold-monument';
 export {districts} from './world-config';
 export type WorldCallbacks={onPlace:(i:number)=>void;onReady:()=>void;onInteract:(i:number)=>void;onVoiceEnabled?:()=>void;onCommons?:(inside:boolean)=>void;onCity?:(name:string|null)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onExhibit?:(i:number)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void;onNotice?:(s:string)=>void;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onPauseToggle?:()=>void;onPerformance?:(s:string)=>void;onMachine?:(i:number)=>void;onMachineTick?:()=>void;onTransit?:(s:TransitStatus)=>void;onTransitOpen?:()=>void};
 export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSettings:Settings=defaultSettings,initialDelivery:DeliverySnapshot|null=null,createCharacter:typeof createCourier=createCourier){
@@ -70,15 +72,17 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  artAtmosphere.update(weather.snapshot,0,true);weather.sky.update(weather.snapshot,0,true,true,true);
  const commons=createCreativePlaza(scene,player,{notice:text=>callbacks.onNotice?.(text),subtitle:text=>callbacks.onSubtitle?.(text),sound:()=>audio.cue('pickup'),enableVoice:()=>{settings={...settings,muted:false};commons.speaker.sound(true,settings.volume);callbacks.onVoiceEnabled?.()}});
  const bulletins=createBulletinWorld(scene,player,text=>callbacks.onNotice?.(text));let bulletinFeed:ReturnType<typeof watchBulletins>|undefined;
+ const goldMonument=createGoldMonument(scene,{bulletinHeight:bulletinSites.markets.height});
  const rig=createGameCamera(camera,scene,player);let observedPlanet:number|null=null;
  rig.setMode(settings.cameraMode);
  const resetCamera=(view:Parameters<typeof rig.reset>[0]={})=>rig.reset(settings.cameraMode==='far'?view:{yaw:view.yaw});
- const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>city.blocked(x,z,y)||workshop.blocked(x,z,y)||bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:(x,z,y)=>city.height(x,z,y)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,y)??traversal.height(x,z,y)),change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup')});
+ const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>goldMonument.blocked(x,z,y)||city.blocked(x,z,y)||workshop.blocked(x,z,y)||bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:(x,z,y)=>city.height(x,z,y)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,y)??traversal.height(x,z,y)),change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup')});
+ const dog=createRoamingDog(scene,player,{height:bulletinSites.markets.height,ground:(x,z)=>city.height(x,z,.8)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,.8)??traversal.height(x,z,.8)),blocked:(x,z)=>buildings.blocked(x,z)||[.8,3,5.2,7.4,9.6,11.8,14,16.2].some(y=>city.blocked(x,z,y)||cityGardens.blocked(x,z,y)||workshop.blocked(x,z,y)||collideScenery(x,z,y)||awe.blocked(x,z,y)||weather.blocked(x,z,y)||commons.blocked(x,z,y)||bulletins.blocked(x,z,y)||artMoments.blocked(x,z,y)||chronicle.blocked(x,z,y)),bark:(distance,pan)=>audio.bark(distance,pan),notice:text=>callbacks.onNotice?.(text)});
  const architecturalDetails=createKingdomAccents(scene);finishKingdomMaterials(scene);
  // Double world dimensions while retaining the courier's original apparent body size.
  // Gameplay coordinates remain local so doors, stairs, routes and collision agree.
  scene.scale.setScalar(2);player.scale.setScalar(.5);pip.scale.setScalar(.5);
- const homeScenery=scene.children.filter(object=>!(object instanceof T.Light)&&object!==sun.target&&object!==player&&object!==transport.neighborhood.root&&object.name!=='OrbitalTransit'&&object!==weather.sky.dome&&object!==weather.sky.root&&object!==city.root);
+ const homeScenery=scene.children.filter(object=>!(object instanceof T.Light)&&object!==sun.target&&object!==player&&object!==dog.root&&object!==goldMonument.root&&object!==transport.neighborhood.root&&object.name!=='OrbitalTransit'&&object!==weather.sky.dome&&object!==weather.sky.root&&object!==city.root);
  const hiddenHome=new Map<T.Object3D,boolean>();
  scene.updateMatrixWorld(true);
  scene.traverse(o=>{for(const bound of o.userData.staticCameraBounds??[])bound.applyMatrix4(scene.matrixWorld)});
@@ -90,7 +94,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  const meter=createPerformanceMeter(renderer,text=>callbacks.onPerformance?.(`${text}\n${describeQuality()}`),({p95})=>{if(settings.quality==='auto'&&governor.sample(p95)){configure();resize()}});
  const shadowFollow=createShadowFollow(sun);
  const planetLighting=createPlanetLighting(scene,sun);
- function sceneryBlocked(x:number,z:number){return city.blocked(x,z,player.position.y)||cityGardens.blocked(x,z,player.position.y)||workshop.blocked(x,z,player.position.y)||collideScenery(x,z,player.position.y)||machines.blocked(x,z,player.position.y)||artMoments.blocked(x,z,player.position.y)||chronicle.blocked(x,z,player.position.y)}
+ function sceneryBlocked(x:number,z:number){return goldMonument.blocked(x,z,player.position.y)||city.blocked(x,z,player.position.y)||cityGardens.blocked(x,z,player.position.y)||workshop.blocked(x,z,player.position.y)||collideScenery(x,z,player.position.y)||machines.blocked(x,z,player.position.y)||artMoments.blocked(x,z,player.position.y)||chronicle.blocked(x,z,player.position.y)}
 
  let last=performance.now(),place=0,time=0,shadowClock=0,footDistance=0,ambientClock=0,overlookSeen=false,lastCommons=false;const priorPosition=player.position.clone();const priorStages=exhibits.map(e=>e.snapshot.step);
  let lastCity:string|null=null;
@@ -106,6 +110,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
    if(!riding&&!menuOpen&&!traversal.moving)moveCharacter(player,x,z,dt*speed,transport.blocked,transport.height,transport.bounds);
     const onMotherboard=transport.journey.current===0&&!transport.journey.mode&&observedPlanet===null;artAtmosphere.update(weather.snapshot,dt,onMotherboard);weather.update(dt,settings.reducedMotion,onMotherboard,buildings.getInside()!==null);if(onMotherboard)shadowFollow.follow(player.position,scene.scale.x);else if(transport.journey.current>0&&!transport.journey.mode&&observedPlanet===null){planetLighting.apply(player);shadowFollow.follow(player.position,scene.scale.x)}else sun.target.position.set(0,0,0);commons.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
     bulletins.update(dt,settings.reducedMotion,onMotherboard&&!menuOpen);
+    dog.update(menuOpen?0:dt,onMotherboard&&buildings.getInside()===null,settings.reducedMotion,settings.stableCamera?rig.stableYaw:rig.yaw);
     chronicle.update(dt,settings.reducedMotion);
     workshop.update(!weather.snapshot.isDay);
     cityGardens.update(dt,settings.reducedMotion);
@@ -114,7 +119,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   if(!settings.reducedMotion){time+=dt;animated.fans.forEach((f:T.Object3D)=>f.rotation.y+=dt*.5);animated.gpu!.rotation.y+=dt*.35;pip.rotation.y=Math.sin(time*.7)*.2}awe.update(time,settings.reducedMotion);architecturalDetails.update(time,settings.reducedMotion);artMoments.update(time,settings.reducedMotion,weather.snapshot,onMotherboard);
   buildings.update(dt);exhibits.forEach((e,i)=>{if(e.snapshot.step!==priorStages[i]){if(buildings.getInside()===i)audio.cue('demo');priorStages[i]=e.snapshot.step}});const distance=player.position.distanceTo(priorPosition);if(!skating&&distance<1)footDistance+=distance;priorPosition.copy(player.position);if(footDistance>.9){audio.cue('footstep');footDistance=0}ambientClock+=dt;if(ambientClock>12){ambientClock=0;audio.cue('creature')}audio.tick(place);const lifePrompt=living.update(dt,buildings.getInside()!==null,settings.reducedMotion);
    if(!overlookSeen&&player.position.y>8&&player.position.x>8.2&&player.position.z< -24&&player.position.z> -29){overlookSeen=true;callbacks.onNotice?.('Chassis overlook discovered · A whole kingdom is moving inside one machine. Return by the service bridge and lift.');audio.cue('pickup')}
-    const prompt=transport.prompt()??city.prompt(player.position)??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:(chronicle.near(player.position)?'E \u00b7 Kingdom Chronicle':null)||bulletins.prompt()||commons.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
+    const prompt=transport.prompt()??city.prompt(player.position)??traversal.prompt()??(buildings.getInside()!==null?buildingPrompt:(chronicle.near(player.position)?'E \u00b7 Kingdom Chronicle':null)||bulletins.prompt()||commons.prompt()||dog.prompt()||(weather.near()?'E \u00b7 Local weather':null)||machines.prompt()||lifePrompt||buildingPrompt);
    if(prompt!==lastPrompt){lastPrompt=prompt;callbacks.onPrompt?.(prompt)}
   }
   const nearest=districts.reduce((best,d,i)=>Math.hypot(player.position.x-d.x,player.position.z-d.z)<Math.hypot(player.position.x-districts[best].x,player.position.z-districts[best].z)?i:best,0);if(nearest!==place){place=nearest;callbacks.onPlace(place)}
@@ -134,6 +139,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
     {id:'commons',run:()=>commons.interact()},
     {id:'bulletins',run:()=>bulletins.interact()},
     {id:'weather',run:()=>{if(!weather.near())return false;callbacks.onNotice?.(weather.details());return true}},
+    {id:'dog',run:()=>dog.interact(settings.stableCamera?rig.stableYaw:rig.yaw)},
   {id:'district-machine',run:()=>machines.interact()},
   {id:'resident',run:()=>living.interact()},
   {id:'building',run:()=>buildings.interact()},
@@ -149,7 +155,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
  return {
   observePlanet:(destination:number)=>{if(transport.journey.mode||!transport.surfaces[destination])return false;if(observedPlanet!==null){const previous=transport.landscapes[observedPlanet]!;previous.rotation.reset();previous.root.userData.observed=false}observedPlanet=destination;transport.landscapes[destination]!.root.userData.observed=true;const stop=transport.surfaces[destination]!.stop,identity=civilizationFor(stop);callbacks.onNotice?.(identity?civilizations[identity].brand+' / '+civilizations[identity].name:stop.name);input.state.clear();input.setEnabled(false);weather.sky.update(weather.snapshot,0,settings.reducedMotion,false,true);return true},
   stopObservation:()=>{if(observedPlanet!==null){const landscape=transport.landscapes[observedPlanet]!;landscape.rotation.reset();landscape.root.userData.observed=false}observedPlanet=null;input.state.clear();input.setEnabled(!paused&&!menuOpen)},chronicle,
-  workshop,cityGardens,camera,renderer,renderStats:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,textures:renderer.info.memory.textures,geometries:renderer.info.memory.geometries}),
+  workshop,cityGardens,dog,goldMonument,camera,renderer,renderStats:()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,textures:renderer.info.memory.textures,geometries:renderer.info.memory.geometries}),
   city,goCity:(id:CityDistrictKind='lantern')=>{if(paused||transport.journey.mode)return false;const district=cityDistricts.find(district=>district.id===id);if(!district)return false;commons.voice.cancel();transport.home();player.position.set(id==='lantern'?cityArrival.x:district.x,.8,id==='lantern'?cityArrival.z:district.z+30);resetCamera(id==='lantern'?cityCameraView(camera.aspect):{yaw:.22,pitch:.48,zoom:Math.max(62,Math.min(130,54/camera.aspect)),focusHeight:6.5});input.state.clear();callbacks.onNotice?.(district.name);return true},
   bulletins,goBulletins:(kind:keyof typeof bulletinSites='markets')=>{if(paused||transport.journey.mode)return false;commons.voice.cancel();transport.home();player.position.set(bulletinSites[kind].x,bulletinView.y,bulletinView.z);resetCamera(bulletinCameraView(camera.aspect));input.state.clear();void bulletinFeed?.refresh();callbacks.onNotice?.(kind==='markets'?'Market Watch':'World Business');return true},
   weather,plaza:commons,goCommons:()=>{commons.voice.cancel();transport.home();const arrival=commonsArrival(camera.aspect);player.position.set(arrival.position.x,arrival.position.y,arrival.position.z);resetCamera(arrival.view);input.state.clear();callbacks.onNotice?.('Motherboard Commons')},
@@ -166,7 +172,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks,initialSet
   home,step:(dx:number,dz:number,cameraRelative=false)=>{if(!paused&&!menuOpen&&observedPlanet===null&&!traversal.moving&&!transport.journey.mode){audioGesture();const yaw=cameraRelative?(settings.stableCamera?rig.stableYaw:rig.yaw):0,x=dx*Math.cos(yaw)+dz*Math.sin(yaw),z=-dx*Math.sin(yaw)+dz*Math.cos(yaw),distance=cameraRelative?movementSpeed(settings.movementMode)*.12:.75;if(transport.driving)transport.update(.08,x,z,settings.reducedMotion);else if(!transport.stepSurface(x,z,distance*2.4))moveCharacter(player,x,z,distance,transport.blocked,transport.height,transport.bounds)}},
   route:buildings.route,travel:(i:number)=>{if(paused||menuOpen||!districts[i])return;commons.voice.cancel();transport.home();player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
     interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen&&observedPlanet===null);if(v)commons.voice.cancel()},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},
-    dispose:()=>{audio.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();bulletinFeed?.dispose();forgeFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);presentation.dispose();disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
+    dispose:()=>{audio.dispose();dog.dispose();goldMonument.dispose();living.dispose();commons.dispose();weatherFeed?.dispose();bulletinFeed?.dispose();forgeFeed?.dispose();input.dispose();disposed=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);removeEventListener('resize',resize);presentation.dispose();disposeScene(scene);reflections.dispose();renderer.dispose();host.replaceChildren()},scene,animated,player,box,label,mat
  };
 }
 

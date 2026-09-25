@@ -1,3 +1,5 @@
+import {goldMonumentSite} from './gold-monument-site';
+
 export type CityDistrictKind='lantern'|'harbor'|'archive'|'foundry'|'garden'|'observatory';
 export type CityDistrict={id:CityDistrictKind;name:string;x:number;z:number;accent:string;role:string;landmark:string};
 
@@ -31,5 +33,5 @@ export function cityBlockPlan(column:number,row:number){
 }
 
 export function cityDistrictReserved(x:number,z:number){
-  return cityDistricts.some(district=>Math.abs(district.x-x)<1&&Math.abs(district.z-z)<1);
+  return Math.abs(goldMonumentSite.x-x)<1&&Math.abs(goldMonumentSite.z-z)<1||cityDistricts.some(district=>Math.abs(district.x-x)<1&&Math.abs(district.z-z)<1);
 }

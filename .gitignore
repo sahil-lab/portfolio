@@ -40,6 +40,11 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/.cache/
+
+# personal reference photos - keep local
+/picsFOR3dModler/
+/picsofSah/
 
 # local editor files
 /.cursor/
