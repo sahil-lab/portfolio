@@ -4,7 +4,7 @@ The HUD keeps five category buttons onscreen, with a small transparent movement 
 
 | Category | Controls |
 | --- | --- |
-| World | City, Travel, Commons, Pixel, Projects, District atlas and all eight district destinations; Arrive now during transit |
+| World | City, Travel, Commons, Pixel, Projects, District atlas and all eight district destinations; Resume / Weather and Resume / Statue book locations; Arrive now during transit |
 | Character | Angel/Main quick switch and mode selector; landing, takeoff, Walk/Run, ascent, descent, boost, free roam, planet selection and travel; main Walk/Skate |
 | View | First person, Close, Far, Fullscreen |
 | Activity | Courier journal, Interact, delivery and next-round actions when available, dispatch progress, Hide/Show dispatch, Operate exhibit, project and resume links |

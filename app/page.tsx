@@ -5,6 +5,8 @@ import './workshop-ui.css';
 import './angel-ui.css';
 import './hud-controls.css';
 import {HudCategory} from './hud-category';
+import {ResumeBookReader} from './resume-book-reader';
+import type {ResumeBookSiteId} from './resume-book';
 import {AngelControls} from './angel-controls';
 import {emptyAngelStatus,type AngelFlightStatus} from './angel-flight';
 import {Panels} from './panels';
@@ -17,7 +19,7 @@ import {ComfortSettings} from './comfort-settings';
 import {defaultSettings,loadSave,writeSave,type Settings} from './persistence';
 
 import { useEffect, useRef, useState } from 'react';
-import { Cpu, FolderCode, Info, Volume2, VolumeX, Maximize, Map, ArrowUpRight, Compass, Store, Building2, MessageCircle, Orbit, SlidersHorizontal, Pause, Play, Package, X, Hand, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Microchip, Library, Palette, Network, Database, Cloud, Workflow, Eye, Camera, Scan, Footprints, Zap, Feather, UserRound } from 'lucide-react';
+import { Cpu, FolderCode, Info, Volume2, VolumeX, Maximize, Map, ArrowUpRight, Compass, Store, Building2, MessageCircle, Orbit, SlidersHorizontal, Pause, Play, Package, X, Hand, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Microchip, Library, Palette, Network, Database, Cloud, Workflow, Eye, Camera, Scan, Footprints, Zap, Feather, UserRound, BookOpen } from 'lucide-react';
 import { createWorld, districts } from './world';
 import {DeliveryRound} from './delivery-state';
 import {encounters,type Encounter} from './living-world';
@@ -35,22 +37,24 @@ export default function Home(){
  const [transit,setTransit]=useState<TransitStatus>(emptyTransit);
  const [angel,setAngel]=useState<AngelFlightStatus>(emptyAngelStatus);
  const [angelDestination,setAngelDestination]=useState(1);
+ const [readingResume,setReadingResume]=useState<{site:ResumeBookSiteId;page:number}|null>(null);
  const [machine,setMachine]=useState<number|null>(null);const [,refreshMachine]=useState(0);const [panel,setPanel]=useState<'projects'|'info'|'courier'|'settings'|'transit'|number|null>(null);const [inside,setInside]=useState<number|null>(null);const [prompt,setPrompt]=useState('Explore the motherboard');const [route,setRoute]=useState('');const [notice,setNotice]=useState('');
  const [settings,setSettings]=useState<Settings>(defaultSettings);const [paused,setPaused]=useState(false);const [performanceText,setPerformanceText]=useState('Measuring…');const [saveError,setSaveError]=useState(false);
  const [delivery,setDelivery]=useState(()=>new DeliveryRound().snapshot);const [encounter,setEncounter]=useState<Encounter|null>(null);const [subtitle,setSubtitle]=useState('');
  const host=useRef<HTMLDivElement>(null);const game=useRef<ReturnType<typeof createWorld>|null>(null);const [place,setPlace]=useState(0);const [ready,setReady]=useState(false);
  // WebGL initialization is an external operation; report its synchronous failure so HTML access remains available.
  // oxlint-disable-next-line react/react-compiler
- useEffect(()=>{if(!host.current)return;try{const saved=loadSave();setSettings(saved.settings);if(saved.delivery)setDelivery(saved.delivery);game.current=createWorld(host.current,{onPlace:setPlace,onVoiceEnabled:()=>setSettings(value=>({...value,muted:false})),onCommons:setInCommons,onCity:setCityName,onTransit:setTransit,onTransitOpen:()=>setPanel('transit'),onAngel:setAngel,onMachine:setMachine,onMachineTick:()=>refreshMachine(n=>n+1),onReady:()=>setReady(true),onInteract:()=>setNotice('Find the System Information terminal beside the workshop, or mark a project entrance from Projects.'),onInfo:()=>setPanel('info'),onInside:setInside,onExhibit:setPanel,onPrompt:setPrompt,onRoute:setRoute,onNotice:setNotice,onDelivery:setDelivery,onEncounter:setEncounter,onSubtitle:setSubtitle,onPauseToggle:()=>setPaused(v=>!v),onPerformance:setPerformanceText},saved.settings,saved.delivery);const selected=projects.findIndex(p=>p.id===new URLSearchParams(location.search).get('project'));if(selected>=0)game.current.route(selected);return()=>game.current?.dispose()}catch{setReady(true);setNotice('3D is unavailable on this device. Use the HTML project directory or readable résumé.')}},[]);
- useEffect(()=>{game.current?.pause(panel!==null||machine!==null)},[panel,machine]);
+ useEffect(()=>{if(!host.current)return;try{const saved=loadSave();setSettings(saved.settings);if(saved.delivery)setDelivery(saved.delivery);game.current=createWorld(host.current,{onPlace:setPlace,onVoiceEnabled:()=>setSettings(value=>({...value,muted:false})),onCommons:setInCommons,onCity:setCityName,onTransit:setTransit,onTransitOpen:()=>setPanel('transit'),onAngel:setAngel,onResume:(site,page)=>{setCategory(null);setReadingResume({site,page})},onMachine:setMachine,onMachineTick:()=>refreshMachine(n=>n+1),onReady:()=>setReady(true),onInteract:()=>setNotice('Find the System Information terminal beside the workshop, or mark a project entrance from Projects.'),onInfo:()=>setPanel('info'),onInside:setInside,onExhibit:setPanel,onPrompt:setPrompt,onRoute:setRoute,onNotice:setNotice,onDelivery:setDelivery,onEncounter:setEncounter,onSubtitle:setSubtitle,onPauseToggle:()=>setPaused(v=>!v),onPerformance:setPerformanceText},saved.settings,saved.delivery);const selected=projects.findIndex(p=>p.id===new URLSearchParams(location.search).get('project'));if(selected>=0)game.current.route(selected);return()=>game.current?.dispose()}catch{setReady(true);setNotice('3D is unavailable on this device. Use the HTML project directory or readable résumé.')}},[]);
+ useEffect(()=>{game.current?.pause(panel!==null||machine!==null||readingResume!==null)},[panel,machine,readingResume]);
  useEffect(()=>{game.current?.setPaused(paused)},[paused]);
  useEffect(()=>{if(ready)game.current?.settings(settings)},[settings,ready]);
  useEffect(()=>{if(ready&&game.current)setSaveError(!writeSave(settings,delivery))},[settings,delivery,ready]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),9000);return()=>clearTimeout(timer)},[notice]);
  const categoryProps=(name:NonNullable<typeof category>)=>({open:category===name,change:(open:boolean)=>setCategory(current=>open?name:current===name?null:current)});
  const openPanel=(value:NonNullable<typeof panel>)=>{setCategory(null);setPanel(value)};
- const controlsDisabled=!ready||paused||panel!==null||machine!==null;
+ const controlsDisabled=!ready||paused||panel!==null||machine!==null||readingResume!==null;
  return <main className="kingdom" data-ready={ready} data-angel={angel.controlled} data-controls-open={category??undefined} data-atlas-open={showAtlas} data-neighborhood={!angel.controlled&&place===0&&!inCommons&&inside===null&&transit.current===0&&!transit.mode} data-observing={observing!==null} data-interior={inside!==null} data-satellite={angel.controlled?angel.current>0:transit.current>0||!!transit.mode}><div className="world" ref={host}/><div className="vignette"/>
+ {readingResume&&<ResumeBookReader initialPage={readingResume.page} close={()=>setReadingResume(null)} turn={page=>game.current?.resumeBooks.books.find(book=>book.site.id===readingResume.site)?.setSpread(page===3?1:0)}/>}
  <div className="screen-movement"><TouchControls disabled={controlsDisabled||observing!==null} onMove={(x,z)=>game.current?.stick(x,z)}/><div className="walk-pad" aria-label="Movement controls"><button type="button" aria-label="Move forward" title="Move forward" disabled={controlsDisabled||observing!==null} onClick={()=>game.current?.step(0,-1,true)}><ArrowUp size={20}/></button><button type="button" aria-label="Move left" title="Move left" disabled={controlsDisabled||observing!==null} onClick={()=>game.current?.step(-1,0,true)}><ArrowLeft size={20}/></button><button type="button" aria-label="Move backward" title="Move backward" disabled={controlsDisabled||observing!==null} onClick={()=>game.current?.step(0,1,true)}><ArrowDown size={20}/></button><button type="button" aria-label="Move right" title="Move right" disabled={controlsDisabled||observing!==null} onClick={()=>game.current?.step(1,0,true)}><ArrowRight size={20}/></button></div></div>
  {angel.controlled&&<section className="location angel-heading"><div className="eyebrow"><span className="location-line"/>{angel.locomotion==='grounded'?'ANGEL / ON FOOT':'ANGEL FLIGHT'}</div><h1>{angel.destination!==null?'Between worlds':transitStops[angel.current].name}</h1></section>}
  {observing!==null&&<CivilizationObservation destination={observing} close={()=>{game.current?.stopObservation();setObserving(null)}}/>}
@@ -63,6 +67,8 @@ export default function Home(){
    <button aria-label="Pixel" title="Visit Pixel" disabled={angel.controlled||paused||!ready} onClick={()=>{game.current?.goPixel();setCategory(null)}}><MessageCircle size={17}/><span>Pixel</span></button>
    <button className="nav-projects" aria-label="Projects" title="Project collection" onClick={()=>openPanel('projects')}><FolderCode size={17}/><span>Projects</span></button>
    <button title="District atlas" aria-label="District atlas" aria-expanded={showAtlas} onClick={()=>setShowAtlas(value=>!value)}><Map size={17}/><span>District atlas</span></button>
+    <button aria-label="Resume by Weather" title="Resume book beside Weather" disabled={controlsDisabled||angel.controlled||!!transit.mode} onClick={()=>{if(game.current?.goResumeBook('weather'))setCategory(null)}}><BookOpen size={17}/><span>Resume / Weather</span></button>
+    <button aria-label="Resume by statue" title="Resume book beside the gold statue" disabled={controlsDisabled||angel.controlled||!!transit.mode} onClick={()=>{if(game.current?.goResumeBook('statue'))setCategory(null)}}><BookOpen size={17}/><span>Resume / Statue</span></button>
   </div>
   {showAtlas&&<section className="hud-section"><h3>Districts</h3><div className="hud-districts">{districts.map((district,index)=>{const Icon=districtIcons[index];return <button key={district.name} style={{color:district.color}} title={district.name} aria-label={district.name} aria-current={place===index?'location':undefined} disabled={controlsDisabled||angel.controlled} onClick={()=>{game.current?.travel(index);setCategory(null)}}><Icon size={16}/><span>{district.name}</span>{place===index&&<i aria-hidden="true"/>}</button>})}</div></section>}
   {transit.mode&&<section className="hud-section"><output className="hud-journey">{transit.mode==='metro'?'Neighbor Metro':'Ion rocket'} / {transitStops[transit.destination].name} / {transit.progress}%</output><button onClick={()=>game.current?.transport.arriveNow()}><ArrowUpRight size={16}/>Arrive now</button></section>}
