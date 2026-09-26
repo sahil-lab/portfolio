@@ -1,6 +1,7 @@
 import * as T from 'three';
 import type {DogActivity} from './dog-wander';
 import {createDogGait} from './dog-gait';
+import {createLimbIK} from './limb-ik';
 
 export type DogPose={distance:number;speed:number;activity:DogActivity;bark:number;look:number;reduced:boolean;position?:{x:number;z:number};heading?:number;turnRate?:number};
 export function createDogRig(asset:T.Object3D){
@@ -63,7 +64,7 @@ export function createDogRig(asset:T.Object3D){
   root.add(animated);animated.bind(skeleton,new T.Matrix4());skinned.push(animated);mesh.geometry.dispose();
  }
  const bounds=new T.Box3().setFromObject(root),modelSize=bounds.getSize(new T.Vector3()),stride=height*.38;
- const gait=createDogGait(legs,height,stride,bounds.getCenter(new T.Vector3())),rollAxis=new T.Vector3(0,0,1),pitchAxis=new T.Vector3(1,0,0),rotation=new T.Quaternion(),localTarget=new T.Vector3(),inverseTorso=new T.Quaternion();
+ const gait=createDogGait(legs,height,stride,bounds.getCenter(new T.Vector3())),solveLeg=createLimbIK(),localTarget=new T.Vector3(),inverseTorso=new T.Quaternion();
  let clock=0,blend=0;
  function update(dt:number,pose:DogPose){
   const delta=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;if(!delta)return;clock+=delta;
@@ -86,13 +87,7 @@ export function createDogRig(asset:T.Object3D){
   inverseTorso.copy(torso.quaternion).invert();
   for(let index=0;index<legs.length;index++){
    const leg=legs[index];localTarget.copy(feet[index].target).sub(torso.position).applyQuaternion(inverseTorso).sub(leg.hip);
-   const down=Math.max(.001,-localTarget.y),sideways=Math.atan2(localTarget.x,down),vertical=Math.hypot(localTarget.x,down);
-   const reach=T.MathUtils.clamp(localTarget.length(),Math.abs(leg.upperLength-leg.lowerLength)+.00001,leg.upperLength+leg.lowerLength-.000001);
-   const base=Math.atan2(-localTarget.z,vertical),bend=leg.front?-1:1;
-   const shoulder=Math.acos(T.MathUtils.clamp((leg.upperLength**2+reach**2-leg.lowerLength**2)/(2*leg.upperLength*reach),-1,1));
-   const knee=Math.PI-Math.acos(T.MathUtils.clamp((leg.upperLength**2+leg.lowerLength**2-reach**2)/(2*leg.upperLength*leg.lowerLength),-1,1));
-   leg.upper.quaternion.setFromAxisAngle(rollAxis,sideways).multiply(rotation.setFromAxisAngle(pitchAxis,base-bend*shoulder));leg.lower.rotation.x=bend*knee;
-   leg.foot.quaternion.copy(torso.quaternion).multiply(leg.upper.quaternion).multiply(leg.lower.quaternion).invert();
+    solveLeg(leg,localTarget,torso.quaternion,leg.front?-1:1);
   }
   root.updateMatrixWorld(true);skeleton.update();
  }

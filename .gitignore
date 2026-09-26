@@ -45,6 +45,7 @@ next-env.d.ts
 # personal reference photos - keep local
 /picsFOR3dModler/
 /picsofSah/
+/pics/
 
 # local editor files
 /.cursor/

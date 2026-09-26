@@ -111,9 +111,9 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   ||(!journey.mode&&metro.carriages.some(carriage=>Math.abs(y-carriage.body.position.y)<3&&Math.abs(x-carriage.body.position.x)<1.9&&Math.abs(z-carriage.body.position.z)<2.7));
  }
  const neighborhood=createNeighborhood(scene,player,stationaryBlocked,callbacks.notice,()=>carIndex===null?.5:2.25);
- function updateStationDetails(dt=0,reduced=true){
+ function updateStationDetails(dt=0,reduced=true,observer=player,activeStop:number|null=journey.mode?null:journey.current){
   const observed:number[]=[];landscapes.forEach((landscape,index)=>{if(landscape?.root.userData.observed)observed.push(index)});
-  const visibleStops=visibleTransitStops(player.position,journey.mode?null:journey.current,observed);
+  const visibleStops=visibleTransitStops(observer.position,activeStop,observed);
   stations.forEach((station,index)=>station.root.visible=visibleStops.has(index));
   neighborhood.update(dt,reduced,visibleStops);
  }
@@ -226,6 +226,16 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();clearJourneyRails();rockets.forEach((rocket,index)=>parkRocket(rocket,index));metro.root.visible=true;placeMetro(metro,pathFor(0,1),0);resetSurfaceFrame(player);updateStationDetails();publish(true)}
  return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,journey,neighborhood,civilizationLink,
+  groundBlocked:(position:T.Vector3,padding:number,stop:number)=>{
+   if(landscapes[stop]?.blocked(position,padding))return true;
+   for(let index=0;index<9;index++){const angle=index*Math.PI/4,offset=index===8?0:padding;if(stationaryBlocked(position.x+Math.cos(angle)*offset,position.y+.8,position.z+Math.sin(angle)*offset))return true}
+   return false;
+  },
+  updateFlightView:(dt:number,reduced:boolean,observer:T.Group,currentStop:number)=>{
+   civilizationLink.update(dt,reduced);
+   landscapes.forEach((landscape,index)=>landscape?.update(dt,reduced,observer,index===currentStop));
+   updateStationDetails(dt,reduced,observer,currentStop);
+  },
   reset:()=>{visited=['motherboard'];try{localStorage.removeItem('kingdom-transit-v1')}catch{}home()},
   get driving(){return carIndex!==null},get inRocket(){return journey.mode==='rocket'},
   hub:()=>{home();player.position.set(current().x-4,current().y,current().z+2);updateStationDetails();publish(true)},

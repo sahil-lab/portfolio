@@ -20,6 +20,7 @@ export const planetStyles:Record<string,{land:string;terrain:string;growth:strin
  cloud:{land:'#c4e5e7',terrain:'#8dbfc9',growth:'#f5f4e7',homes:['#f0f3e6','#9dcedd','#eab9b5','#b9d8ce'],towns:['Cloudbank','Pearl Pier','Bluebell Terrace','Daydream Bay','Silverwater','Skyglass Observatory']},
 };
 export type TransitMode='metro'|'rocket';
+export const rocketJourneySeconds=10;
 export const resonatorOffset={x:5,z:-11};
 export type Point3={x:number;y:number;z:number};
 export function transitPoint(from:TransitStop,to:TransitStop,t:number,mode:TransitMode='metro'):Point3{
@@ -31,7 +32,7 @@ export function transitPoint(from:TransitStop,to:TransitStop,t:number,mode:Trans
 export class TransitJourney{
  current=0;destination=0;elapsed=0;duration=0;mode:TransitMode|null=null;
  get progress(){return this.mode?Math.min(1,this.elapsed/this.duration):0}
- start(destination:number,mode:TransitMode){if(this.mode||!Number.isInteger(destination)||!transitStops[destination]||destination===this.current)return false;this.destination=destination;this.mode=mode;this.elapsed=0;this.duration=mode==='metro'?15:10;return true}
+ start(destination:number,mode:TransitMode){if(this.mode||!Number.isInteger(destination)||!transitStops[destination]||destination===this.current)return false;this.destination=destination;this.mode=mode;this.elapsed=0;this.duration=mode==='metro'?15:rocketJourneySeconds;return true}
  tick(dt:number){if(!this.mode)return false;this.elapsed+=Math.max(0,Math.min(dt,.1));if(this.elapsed<this.duration)return false;this.current=this.destination;this.mode=null;this.elapsed=0;return true}
  position(){return this.mode?transitPoint(transitStops[this.current],transitStops[this.destination],this.progress,this.mode):{...transitStops[this.current]}}
  reset(){this.current=this.destination=0;this.mode=null;this.elapsed=this.duration=0}

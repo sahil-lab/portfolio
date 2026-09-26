@@ -82,3 +82,21 @@ test('independent camera pointers pinch and cancel without leaving movement pres
  const send=(type,id,x,y)=>{const e=new Event(type,{cancelable:true});Object.assign(e,{pointerId:id,clientX:x,clientY:y,pointerType:'touch'});canvas.dispatchEvent(e)};
  binding.state.stick={x:1,y:0};send('pointerdown',11,100,100);send('pointerdown',22,200,100);send('pointermove',22,230,100);assert.ok(zoom<0);assert.equal(look,0);send('pointercancel',11,100,100);send('pointermove',22,240,100);assert.equal(look,10);assert.equal(binding.state.axes().x,1);window.dispatchEvent(new Event('blur'));assert.equal(binding.state.axes().x,0);assert.equal(binding.state.pointers.size,0);binding.dispose();
 });
+test('angel touch selection ignores drags and flight keys clear on release, blur and disabled input',context=>{
+ const {bindGameInput}=require('../app/game-input.ts'),original={window:global.window,document:global.document,HTMLElement:global.HTMLElement};
+ global.window=new EventTarget();global.document=new EventTarget();document.hidden=false;global.HTMLElement=class{};
+ class Canvas extends EventTarget{setPointerCapture(){}hasPointerCapture(){return false}releasePointerCapture(){}}
+ const canvas=new Canvas();let flight=false,taps=0,clicks=0;
+ const binding=bindGameInput(canvas,{interact(){},pause(){},look(){},zoom(){},select:()=>clicks++,touchSelect:()=>taps++,flight:()=>flight,gesture(){}});
+ context.after(()=>{binding.dispose();Object.assign(global,original)});
+ const key=(type,value)=>{const event=new Event(type,{cancelable:true});Object.assign(event,{key:value,code:value===' '?'Space':'Key'+value.toUpperCase(),repeat:false});window.dispatchEvent(event);return event};
+ assert.equal(key('keydown',' ').defaultPrevented,false);key('keyup',' ');flight=true;
+ for(const value of [' ','q','Control']){assert.equal(key('keydown',value).defaultPrevented,true);assert.ok(binding.state.keys.has(value.toLowerCase()));key('keyup',value);assert.equal(binding.state.keys.size,0)}
+ key('keydown','w');window.dispatchEvent(new Event('blur'));assert.equal(binding.state.axes().z,0);
+ const pointer=(type,pointerType,x)=>{const event=new Event(type,{cancelable:true});Object.assign(event,{pointerId:21,pointerType,clientX:x,clientY:10});canvas.dispatchEvent(event)};
+ pointer('pointerdown','touch',10);pointer('pointerup','touch',10);assert.equal(taps,1);assert.equal(clicks,0);
+ pointer('pointerdown','touch',10);pointer('pointermove','touch',40);pointer('pointerup','touch',40);assert.equal(taps,1);
+ pointer('pointerdown','touch',10);pointer('pointercancel','touch',10);pointer('pointerup','touch',10);assert.equal(taps,1);
+ pointer('pointerdown','mouse',10);pointer('pointerup','mouse',10);assert.equal(clicks,1);
+ binding.setEnabled(false);key('keydown',' ');pointer('pointerdown','touch',10);pointer('pointerup','touch',10);assert.equal(binding.state.keys.size,0);assert.equal(taps,1);
+});

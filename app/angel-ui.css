@@ -1,0 +1,35 @@
+.kingdom[data-ready] .topbar nav .nav-angel{display:inline-flex;flex-shrink:0;min-width:86px;background:var(--hud-gold);border-color:var(--hud-gold);color:var(--hud-ink)}
+.kingdom[data-ready] .topbar nav .nav-angel:hover:not(:disabled){background:#f0d8ab}
+.kingdom[data-ready] .topbar nav .nav-angel[aria-pressed=true]{background:var(--hud-mint);border-color:var(--hud-mint)}
+.kingdom .angel-nav-label{display:inline;line-height:1.2;white-space:nowrap}
+@media(min-width:701px) and (max-width:1120px){.kingdom .topbar .nav-label{display:none}.kingdom[data-ready] .topbar nav .nav-angel{flex-direction:column;gap:2px;width:44px;min-width:44px;padding:0;font-size:10px}}
+@media(min-width:701px) and (max-width:800px){.kingdom[data-ready] .topbar{gap:8px;margin-inline:16px}.kingdom[data-ready] .topbar nav{gap:2px}.kingdom .topbar .nav-divider{display:none}}
+@media(max-width:700px){.kingdom[data-ready] .topbar nav .nav-angel{width:100%;min-width:0;gap:4px;font-size:11px}}
+.kingdom .angel-controls{position:absolute;right:30px;bottom:184px;z-index:6;width:258px;color:var(--hud-white);font:500 12px 'Space Grotesk',sans-serif}
+.kingdom[data-angel=true] .angel-controls{bottom:94px;padding:12px;border:1px solid var(--hud-line);border-radius:6px;background:var(--hud-glass);backdrop-filter:blur(12px)}
+.kingdom .character-modes{display:flex;gap:3px;min-width:0;margin:0;padding:3px;border:1px solid var(--hud-line);border-radius:6px;background:var(--hud-glass)}
+.kingdom .character-modes button{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;height:42px;min-width:0;border:0;border-radius:3px;background:transparent;color:var(--hud-white);font:inherit}
+.kingdom .character-modes button[aria-pressed=true]{background:var(--hud-mint);color:var(--hud-ink)}
+.kingdom .angel-controls button:disabled:not([aria-pressed=true]){opacity:.45;cursor:default}
+.kingdom .angel-controls button:focus-visible,.kingdom .angel-controls select:focus-visible{outline:2px solid var(--hud-gold);outline-offset:2px}
+.kingdom .angel-load-status{display:block;padding:6px;color:var(--hud-mint);font-size:10px}
+.kingdom .angel-location{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;margin:9px 0;line-height:1.4}
+.kingdom .angel-location span{min-width:0;overflow-wrap:anywhere}
+.kingdom .angel-location output{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:10px;color:var(--hud-mint)}
+.kingdom .angel-ground-modes{display:flex;gap:4px;min-width:0;margin:0 0 8px;padding:0;border:0}
+.kingdom .angel-ground-modes button{display:flex;flex:1;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:40px;padding:5px 6px;border:1px solid var(--hud-line);border-radius:4px;background:#bdebd619;color:var(--hud-white);font:500 11px 'Space Grotesk',sans-serif}
+.kingdom .angel-ground-modes .angel-land{flex:1.3;color:var(--hud-gold)}
+.kingdom .angel-ground-modes button[aria-pressed=true]{background:var(--hud-mint);color:var(--hud-ink)}
+@media(max-width:700px){.kingdom .angel-ground-modes button{flex-direction:column;gap:2px;font-size:10px;min-height:44px}.kingdom .angel-ground-modes .angel-land{flex-direction:row;flex:1.4}}
+.kingdom .angel-flight-buttons{display:flex;gap:5px;align-items:center;min-width:0;border:0;margin:0;padding:0}
+.kingdom .angel-flight-buttons button,.kingdom .angel-destination button{display:grid;place-items:center;width:40px;height:42px;flex:0 0 40px;border:1px solid var(--hud-line);border-radius:4px;background:#bdebd619;color:var(--hud-white);touch-action:none}
+.kingdom .angel-flight-buttons button:active,.kingdom .angel-flight-buttons button[aria-pressed=true]{background:var(--hud-mint);color:var(--hud-ink)}
+.kingdom .angel-roam{display:flex;gap:5px;align-items:center;margin-left:auto;font-size:10px;line-height:1.3}
+.kingdom .angel-roam input{width:16px;height:16px;accent-color:var(--hud-mint);margin:0;flex-shrink:0}
+.kingdom .angel-destination{display:flex;gap:6px;margin-top:9px}
+.kingdom .angel-destination select{min-width:0;flex:1;width:100%;height:42px;border:1px solid var(--hud-line);border-radius:4px;background:#1c393e;color:var(--hud-white);padding:0 6px;font:500 11px 'Space Grotesk',sans-serif}
+.kingdom[data-angel=true] .interaction,.kingdom[data-angel=true] .quest,.kingdom[data-angel=true] .map-card,.kingdom[data-angel=true] .movement-presets,.kingdom[data-angel=true] .delivery-complete,.kingdom[data-angel=true] .location:not(.angel-heading){display:none!important}
+.kingdom .angel-heading p,.kingdom[data-angel=true] .district-tag{display:none}
+@media(max-width:1000px){.kingdom .angel-controls{right:18px;bottom:270px;width:230px}.kingdom[data-angel=true] .angel-controls{right:18px;bottom:82px;width:230px}}
+@media(max-width:700px){.kingdom .angel-controls{right:12px;bottom:280px;width:220px}.kingdom[data-angel=true] .angel-controls{right:12px;bottom:122px;width:calc(100vw - 154px);max-width:252px;padding:9px}.kingdom .angel-flight-buttons{flex-wrap:wrap}.kingdom .angel-flight-buttons button{flex:1;min-width:40px}.kingdom .angel-roam{flex-basis:100%;min-height:26px;margin-left:0}.kingdom .character-modes button{gap:5px;font-size:11px}.kingdom .angel-location{font-size:10px}.kingdom .angel-location output{font-size:9px}.kingdom .angel-destination select{font-size:10px}}
+@media(max-height:560px) and (min-width:701px){.kingdom .angel-controls{bottom:146px}.kingdom[data-angel=true] .angel-controls{bottom:66px;width:260px;padding:8px}.kingdom .angel-location{margin:4px 0;min-height:26px}.kingdom .angel-controls .character-modes button{height:34px}.kingdom .angel-destination{margin-top:5px}}

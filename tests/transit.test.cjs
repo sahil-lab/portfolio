@@ -67,6 +67,18 @@ test('satellite signals keep their interactions beside their relocated models',(
  assert.match(world.prompt(),/Wake the satellite resonator/);assert.equal(world.interact(),true);assert.match(message,/resonator awake/);
 });
 
+test('independent angel viewing activates a planet without moving the courier or advancing its journey',()=>{
+ const {createTransitWorld}=require('../app/transit-world.ts'),{disposeScene}=require('../app/scene-resources.ts');global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
+ const scene=new T.Scene(),player=new T.Group(),observer=new T.Group();player.position.set(150,.8,103);
+ const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
+ const before=player.position.clone();observer.position.set(transitStops[7].x,transitStops[7].y+120,transitStops[7].z);
+ for(let frame=0;frame<20;frame++)world.updateFlightView(1/60,true,observer,7);
+ assert.deepEqual(player.position,before);assert.equal(world.journey.current,0);assert.equal(world.journey.mode,null);assert.equal(world.driving,false);
+ assert.ok(world.landscapes[7].details.visible);assert.equal(world.landscapes[2].details.visible,false);
+ world.updateFlightView(1/60,true,observer,2);assert.ok(world.landscapes[2].details.visible);assert.equal(world.landscapes[7].details.visible,false);
+ disposeScene(scene);
+});
+
 test('rover driving and dismounting work on the far hemisphere and station recall restores flat gravity',()=>{
  const {createTransitWorld}=require('../app/transit-world.ts'),{planetPoint,planetUp}=require('../app/planet-surface.ts'),{disposeScene}=require('../app/scene-resources.ts');
  global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};const scene=new T.Scene(),player=new T.Group(),world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
