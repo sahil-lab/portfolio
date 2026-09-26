@@ -59,16 +59,19 @@
 .hud-category-panel .angel-destination { display: flex; gap: 6px; margin-top: 9px; }
 .hud-category-panel .angel-destination select { flex: 1; width: 100%; min-width: 0; height: 44px; padding: 0 9px; border: 1px solid var(--hud-line); border-radius: 4px; color: var(--hud-white); background: #183333; font: 11px 'Space Grotesk', sans-serif; }
 .hud-category-panel .angel-destination>button { flex: 0 0 44px; justify-content: center; padding: 0; }
-.hud-movement { display: flex; align-items: center; justify-content: space-around; gap: 12px; }
-.hud-category-panel .touch-joystick { display: block; position: relative; inset: auto; width: 112px; height: 112px; flex: 0 0 112px; margin: 0; padding: 0; border: 1px solid #b7dcd34d; border-radius: 50%; background: #bdebd60a; touch-action: none; }
-.hud-category-panel .touch-joystick span { position: absolute; width: 36px; height: 36px; left: 37px; top: 37px; border-radius: 50%; background: var(--hud-mint); box-shadow: 0 2px 12px #0004; pointer-events: none; }
-.hud-category-panel .touch-joystick small { display: none; }
-.hud-category-panel .walk-pad { position: static; display: grid; grid-template-columns: repeat(3,44px); grid-template-rows: repeat(2,44px); gap: 3px; padding: 0; margin: 0; border: 0; background: none; transform: none; }
-.hud-category-panel .walk-pad button { display: grid; place-items: center; padding: 0; width: 44px; height: 44px; }
-.hud-category-panel .walk-pad button:first-child { grid-column: 2; }
-.hud-category-panel .walk-pad button:nth-child(2) { grid-column: 1; grid-row: 2; }
-.hud-category-panel .walk-pad button:nth-child(3) { grid-column: 2; grid-row: 2; }
-.hud-category-panel .walk-pad button:nth-child(4) { grid-column: 3; grid-row: 2; }
+.kingdom .screen-movement { position: absolute; right: max(24px,env(safe-area-inset-right)); bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 8; width: 152px; height: 100px; pointer-events: none; }
+.kingdom[data-ready] .screen-movement .walk-pad { position: static; inset: auto; display: grid; grid-template-columns: repeat(3,48px); grid-template-rows: repeat(2,48px); gap: 4px; width: 152px; height: 100px; padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; transform: none; }
+.kingdom .screen-movement .walk-pad button { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 1px solid #ffffff80; border-radius: 6px; background: transparent; color: #fff; box-shadow: 0 1px 4px #0003; pointer-events: auto; touch-action: manipulation; }
+.kingdom .screen-movement .walk-pad button svg { filter: drop-shadow(0 1px 2px #0008); }
+.kingdom .screen-movement .walk-pad button:hover:not(:disabled), .kingdom .screen-movement .walk-pad button:active:not(:disabled) { background: #ffffff1a; border-color: #ffffffc0; }
+.kingdom .screen-movement .walk-pad button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.kingdom .screen-movement .walk-pad button:first-child { grid-column: 2; }
+.kingdom .screen-movement .walk-pad button:nth-child(2) { grid-column: 1; grid-row: 2; }
+.kingdom .screen-movement .walk-pad button:nth-child(3) { grid-column: 2; grid-row: 2; }
+.kingdom .screen-movement .walk-pad button:nth-child(4) { grid-column: 3; grid-row: 2; }
+.kingdom[data-ready] .screen-movement .touch-joystick { display: none; position: relative; inset: auto; box-sizing: border-box; width: 116px; height: 116px; margin: 0; padding: 0; border: 1px solid #ffffff80; border-radius: 50%; background: transparent; box-shadow: 0 1px 4px #0003; backdrop-filter: none; touch-action: none; pointer-events: auto; }
+.kingdom .screen-movement .touch-joystick span { position: absolute; width: 38px; height: 38px; left: calc(50% - 19px); top: calc(50% - 19px); border: 1px solid #ffffffb3; border-radius: 50%; background: #ffffff26; box-shadow: 0 1px 3px #0004; pointer-events: none; }
+.kingdom .screen-movement .touch-joystick small { display: none; }
 .hud-category-panel .interaction { position: static; display: flex; flex-direction: column; align-items: stretch; width: auto; max-width: none; transform: none; margin: 0; padding: 12px 0 0; gap: 8px; border: 0; border-top: 1px solid var(--hud-line); border-radius: 0; background: none; box-shadow: none; }
 .hud-category-panel .interaction small { color: var(--hud-muted); font-size: 9px; }
 .hud-category-panel .interaction p { margin: 4px 0 8px; color: var(--hud-white); font: 12px/1.5 'Space Grotesk', sans-serif; }
@@ -127,5 +130,13 @@
  .kingdom[data-ready] .location { top: auto; bottom: 22px; }
  .kingdom[data-ready] .location h1 { font-size: 22px; }
  .kingdom .location .eyebrow { display: none; }
+}
+@media(max-width:700px), (pointer:coarse) {
+ .kingdom .screen-movement { right: max(16px,env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom)); width: 116px; height: 116px; }
+ .kingdom[data-ready] .screen-movement .walk-pad { display: none; }
+ .kingdom[data-ready] .screen-movement .touch-joystick { display: block; }
+ .kingdom[data-ready] .location { bottom: calc(55px + env(safe-area-inset-bottom)); max-width: min(420px,calc(100vw - 166px)); }
+ .kingdom[data-ready] .location h1 { overflow-wrap: anywhere; }
+ .kingdom[data-ready] .controls.hud-status { left: 18px; right: auto; bottom: calc(20px + env(safe-area-inset-bottom)); max-width: calc(100vw - 166px); }
 }
 @media(prefers-reduced-motion:reduce) { .hud-category-panel { animation: none; transition: none; } }
