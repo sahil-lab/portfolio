@@ -34,6 +34,16 @@ test('giant architectural logos face the kingdom and preserve flat landing areas
   }
 });
 
+test('brand districts and miniature foundries use individual detailed architecture without changing logo identity',()=>{
+  for(const index of [1,3]){
+    const scene=new T.Scene(),surface=createPlanetSurface(transitStops[index],transitStops[index].radius),world=createCivilizationWorld(scene,surface),recipes=[];
+    scene.traverse(object=>{if(object.userData.architectureRecipe)recipes.push(object.userData.architectureRecipe)});
+    assert.equal(recipes.length,world.landmarks.length);assert.equal(new Set(recipes.map(recipe=>recipe.seed)).size,recipes.length);assert.ok(recipes.every(recipe=>recipe.style===(index===1?'forge':'citadel')));
+    if(index===1){const lots=world.architecture.flatMap(district=>district.records);assert.ok(lots.length>100);assert.equal(new Set(lots.map(lot=>lot.recipe.seed)).size,lots.length);assert.equal(world.root.getObjectByName('Forge_LogoFoundryBlocks'),undefined)}
+    disposeScene(scene);
+  }
+});
+
 test('curved water exposes its outward face above the plinth, with clear white letter cutouts',()=>{
   const scene=new T.Scene(),surface=createPlanetSurface(transitStops[3],transitStops[3].radius),world=createCivilizationWorld(scene,surface);scene.updateMatrixWorld(true);
   const direction=civilizationLogoDirection(19,4,surface.radius,91),origin=surface.center.clone().addScaledVector(direction,surface.radius+40);

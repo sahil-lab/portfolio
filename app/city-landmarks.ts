@@ -17,6 +17,7 @@ export function createCityLandmarks(parent:T.Object3D){
   }
   const pavingTexture=new T.DataTexture(pavingData,64,64,T.RGBAFormat);pavingTexture.colorSpace=T.SRGBColorSpace;pavingTexture.wrapS=pavingTexture.wrapT=T.RepeatWrapping;pavingTexture.repeat.set(44,52);pavingTexture.magFilter=T.LinearFilter;pavingTexture.generateMipmaps=true;pavingTexture.minFilter=T.LinearMipmapLinearFilter;pavingTexture.needsUpdate=true;
   const pavement=new T.MeshStandardMaterial({map:pavingTexture,bumpMap:pavingTexture,bumpScale:.025,roughness:.9}),road=new T.MeshStandardMaterial({color:'#586c74',roughness:.91});pavement.userData.surface=road.userData.surface='natural';
+  pavement.userData.cityPaving=road.userData.cityPaving=true;
   const solids:{x:number;z:number;width:number;depth:number;height:number}[]=[];
   function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x:number,y:number,z:number,group:T.Object3D=root){
     const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;group.add(object);return object;
@@ -31,7 +32,7 @@ export function createCityLandmarks(parent:T.Object3D){
     return createReadableDisplay(group,name,texture,width,width/4,.24,new T.Vector3(x,y,z));
   }
   function building(name:string,x:number,z:number,accent:string,height:number,scale=1.6){
-    const venue=createCityBuilding({width:6,height,depth:5.6,accent});venue.root.name=name;venue.root.position.set(x,.2,z);venue.root.scale.setScalar(scale);root.add(venue.root);
+    const venue=createCityBuilding({width:6,height,depth:5.6,accent,address:'lantern/'+name});venue.root.name=name;venue.root.position.set(x,.2,z);venue.root.scale.setScalar(scale);root.add(venue.root);
     solids.push({x,z,width:6*scale+.5,depth:5.6*scale+.5,height:height*scale+2});return venue;
   }
   box('Quarter_PavedSquare',0,-.08,3,88,.22,104,pavement);

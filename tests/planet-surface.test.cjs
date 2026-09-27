@@ -29,6 +29,9 @@ test('surface movement respects obstacles and remains finite crossing the south 
 test('landscape has full-surface scenery and accessible outposts on the far hemisphere',()=>{
   const surface=createPlanetSurface(stop,90),scene=new T.Scene(),landscape=createPlanetLandscape(scene,surface);
   assert.equal(landscape.outposts.length,5);assert.ok(landscape.outposts.some(outpost=>outpost.position.y<surface.center.y));
+  assert.equal(new Set(landscape.outposts.map(outpost=>outpost.architecture.records[0].recipe.seed)).size,5);
+  assert.ok(landscape.outposts.every(outpost=>outpost.architecture.root.userData.architectureStyle==='conservatory'));
+  for(const outpost of landscape.outposts){const bound=outpost.root.userData.staticCameraBounds[0];assert.ok(bound.distanceToPoint(outpost.position)<.5);assert.ok(bound.distanceToPoint(surface.center)>surface.radius*.6)}
   const south=landscape.outposts.find(outpost=>outpost.name==='South pole observatory');assert.ok(planetUp(surface,south.position).y<-.99999);
   assert.equal(landscape.blocked(new T.Vector3(stop.x,stop.y,stop.z)),false);
   const outpost=landscape.outposts[0];assert.equal(landscape.nearest(outpost.position),outpost);

@@ -1,5 +1,7 @@
 import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {addFacadeCraft,type FacadeFloor} from './facade-craft';
+import {architectureRecipe} from './architecture-profiles';
 
 export const cityPalette={pearl:'#fff5e9',ink:'#30434c',glass:'#279fc7',teal:'#46b9ad',coral:'#f18d83',yellow:'#f1c866',lawn:'#80bd69',steel:'#c2d8da'};
 
@@ -41,9 +43,11 @@ function profileGeometry(width:number,height:number,depth:number,radius:number,f
   return new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:segments}).translate(0,0,-depth/2);
 }
 
-export function createCityBuilding(options:{width?:number;height?:number;depth?:number;accent:string;glass?:string;roofGarden?:boolean;variant?:number}){
-  const width=options.width??3.7,height=options.height??5.7,depth=options.depth??3.2;
+export function createCityBuilding(options:{width?:number;height?:number;depth?:number;accent:string;glass?:string;roofGarden?:boolean;variant?:number;address?:string}){
+  const recipe=options.address?architectureRecipe('atelier',options.address):null;
+  const width=(options.width??3.7)*(recipe?.width??1),height=options.height??5.7,depth=(options.depth??3.2)*(recipe?.depth??1);
   const root=new T.Group();root.name='City_SculptedResidence';
+  if(recipe)root.userData.architectureRecipe=recipe;
   const material={...cityMaterials(options.accent,options.glass??'#79adb8'),
     wood:new T.MeshStandardMaterial({color:'#b68d69',roughness:.86}),
     sage:new T.MeshStandardMaterial({color:'#91a88b',roughness:.82}),
@@ -55,7 +59,7 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
   material.metal.color.set('#bb9b64');material.metal.roughness=.46;
   material.wood.userData.surface='natural';material.sage.userData.surface='ceramic';
   const inferred=(material.paint.color.getHex()+Math.round(width*10)+Math.round(height*10)+Math.round(depth*10))%buildingProfiles.length;
-  const variant=options.variant!==undefined&&Number.isFinite(options.variant)?T.MathUtils.euclideanModulo(Math.trunc(options.variant),buildingProfiles.length):inferred;
+  const variant=options.variant!==undefined&&Number.isFinite(options.variant)?T.MathUtils.euclideanModulo(Math.trunc(options.variant),buildingProfiles.length):recipe?recipe.massing%buildingProfiles.length:inferred;
   const style=buildingProfiles[variant];root.userData.architectureVariant=variant;root.userData.architectureStyle=style.name;
   const mesh=(name:string,geometry:T.BufferGeometry,finish:T.Material,parent:T.Object3D=root)=>{
     const object=new T.Mesh(geometry,finish);object.name=name;object.castShadow=object.receiveShadow=true;parent.add(object);return object;
@@ -80,7 +84,7 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
   const storeys=height>7?3:height>4.5?2:1,lowerHeight=storeys===1?height:Math.min(2.9,Math.max(2.45,height*.45));
   const shoulder=.22+lowerHeight,roofY=height+.22,corner=Math.min(width,depth)*style.corner;
   const upperWidth=storeys===1?width:width*(1-style.setback*2),upperDepth=storeys===1?depth:depth*(1-style.setback*2);
-  const upperX=storeys===1?0:width*style.shift,upperZ=storeys===1?0:variant===1?-depth*.045:0,upperCorner=storeys===1?corner:corner*.76;
+  const upperX=storeys===1?0:width*(style.shift+(recipe?.roofOffset??0)*.15),upperZ=storeys===1?0:variant===1?-depth*.045:0,upperCorner=storeys===1?corner:corner*.76;
   slab('City_Plinth',0,.12,0,width+.28,.24,depth+.28,material.ink,corner+.08);
   slab('City_RoundedShell',0,.22+lowerHeight/2,0,width,lowerHeight,depth,material.paint,corner).userData.cameraSolid=true;
   slab('City_BaseCourse',0,.4,0,width+.025,.34,depth+.025,material.sage,corner);
@@ -100,7 +104,7 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
     for(const side of [-1,1])box('City_BalconyReturn',upperX+side*(balconyWidth/2-.04),shoulder+.75,(balconyBack+railZ)/2,.05,.05,railZ-balconyBack,material.metal);
     for(let post=0;post<5;post++)box('City_BalconyPost',upperX-balconyWidth/2+.04+post*(balconyWidth-.08)/4,shoulder+.425,railZ,.035,.6,.035,material.ink);
   }
-  const front=depth/2,doorX=width*style.door,doorWidth=Math.min(.88,width*.24),glazeTop=Math.min(2.22,shoulder-.36),doorHeight=glazeTop-.28;
+  const front=depth/2,doorX=width*(recipe?.entry??style.door),doorWidth=Math.min(.88,width*.24),glazeTop=Math.min(2.22,shoulder-.36),doorHeight=glazeTop-.28;
   const shopHeight=doorHeight*.71,shopX=doorX<0?width*.18:-width*.21;
   window('City_EntranceSurround','City_EntranceGlass',doorX,.28+doorHeight/2,front,doorWidth,doorHeight);
   window('City_WindowGasket','City_RecessedBlueWindow',shopX,glazeTop-shopHeight/2,front,width*style.bay,shopHeight,0,variant!==1,material.wood);
@@ -139,5 +143,8 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
       for(const side of [-1,1])box('City_RoofBenchLeg',upperX+side*upperWidth*.13,roofY+.345,upperZ+upperDepth*.18,.07,.16,.26,material.metal);
     }
   }
+  const floors:FacadeFloor[]=[{bottom:.22,top:shoulder,width,depth}];
+  if(storeys>1)for(let level=1;level<storeys;level++)floors.push({bottom:shoulder+(level-1)*(height-lowerHeight)/(storeys-1),top:shoulder+level*(height-lowerHeight)/(storeys-1),width:upperWidth,depth:upperDepth,x:upperX,z:upperZ});
+  addFacadeCraft(root,{floors,windows:false,planting:options.roofGarden!==false,frontBalcony:false,finishes:{stone:material.pearl,rail:material.ink,metal:material.metal,glass:material.glass,planter:material.sage,leaf:material.lawn}});
   return {root,material,width,height,depth};
 }

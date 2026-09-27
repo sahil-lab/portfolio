@@ -30,9 +30,12 @@ test('the expanded city has hundreds of bounded homes, three detail levels and c
   global.document={createElement:()=>({width:0,height:0,getContext:()=>({font:'',fillRect(){},fillText(){},measureText(text){return {width:text.length*55}}})})};
   const {createCityExpansion}=require('../app/city-expansion.ts'),city=createCityExpansion(new T.Scene());
   assert.ok(city.lots.length>=900);assert.ok(city.neighborhoods.every(neighborhood=>neighborhood.levels.length===3));
+  const recipes=city.architecture.flatMap(({town})=>town.records.map(record=>record.recipe));assert.equal(recipes.length,city.lots.length);assert.equal(new Set(recipes.map(recipe=>recipe.seed)).size,city.lots.length);assert.equal(new Set(city.lots.map(lot=>lot.address)).size,city.lots.length);
+  assert.equal(city.root.getObjectByName('City_MidriseShells'),undefined);assert.equal(city.root.getObjectByName('City_DistantRoofscape'),undefined);
   for(const lot of city.lots){assert.ok(lot.x-lot.width/2>motherboardBounds.minX&&lot.x+lot.width/2<motherboardBounds.maxX);assert.ok(lot.z-lot.depth/2>motherboardBounds.minZ&&lot.z+lot.depth/2<motherboardBounds.maxZ);assert.equal(city.blocked(lot.x,lot.z,.8),true)}
   for(const [x,z] of [[0,240],[-100,79],[300,279],[0,-600],[500,1179],[0,19]])assert.equal(city.blocked(x,z,.8),false);
   const player=new T.Group();player.position.set(-115,.8,79);city.update(.1,false,player,true);assert.ok(city.root.visible);city.update(.1,false,player,false);assert.equal(city.root.visible,false);
+  const camera=new T.PerspectiveCamera();camera.position.set(0,2000,9000);city.update(.1,true,player,true,camera);assert.ok([...city.farRegions.values()].every(region=>region.root.visible));assert.ok([...city.farRegions.values()].every(region=>region.root.children.length<=12));assert.ok([...city.farRegions.values()].every(region=>region.blocks.every(({far})=>far.children.every(mesh=>!mesh.visible))));
   disposeScene(city.root);delete global.document;
 });
 

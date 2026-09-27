@@ -8,7 +8,10 @@ import {batchScenery} from './static-batching';
 import {createPlanetRotation} from './planet-rotation';
 import {planetStyles} from './transit-config';
 import {realmDesign} from './realm-layout';
-import {createRealmWorld,realmRoofGeometry} from './realm-world';
+import {createRealmWorld} from './realm-world';
+import {planetArchitectureFor} from './architecture-profiles';
+import {createArchitectureNeighborhood} from './architecture-neighborhood';
+import {createPlanetPublicSpaces} from './planet-public-spaces';
 export {createPlanetSurface,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
 
 const vertical=new T.Vector3(0,1,0);
@@ -38,6 +41,7 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);
   const identity=civilizationFor(surface.stop),palette=identity?civilizations[identity]:null;
   const infrastructure=createPlanetInfrastructure(root,surface);
+  const publicSpaces=createPlanetPublicSpaces(root,surface,infrastructure);
   const realm=createRealmWorld(root,surface),design=realmDesign(surface.stop),worldKind=surface.stop.worldKind;
   const style=planetStyles[surface.stop.id]??design;
   function terrainGeometry(width:number,height:number){
@@ -63,33 +67,35 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   for(let index=0;index<vegetationCount;index++){
     const latitude=1-2*(index+.5)/vegetationCount,longitude=index*2.3999632297,direction=new T.Vector3(Math.sqrt(1-latitude*latitude)*Math.cos(longitude),latitude,Math.sqrt(1-latitude*latitude)*Math.sin(longitude));
     const point=planetPoint(surface,direction),up=planetUp(surface,point),size=.8+(index%4)*.23;
-    if(direction.y>.91||infrastructure.reserved(direction,point)||civilizationLogoReserved(surface,direction)){dummy.scale.setScalar(0)}else{dummy.scale.setScalar(size);solids.push({position:point.clone(),radius:design?.7:surface.stop.theme==='garden'?.65:2.2*size})}
+    if(direction.y>.91||infrastructure.reserved(direction,point)||publicSpaces.reserved(direction,point)||civilizationLogoReserved(surface,direction)){dummy.scale.setScalar(0)}else{dummy.scale.setScalar(size);solids.push({position:point.clone(),radius:design?.7:surface.stop.theme==='garden'?.65:2.2*size})}
     dummy.quaternion.setFromUnitVectors(vertical,up);dummy.position.copy(point).addScaledVector(up,trunkHeight/2*size);dummy.updateMatrix();trunks.setMatrixAt(index,dummy.matrix);
     dummy.position.copy(point).addScaledVector(up,(worldKind==='research'?4.3:worldKind==='foundry'?3.8:worldKind==='skills'?5.2:surface.stop.theme==='garden'?4.6:2)*size);if(worldKind==='skills')dummy.scale.y*=.72;dummy.updateMatrix();growth.setMatrixAt(index,dummy.matrix);
     if(palette)growth.setColorAt(index,new T.Color(index%4===0?palette.glass:palette.stone));
     else if(design)growth.setColorAt(index,new T.Color(index%4===0?design.homes[1]:design.growth));
   }
   trunks.name='Planet_Trunks';growth.name=worldKind?`Realm_${worldKind}_Vegetation`:'Planet_Growth';trunks.computeBoundingSphere();growth.computeBoundingSphere();root.add(trunks,growth);
-  const outposts:{root:T.Group;position:T.Vector3;name:string}[]=[];
+  const outposts:{root:T.Group;position:T.Vector3;name:string;architecture:ReturnType<typeof createArchitectureNeighborhood>;inverse:T.Quaternion}[]=[];
   for(let index=0;index<5;index++){
     const angle=index*Math.PI*2/5,direction=index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(angle),-.1,Math.sin(angle)).normalize();
     const position=planetPoint(surface,direction),up=planetUp(surface,position),group=new T.Group();group.position.copy(position);group.quaternion.setFromUnitVectors(vertical,up);root.add(group);
     const platform=new T.Mesh(new T.CylinderGeometry(4,4.4,.4,24),new T.MeshStandardMaterial({color:palette?.stone??'#d4dfd0',roughness:.65}));platform.position.y=.2;group.add(platform);
-    const dome=new T.Mesh(worldKind?realmRoofGeometry(worldKind,4.5,4.5):new T.SphereGeometry(2.2,20,12,0,Math.PI*2,0,Math.PI/2),new T.MeshStandardMaterial({color:palette?.glass??design?.stone??(index%2?'#78b8bf':'#dfb56d'),roughness:.35,metalness:.3}));dome.position.y=.4;group.add(dome);
+    const architecture=createArchitectureNeighborhood(group,planetArchitectureFor(surface.stop),[{address:surface.stop.id+'/outpost-'+index,position:new T.Vector3(0,.4,0),rotation:new T.Quaternion(),width:3.7,depth:3.7,height:4.6+index*.35}],64);
+    group.updateMatrix();group.userData.staticCameraBounds=architecture.bounds.map(bound=>bound.clone().applyMatrix4(group.matrix));
     const antenna=new T.Mesh(new T.CylinderGeometry(.08,.1,4,8),new T.MeshStandardMaterial({color:'#d8d3ac'}));antenna.position.set(2.8,2.2,0);group.add(antenna);
     const signal=new T.Mesh(new T.OctahedronGeometry(.45),new T.MeshBasicMaterial({color:'#b1f6da'}));signal.position.set(2.8,4.5,0);group.add(signal);
-    const name=index===4?'South pole observatory':'Horizon outpost '+(index+1);group.name=name;outposts.push({root:group,position,name});solids.push({position:position.clone(),radius:2.7});
+    const name=index===4?'South pole observatory':'Horizon outpost '+(index+1);group.name=name;outposts.push({root:group,position,name,architecture,inverse:group.quaternion.clone().invert()});solids.push({position:position.clone(),radius:2.9});
   }
   const population=createPlanetPopulation(root,surface,infrastructure.towns);
   const civilization=createCivilizationWorld(root,surface);
-  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),population:population.root,civilization:civilization?.root,realm:realm?.root});
+  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root});
   const details=new T.Group();details.name='Planet_SurfaceDetails';details.add(...root.children);root.add(details);
   const distant=new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
   if(realm){root.add(realm.silhouette);details.visible=false;distant.visible=true}
   const rotation=createPlanetRotation(root,surface.center);
-  return {root,globe,outposts,infrastructure,population,civilization,realm,rotation,details,distant,
-    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active)},
-    blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
+  const outpostObserver=new T.Vector3();
+  return {root,globe,outposts,infrastructure,publicSpaces,population,civilization,realm,rotation,details,distant,
+    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active)},
+    blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
     nearest:(position:T.Vector3)=>outposts.find(outpost=>position.distanceTo(outpost.position)<7),
   };
 }

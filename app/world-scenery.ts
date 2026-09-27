@@ -18,7 +18,7 @@ export function buildWorldScenery(scene:T.Scene){
  routes.forEach(route=>{const a=new T.Vector3(route.from.x,.01,route.from.z),b=new T.Vector3(route.to.x,.01,route.to.z),delta=b.clone().sub(a);const road=box((a.x+b.x)/2,.03,(a.z+b.z)/2,3,.15,delta.length(),'#c6d8d1');road.rotation.y=Math.atan2(delta.x,delta.z);for(let i=0;i<delta.length();i+=4){const p=a.clone().lerp(b,i/delta.length());box(p.x,.15,p.z,.12,.035,.45,'#6b9c8e')}});
  const animated:{fans:T.Object3D[];cores:T.Mesh[];shelves:T.Mesh[];pods:T.Group[];events:T.Mesh[];packet:T.Mesh|null;gpu:T.Mesh|null;press:T.Mesh|null}={fans:[],cores:[],shelves:[],pods:[],events:[],packet:null,gpu:null,press:null};const obstacles:{x:number,z:number,w:number,d:number,y:number,h:number}[]=[];
  function house(x:number,z:number,color:string,h=3,y=0){
-  const building=createCityBuilding({accent:color,height:h});const g=building.root;g.position.set(x,y,z);scene.add(g);
+    const building=createCityBuilding({accent:color,height:h,address:`workshop/${x}/${y}/${z}`});const g=building.root;g.position.set(x,y,z);scene.add(g);
   obstacles.push({x,z,w:3.7,d:3.2,y,h:h+.35});return g;
  }
  function lamp(x:number,z:number){cyl(x,1.7,z,.07,2.7,'#365450');cyl(x,2.83,z,.26,.1,'#cfb47b');const glass=cyl(x,3.05,z,.18,.4,'#d4f8e8');glass.material.emissiveIntensity=.8;cyl(x,3.3,z,.32,.09,'#cfb47b')}

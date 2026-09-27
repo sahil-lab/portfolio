@@ -13,6 +13,12 @@ test('commons venues have separated lots and a clear central promenade',()=>{
   for(const venue of commonsVenues){player.position.set(venue.x,.8,venue.z+venue.depth/2+1.5);assert.equal(plaza.blocked(player.position.x,player.position.z,.8),false);assert.equal(plaza.interact(),true)}
   player.position.set(-24,.8,78);assert.match(plaza.prompt(),/Pixel/);assert.equal(plaza.interact(),true);plaza.update(.1,false,true);assert.equal(plaza.speaker.speaking,false);assert.match(plaza.voice.speech.snapshot.error,/Voice input is unavailable/);plaza.dispose();disposeScene(scene);
 });
+test('Frequency House opens the real tuner and its indicator follows playback without batching away moving controls',()=>{
+ let opened=0;const scene=new T.Scene(),player=new T.Group(),plaza=createCreativePlaza(scene,player,{notice(){},subtitle(){},sound(){},radio(){opened++}});
+ assert.equal(opened,0);const venue=commonsVenues.find(venue=>venue.id==='radio');player.position.set(venue.x,.8,venue.z+venue.depth/2+2);assert.equal(plaza.interact(),true);assert.equal(opened,1);assert.equal(plaza.radioControls.parent.name,'Shop_radio');assert.equal(plaza.kettleSteam.root.parent.name,'Shop_kettle');
+ plaza.radio({playing:true,name:'Nearby Station',tuning:1});assert.equal(plaza.radioControls.userData.station,'Nearby Station');assert.equal(plaza.radioControls.userData.playing,true);assert.equal(plaza.radioControls.getObjectByName('Radio_TuningNeedle').position.x,4.4);assert.ok(plaza.radioControls.getObjectByName('Radio_PlaybackLamp').material.emissiveIntensity>1);
+ plaza.radio({playing:false,name:'Nearby Station',tuning:0});assert.equal(plaza.radioControls.getObjectByName('Radio_PlaybackLamp').material.emissiveIntensity,0);plaza.dispose();disposeScene(scene);
+});
 
 test('weather screen switches rain and snow without changing the readable default details',()=>{
   const scene=new T.Scene(),player=new T.Group(),sun=new T.DirectionalLight(),weather=createWeatherWorld(scene,player,sun);

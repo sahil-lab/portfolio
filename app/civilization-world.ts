@@ -5,6 +5,9 @@ import {civilizationFor,civilizations,careerTimeline,careerCredentials,careerSki
 import {planetPoint,planetUp,planetGeography,type PlanetSurface} from './planet-geography';
 import type {ForgeSnapshot} from './forge-feed';
 import {createReadableDisplay} from './readable-display';
+import {planetArchitectureFor} from './architecture-profiles';
+import {createArchitectureNeighborhood} from './architecture-neighborhood';
+import {architectureMaterials,createCraftedBuilding,bakeArchitecture} from './building-craft';
 
 type Contour={outline:number[][];holes:number[][][]};
 const logoNormal=new T.Vector3(0,.42,.9075241044).normalize();
@@ -44,7 +47,6 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
   const width=identity==='github'?89:91;
   const white=new T.MeshPhysicalMaterial({color:palette.stone,roughness:.4,clearcoat:.28,metalness:.12});
   const ink=new T.MeshStandardMaterial({color:identity==='github'?'#242a33':palette.glass,roughness:.35,metalness:.48});
-  const trim=new T.MeshStandardMaterial({color:palette.metal,roughness:.33,metalness:.72});
   const beacon=new T.MeshStandardMaterial({color:palette.light,emissive:palette.light,emissiveIntensity:.52,roughness:.3});
   const water=new T.MeshPhysicalMaterial({color:'#0a66c2',roughness:.3,metalness:.2,clearcoat:.65,clearcoatRoughness:.2});
   water.userData.surface='water';
@@ -79,15 +81,12 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
     const position=planetPoint(surface,direction),normal=planetUp(surface,position),height=1.5+((column+row*3)%5)*.45;
     const rotation=new T.Quaternion().setFromUnitVectors(up,normal);districtCells.push({position,rotation,height});buildings.push({position:position.clone(),radius:.88});
   }
-  const dummy=new T.Object3D(),matrix=new T.Matrix4();
-  const factories=new T.InstancedMesh(new T.BoxGeometry(1.4,1,1.4),white,districtCells.length),roofs=new T.InstancedMesh(new T.BoxGeometry(1.22,.07,1.22),beacon,districtCells.length);
-  factories.name='Forge_LogoFoundryBlocks';roofs.name='Forge_LogoRoofLights';
-  districtCells.forEach((cell,index)=>{
-    dummy.quaternion.copy(cell.rotation);dummy.position.set(0,cell.height/2+.4,0).applyQuaternion(cell.rotation).add(cell.position);dummy.scale.set(1,cell.height,1);dummy.updateMatrix();factories.setMatrixAt(index,dummy.matrix);
-    cameraBounds.push(new T.Box3(new T.Vector3(-.8,0,-.8),new T.Vector3(.8,cell.height+.6,.8)).applyMatrix4(matrix.compose(cell.position,cell.rotation,new T.Vector3(1,1,1))));
-    dummy.position.set(0,cell.height+.45,0).applyQuaternion(cell.rotation).add(cell.position);dummy.scale.set(1,1,1);dummy.updateMatrix();roofs.setMatrixAt(index,dummy.matrix);
-  });
-  if(districtCells.length){factories.computeBoundingSphere();roofs.computeBoundingSphere();root.add(factories,roofs)}else{factories.geometry.dispose();roofs.geometry.dispose()}
+  const matrix=new T.Matrix4(),factories=new T.Group();factories.name='Forge_IndividualFoundries';root.add(factories);
+  const architecture:ReturnType<typeof createArchitectureNeighborhood>[]=[],architectureStyle=planetArchitectureFor(surface.stop),landmarkMaterials=architectureMaterials(architectureStyle);
+  for(let start=0;start<districtCells.length;start+=16){
+    const cells=districtCells.slice(start,start+16),district=createArchitectureNeighborhood(factories,architectureStyle,cells.map((cell,index)=>({address:`${surface.stop.id}/logo-foundry-${start+index}`,position:cell.position.clone().add(new T.Vector3(0,.3,0).applyQuaternion(cell.rotation)),rotation:cell.rotation,width:4.8,height:cell.height/.27,depth:4.8,scale:.27})),10);
+    architecture.push(district);cameraBounds.push(...district.bounds);
+  }
   const landmarks:{name:string;description:string;position:T.Vector3;url?:string}[]=[];
   const recordGroups:T.Group[]=[];
   function placard(parent:T.Object3D,title:string,detail:string,width=7){
@@ -114,17 +113,12 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
     recordGroups.push(group);
     const base=new T.Mesh(new T.CylinderGeometry(5,5.4,.45,32),identity==='github'?ink:white);base.position.y=.23;group.add(base);
     const height=identity==='github'?9+(index%3)*2:11+(index%3)*3;
-    if(identity==='github'){
-      for(const side of [-1,1]){const block=new T.Mesh(new T.BoxGeometry(2.8,height,3.8),index%2?trim:white);block.position.set(side*1.5,height/2,0);group.add(block);
-        for(let floor=1;floor<height;floor+=2.4){const band=new T.Mesh(new T.BoxGeometry(2.9,.12,3.9),beacon);band.position.set(side*1.5,floor,0);group.add(band)}}
-    }else{
-      for(const side of [-1,1]){const column=new T.Mesh(new T.BoxGeometry(1.6,height,2),white);column.position.set(side*2.25,height/2,0);group.add(column)}
-      const glass=new T.Mesh(new T.BoxGeometry(2.7,height*.8,1.4),ink);glass.position.set(0,height*.43,-.3);group.add(glass);
-      const crown=new T.Mesh(new T.BoxGeometry(6.4,.55,2.8),white);crown.position.set(0,height,0);group.add(crown);
-    }
+    const building=createCraftedBuilding({style:architectureStyle,address:`${surface.stop.id}/district-${index}`,width:6.1,depth:4.3,height,materials:landmarkMaterials});
+    const localBounds=new T.Box3().setFromObject(building.root);
+    const skins=bakeArchitecture(building.root);for(const skin of skins){const mesh=new T.Mesh(skin.geometry,skin.material);mesh.name='Civilization_CraftedArchitecture';mesh.castShadow=mesh.receiveShadow=true;building.root.add(mesh)}group.add(building.root);
     const record=identity==='linkedin'?careerTimeline[index]:null,description=record?`${record.role} / ${record.dates}`:'Public source architecture';
     placard(group,name,record?.dates??'SAHIL-LAB');landmarks.push({name,description,position:position.clone(),url:palette.url});buildings.push({position:position.clone(),radius:4.5});
-    cameraBounds.push(new T.Box3(new T.Vector3(-3.7,0,-2.8),new T.Vector3(3.7,height+.8,2.8)).applyMatrix4(matrix.compose(position,group.quaternion,new T.Vector3(1,1,1))));
+    cameraBounds.push(localBounds.applyMatrix4(matrix.compose(position,group.quaternion,new T.Vector3(1,1,1))));
   });
   if(identity==='linkedin'){
     const points=new Float32Array(720*3);
@@ -144,6 +138,7 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
   root.userData.profileUrl=palette.url;root.userData.civilization=identity;root.userData.logoWidth=width;
   let clock=0;
   return {root,identity,landmarks,factories,logoNormal:logoNormal.clone(),
+    architecture,updateArchitecture:(observer:T.Vector3,active:boolean)=>architecture.forEach(district=>district.update(observer,active)),
     setRepositories:(snapshot:ForgeSnapshot)=>{if(identity!=='github'||!snapshot.fetchedAt)return;snapshot.repositories.slice(0,recordGroups.length).forEach((repository,index)=>{const group=recordGroups[index];placard(group,repository.name,repository.archived?'ARCHIVED':`${repository.language??'Source'} / ${repository.stars} stars`);landmarks[index].name=repository.name;landmarks[index].description=`${repository.description||'Public repository'} / ${repository.language??'Language unspecified'} / ${repository.stars} stars / ${repository.forks} forks / ${snapshot.status==='stale'?'last verified snapshot':'GitHub public API'}`;landmarks[index].url=repository.url})},
     overview:surface.center.clone().addScaledVector(logoNormal,surface.radius*2.75),
     blocked:(position:T.Vector3,padding=.45)=>buildings.some(building=>position.distanceToSquared(building.position)<(building.radius+padding)**2),

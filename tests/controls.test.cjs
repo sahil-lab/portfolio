@@ -58,9 +58,9 @@ test('first person follows a planet surface frame and restores the avatar on exi
 });
 test('camera and movement preferences survive saves and default safely for older saves',()=>{
  const saved=settings=>parseSave(JSON.stringify({version:1,settings})).settings;
- assert.equal(saved({}).cameraMode,'close');assert.equal(saved({}).movementMode,'skate');
+ assert.equal(saved({}).cameraMode,'far');assert.equal(saved({}).movementMode,'skate');
  for(const cameraMode of ['first-person','close','far'])for(const movementMode of ['walk','skate']){const restored=saved({...defaultSettings,cameraMode,movementMode});assert.equal(restored.cameraMode,cameraMode);assert.equal(restored.movementMode,movementMode)}
- assert.equal(saved({cameraMode:'invalid'}).cameraMode,'close');assert.equal(saved({movementMode:'invalid'}).movementMode,'skate');
+ assert.equal(saved({cameraMode:'invalid'}).cameraMode,'far');assert.equal(saved({movementMode:'invalid'}).movementMode,'skate');
 });
 test('vehicle camera can climb through the open atrium without an invisible ceiling',()=>{
  const {createAweWorld}=require('../app/awe-world.ts'),{disposeScene}=require('../app/scene-resources.ts');

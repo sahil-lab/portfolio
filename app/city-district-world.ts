@@ -33,7 +33,7 @@ export function createAuthoredDistricts(parent:T.Object3D){
       for(let post=0;post<=Math.ceil(length/1.2);post++){const offset=-length/2+post/Math.ceil(length/1.2)*length;box('District_GuardPost',x+(alongX?offset:0),walk.level+.53,z+(alongX?0:offset),.055,1,.055,metal)}
     }
     function terraceBuilding(x:number,z:number,height:number,paint:string){
-      const building=createCityBuilding({width:8,height,depth:9,accent:paint});building.root.position.set(x,0,z);staticRoot.add(building.root);
+      const building=createCityBuilding({width:8,height,depth:9,accent:paint,address:`${district.id}/${x}/${z}`});building.root.position.set(x,0,z);staticRoot.add(building.root);
       solids.push({x,z,y:0,width:8.5,depth:10,height:height+1.8});
       return building;
     }

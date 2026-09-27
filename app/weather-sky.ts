@@ -74,10 +74,10 @@ export function createWeatherSky(scene:T.Scene,sun:T.DirectionalLight){
       rainCount:atmosphere.rainCount,snowCount:atmosphere.snowCount};
   }
   let clock=0;const result={...weatherAtmosphere(defaultWeather)};
-  function update(weather:WeatherSnapshot,dt:number,reduced:boolean,active:boolean,instant=false){
+  function update(weather:WeatherSnapshot,dt:number,reduced:boolean,active:boolean,instant=false,lighting:Partial<SkyLook>={}){
     const atmosphere=weatherAtmosphere(weather);if(!reduced)clock+=Math.max(0,Math.min(dt,.1));
     root.visible=active;
-    const target=skyLook(atmosphere,active);if(active)Object.assign(target,override);
+    const target=skyLook(atmosphere,active);if(active)Object.assign(target,override,lighting);
     const now=instant?look.settle(target):look.step(target,Math.min(dt,.25));
     const color=(key:keyof SkyLook)=>look.color(key)!;
     solarMaterial.opacity=now.solarOpacity;(moon.material as T.MeshBasicMaterial).opacity=now.moonOpacity;(stars.material as T.PointsMaterial).opacity=now.starsOpacity;

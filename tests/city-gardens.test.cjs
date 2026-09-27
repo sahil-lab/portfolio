@@ -16,7 +16,8 @@ test('premium finishing keeps water smooth and turf matte without shifting their
   assert.equal(court.water.material.roughness,.17);assert.equal(court.water.material.color.getHex(),original);assert.equal(court.root.getObjectByName('City_ArtificialTurf').material.roughness,1);disposeScene(scene);
 });
 
-test('public pools leave the Commons boulevard, storefront entrances, and workshop spawn clear',()=>{
+test('public pools leave the Commons boulevard, storefront entrances, and workshop spawn clear',context=>{
+  global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};context.after(()=>{delete global.document});
   const {createCityPublicSpaces,publicPoolSites}=require('../app/city-public-spaces.ts'),{commonsVenues,commonsSpawn}=require('../app/creative-plaza.ts');
   const scene=new T.Scene(),gardens=createCityPublicSpaces(scene);
   for(let z=0;z<=209;z+=.5)assert.equal(gardens.blocked(0,z,.8),false);

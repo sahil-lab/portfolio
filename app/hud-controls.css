@@ -36,6 +36,8 @@
 .hud-category-panel .hud-count { margin-left: auto; color: var(--hud-gold); font-variant-numeric: tabular-nums; }
 .hud-section { display: flex; flex-direction: column; gap: 9px; padding-top: 12px; margin-top: 2px; border-top: 1px solid var(--hud-line); }
 .hud-section h3 { margin: 0; color: var(--hud-muted); font: 500 10px 'Space Grotesk', sans-serif; text-transform: uppercase; }
+.hud-world-lighting {display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--hud-muted);font-size:12px}
+.hud-world-lighting select {min-width:0;max-width:180px;min-height:42px;padding:8px;border:1px solid var(--hud-line);border-radius:4px;color:var(--hud-white);background:#183333;font:inherit}
 .hud-districts button { border: 0; border-radius: 3px; background: transparent; }
 .hud-districts button span { color: var(--hud-white); }
 .hud-districts button[aria-current=location] span { color: var(--hud-ink); }

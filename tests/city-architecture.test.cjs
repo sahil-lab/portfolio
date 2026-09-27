@@ -126,14 +126,14 @@ test('architecture geometry has finite positions, unit normals and a bounded pol
       for(let vertex=0;vertex<normal.count;vertex++)assert.ok(Math.abs(Math.hypot(normal.getX(vertex),normal.getY(vertex),normal.getZ(vertex))-1)<.00001,object.name);
       assert.ok(object.material instanceof T.MeshStandardMaterial);assert.equal(object.material.map,null);assert.equal(object.material.emissiveIntensity,1);assert.equal(object.material.emissive.getHex(),0);
     });
-    assert.ok(triangles<6000,`${triangles} triangles`);assert.ok(meshes<=110,`${meshes} meshes`);assert.ok(materials.size<=8);
+    assert.ok(triangles<10000,`${triangles} triangles`);assert.ok(meshes<=120,`${meshes} meshes`);assert.ok(materials.size<=8);
     disposeScene(building.root);
   }
 });
 
 test('factory keeps its dependency surface and supports the distant bakeModel merge contract',()=>{
   const imports=ts.preProcessFile(fs.readFileSync(require.resolve('../app/city-architecture.ts'),'utf8')).importedFiles.map(entry=>entry.fileName);
-  assert.deepEqual(imports,['three','three/addons/geometries/RoundedBoxGeometry.js']);
+  assert.deepEqual(imports,['three','three/addons/geometries/RoundedBoxGeometry.js','./facade-craft','./architecture-profiles']);
   for(const variant of [0,1,2]){
     const building=createCityBuilding({width:4.6,height:8.4,depth:4.2,accent:'#89badb',variant}),groups=new Map(),baked=new T.Group();building.root.updateMatrixWorld(true);
     const originalBounds=new T.Box3().setFromObject(building.root);
@@ -161,5 +161,23 @@ test('static scenery batching retains lower and upper camera collision bounds',(
   const before=new T.Box3().setFromObject(scene);batchScenery(scene,{});const after=new T.Box3().setFromObject(scene);
   assert.equal(scene.userData.staticCameraBounds.length,6);assert.ok(before.min.distanceTo(after.min)<.00001&&before.max.distanceTo(after.max)<.00001);
   assert.ok(scene.children.some(object=>object.name==='SceneryBatch'));disposeScene(scene);
+});
+
+test('every city residence carries four-sided Atelier detailing and compact material batches',()=>{
+  for(const variant of [0,1,2]){
+    const building=createCityBuilding({accent:'#218d8b',height:8,variant}),detail=building.root.getObjectByName('Atelier_FacadeCraft'),counts=detail.userData.detailCounts;
+    assert.equal(building.root.userData.architectureStandard,'crafted');assert.equal(detail.userData.facades,4);assert.equal(detail.userData.storeys,3);
+    for(const name of ['floorBand','cornerPier','brassQuoin','balconySpindle','balconyReturn','windowBox','rainPipe','roofCoping','roofSkylight'])assert.ok(counts[name]>0,name);
+    assert.ok(detail.children.length<=6);assert.ok(counts.balconySpindle>=24);disposeScene(building.root);
+  }
+});
+
+test('workshop and landmark addresses generate different residence geometry within existing footprints',()=>{
+  const signatures=new Set();
+  for(let index=0;index<30;index++){
+    const building=createCityBuilding({accent:'#218d8b',height:8,address:'residence-'+index}),bounds=new T.Box3().setFromObject(building.root);signatures.add(geometrySignature(building.root));
+    assert.equal(building.root.userData.architectureRecipe.id,'atelier/residence-'+index);assert.ok(bounds.min.x>=-2.1&&bounds.max.x<=2.1);assert.ok(bounds.min.z>=-2.3&&bounds.max.z<=2.3);disposeScene(building.root);
+  }
+  assert.equal(signatures.size,30);
 });
 

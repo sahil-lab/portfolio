@@ -182,6 +182,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   if(journey.mode)return true;if(carIndex!==null)return leaveCar();
   const car=nearCar();if(car>=0){carIndex=car;player.position.copy(cars[car].root.position);callbacks.notice('Driving · WASD / arrows or the joystick. E to park and step out.');publish(true);return true}
   if(nearMetro()||nearRocket()){callbacks.open();return true}
+  const publicPlace=landscapes[journey.current]?.publicSpaces.interact(player.position);if(publicPlace){callbacks.sound();callbacks.notice(publicPlace);return true}
   const demonstration=landscapes[journey.current]?.realm?.interact(player.position);if(demonstration){callbacks.sound();callbacks.notice(demonstration);return true}
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost){station();callbacks.notice(outpost.name+' \u00b7 Returned to the landing station.');return true}
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark){callbacks.notice(landmark.name+' / '+landmark.description);return true}
@@ -213,6 +214,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   if(journey.mode)return (journey.mode==='metro'?'Metro to ':'Rocket to ')+transitStops[journey.destination].name+' \u00b7 '+Math.round(journey.progress*100)+'%';
   if(carIndex!==null)return 'E \u00b7 Park rover and step out';if(nearCar()>=0)return 'E \u00b7 Drive rover';if(nearMetro())return 'E \u00b7 Choose a metro destination';if(nearRocket())return 'E \u00b7 Launch to another world';
   const demonstration=landscapes[journey.current]?.realm?.nearest(player.position);if(demonstration)return 'E \u00b7 '+demonstration.name;
+  const publicPlace=landscapes[journey.current]?.publicSpaces.prompt(player.position);if(publicPlace)return publicPlace;
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost)return 'E \u00b7 '+outpost.name+' / return to station';
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark)return 'E \u00b7 '+landmark.name;
   const conversation=landscapes[journey.current]?.population.prompt(player.position);if(conversation)return conversation;

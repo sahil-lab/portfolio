@@ -6,6 +6,7 @@ import {PortraitSpeaker} from './portrait-speaker';
 import {PaintingInteraction} from './painting-interaction';
 import {batchScenery} from './static-batching';
 import {addShopArchitecture} from './shop-architecture';
+import {createKettleSteam} from './kettle-steam';
 
 export const commonsSpawn={x:0,y:.8,z:98};
 export function commonsArrival(aspect:number){
@@ -16,19 +17,29 @@ export const commonsGardens=[{x:-12,z:97},{x:12,z:97},{x:-12,z:117},{x:12,z:117}
 export const commonsVenues=[
   {id:'kettle',name:'The Copper Kettle',x:-27,z:108,width:19,depth:13,message:'A warm circuit chai, brewed just for you.'},
   {id:'shoe',name:'Sole Studio',x:23,z:106,width:15,depth:16,message:'A fresh pair of moonwalkers. Every great journey starts with comfortable shoes.'},
-  {id:'radio',name:'Frequency House',x:-17,z:132,width:15,depth:9,message:'Today\'s record: A Small Signal in a Very Big Universe.'},
+  {id:'radio',name:'Frequency House',x:-17,z:132,width:15,depth:9,message:'Live local radio.'},
   {id:'books',name:'Paperback Dispenser',x:-34,z:88,width:3.5,depth:2.8,message:'Your book: A Field Guide to Quiet Planets.'},
   {id:'juice',name:'Citrus Circuit',x:29,z:76,width:3.5,depth:2.8,message:'One chilled orange spark. A little refreshment for the road.'},
   {id:'ice',name:'Cloud Soft Serve',x:18,z:130,width:3.5,depth:2.8,message:'Vanilla cloud, with a little stardust on top.'},
 ] as const;
 
-export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{notice:(text:string)=>void;subtitle:(text:string)=>void;sound:()=>void;enableVoice?:()=>void}){
+export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{notice:(text:string)=>void;subtitle:(text:string)=>void;sound:()=>void;enableVoice?:()=>void;radio?:()=>void}){
   const root=new T.Group();root.name='MotherboardCommons';scene.add(root);const surface=createCraftMaterials();
   const ink=surface('#233c43'),cream=surface('#f1f2e9'),copper=surface('#c9ad7b',0,.65),teal=surface('#198c91'),rose=surface('#e47f87'),blue=surface('#4b91b3');
   const glass=new T.MeshPhysicalMaterial({color:'#1988ba',metalness:.3,roughness:.22,clearcoat:.75,clearcoatRoughness:.2});
   const foliage=surface('#417c5c'),newGrowth=surface('#a3c783'),petal=surface('#efb79a'),soil=surface('#29433b');
   const leafGeometry=new T.SphereGeometry(1,8,6),stemGeometry=new T.CylinderGeometry(.025,.04,1.2,6);
   const speaker=new PortraitSpeaker(callbacks.subtitle);let clock=0,lastMouth=-1,lastText='',lastBlink=false,lastStatus='';const dispensed:{mesh:T.Object3D;until:number}[]=[];
+  const kettleSteam=createKettleSteam();
+  const radioControls=new T.Group();radioControls.name='Radio_LiveControls';
+  const radioCanvas=document.createElement('canvas');radioCanvas.width=768;radioCanvas.height=128;const radioContext=radioCanvas.getContext('2d')!,radioTexture=new T.CanvasTexture(radioCanvas);radioTexture.colorSpace=T.SRGBColorSpace;
+  const radioLamp=new T.MeshStandardMaterial({color:'#617b72',emissive:'#8bf0b6',emissiveIntensity:0,roughness:.45});let radioNeedle:T.Mesh|null=null;
+  function radio(state:{playing:boolean;name:string;tuning:number}){
+    radioControls.userData.playing=state.playing;radioControls.userData.station=state.name;radioLamp.emissiveIntensity=state.playing?1.2:0;radioLamp.color.set(state.playing?'#b6f3c8':'#617b72');
+    if(radioNeedle)radioNeedle.position.x=1.74+T.MathUtils.clamp(Number.isFinite(state.tuning)?state.tuning:0,0,1)*2.66;
+    radioContext.fillStyle='#18373c';radioContext.fillRect(0,0,768,128);radioContext.fillStyle=state.playing?'#cdf5d2':'#bdd0c5';radioContext.textAlign='center';radioContext.textBaseline='middle';radioContext.font='600 43px "Trebuchet MS", sans-serif';radioContext.fillText(state.name||'LOCAL RADIO',384,66,720);radioTexture.needsUpdate=true;
+  }
+  radio({playing:false,name:'',tuning:0});
   let available=true;
   const nearPortrait=()=>player.position.y>=0&&player.position.y<3&&player.position.z>73.8&&Math.hypot(player.position.x+24,player.position.z-77)<6;
   const voice=new PaintingInteraction(speaker,{available:()=>available&&nearPortrait()&&globalThis.document?.hidden!==true,enableVoice:()=>{if(callbacks.enableVoice)callbacks.enableVoice();else speaker.sound(true)},notice:callbacks.notice,clearCaption:()=>callbacks.subtitle('')});
@@ -93,6 +104,7 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       mesh(group,'Kettle_Spout',new T.TubeGeometry(spout,16,.78,12,false),copper);
       for(const [height,radius] of [[2.1,4.57],[8.7,3.95]]){const seam=mesh(group,'Kettle_InlaidBand',new T.TorusGeometry(radius,.045,5,64),copper,0,height,0);seam.rotation.x=Math.PI/2;seam.scale.y=.85}
       const spoutRim=mesh(group,'Kettle_SpoutRim',new T.TorusGeometry(.75,.055,6,32),cream,7.9,7.4,0);spoutRim.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),new T.Vector3(1.5,2.7,0).normalize());
+      group.add(kettleSteam.root);
       box(group,'Kettle_DoorSurround',copper,0,2.2,4.28,3.02,4.19,.16);
       box(group,'Kettle_Door',ink,0,2.2,4.35,2.7,3.9,.25);
       box(group,'Kettle_DoorGlazing',glass,0,2.85,4.5,2.2,2.05,.07);box(group,'Kettle_DoorHandle',copper,.88,1.7,4.55,.055,.5,.08);
@@ -115,13 +127,16 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
       plate(group,'SOLE / 01',-1.2,1.25,4.3,2.4);
       title(group,'SOLE STUDIO',3.5,9.6,4.5);
     }else if(venue.id==='radio'){
+      group.add(radioControls);
       box(group,'Radio_Cabinet',blue,0,4.3,0,12,8,6);box(group,'Radio_Bezel',cream,0,4.5,3.15,11.2,6.8,.3);
       mesh(group,'Radio_Speaker',new T.CylinderGeometry(2.3,2.3,.2,32),ink,-2.3,4.8,3.4).rotation.x=Math.PI/2;
       for(const radius of [2.38,2.53])mesh(group,'Radio_SpeakerRim',new T.TorusGeometry(radius,.045,6,48),copper,-2.3,4.8,3.53);
       for(let line=0;line<9;line++)box(group,'Radio_Grille',copper,-2.3,3.2+line*.4,3.6,3.5,.08,.12);
       box(group,'Radio_Tuner',ink,3.1,6.2,3.42,3.2,1.2,.2);
       for(let tick=0;tick<15;tick++)box(group,'Radio_FrequencyTick',cream,1.74+tick*.19,6.27,3.54,.035,tick%5===0?.36:.18,.02);
-      box(group,'Radio_TuningNeedle',rose,3.55,6.3,3.58,.065,.6,.035);
+      radioNeedle=box(radioControls,'Radio_TuningNeedle',rose,1.74,6.3,3.58,.065,.6,.035);
+      createReadableDisplay(radioControls,'Radio_NowPlaying',radioTexture,3.5,.58,.06,new T.Vector3(3.05,5.28,3.72));
+      mesh(radioControls,'Radio_PlaybackLamp',new T.SphereGeometry(.15,10,6),radioLamp,-4.65,7.25,3.54);
       for(const x of [2,4.2])mesh(group,'Radio_Dial',new T.CylinderGeometry(.57,.57,.5,16),teal,x,4.4,3.6).rotation.x=Math.PI/2;
       for(const x of [2,4.2]){mesh(group,'Radio_DialBezel',new T.TorusGeometry(.6,.045,5,28),copper,x,4.4,3.72);box(group,'Radio_DialIndex',cream,x,4.64,3.88,.065,.24,.025)}
       box(group,'Radio_Door',ink,2.9,1.9,3.45,2.3,3.1,.2);
@@ -178,17 +193,18 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
     context.fillStyle=voice.speech.snapshot.listening?'#ffcf83':'#99b9c9';context.font='900 22px "Trebuchet MS", sans-serif';context.fillText(voice.status,384,984,650);texture.needsUpdate=true;
   }
   paintPortrait(false);
-  batchScenery(root,{portrait,products:dispensed.map(item=>item.mesh)});
+  batchScenery(root,{portrait,kettleSteam:kettleSteam.root,radio:radioControls,products:dispensed.map(item=>item.mesh)});
   const nearest=()=>player.position.y<3?commonsVenues.find(venue=>Math.hypot(player.position.x-venue.x,player.position.z-(venue.z+venue.depth/2+1))<4.8):undefined;
-  function update(dt:number,reduced:boolean,active:boolean){
+  function update(dt:number,reduced:boolean,active:boolean,environment={visible:active,wind:0}){
     available=active;voice.update();clock+=dt;speaker.tick(dt,reduced);
+    kettleSteam.update(dt,reduced,environment.visible,environment.wind);
     const blink=!reduced&&clock%6.7<.13,status=voice.status,text=voice.text;if(lastMouth!==speaker.mouth||lastText!==text||lastBlink!==blink||lastStatus!==status){lastMouth=speaker.mouth;lastText=text;lastBlink=blink;lastStatus=status;paintPortrait(blink)}
     dispensed.forEach(item=>{item.mesh.visible=clock<item.until;if(!reduced&&item.mesh.visible)item.mesh.rotation.y+=dt*.7});
   }
-  return {root,speaker,voice,portraitCanvas:canvas,update,
+  return {root,speaker,voice,kettleSteam,radio,radioControls,portraitCanvas:canvas,update,
     blocked:(x:number,z:number,y:number)=>y<14&&(Math.abs(x+24)<4.9&&Math.abs(z-73)<.8||commonsVenues.some(venue=>Math.abs(x-venue.x)<venue.width/2+.4&&Math.abs(z-venue.z)<venue.depth/2+.4)||y<2.6&&commonsGardens.some(garden=>Math.abs(x-garden.x)<2.1&&Math.abs(z-garden.z)<1.7)),
     prompt:()=>nearPortrait()?voice.prompt:nearest()?'E \u00b7 '+nearest()!.name:null,
-    interact:()=>{if(nearPortrait())return voice.interact();const venue=nearest();if(!venue)return false;callbacks.notice(venue.name+': '+venue.message);callbacks.sound();const item=dispensed.find(value=>value.mesh.parent?.name==='Shop_'+venue.id);if(item)item.until=clock+6;return true},
+    interact:()=>{if(nearPortrait())return voice.interact();const venue=nearest();if(!venue)return false;if(venue.id==='radio'){callbacks.radio?.();callbacks.sound();return true}callbacks.notice(venue.name+': '+venue.message);callbacks.sound();const item=dispensed.find(value=>value.mesh.parent?.name==='Shop_'+venue.id);if(item)item.until=clock+6;return true},
     dispose:()=>{available=false;voice.dispose();speaker.dispose()},
   };
 }

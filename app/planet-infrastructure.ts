@@ -1,13 +1,13 @@
 import * as T from 'three';
 import {TessellateModifier} from 'three/addons/modifiers/TessellateModifier.js';
-import {craftedBox,createCraftMaterials} from './crafted-surfaces';
+import {createCraftMaterials} from './crafted-surfaces';
 import {civilizationFor,civilizations} from './civilization-config';
 import {civilizationLogoReserved} from './civilization-world';
-import {cityBlock,cityPalette} from './city-architecture';
+import {planetArchitectureFor} from './architecture-profiles';
+import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createArtificialTurf,createPoolCourt} from './city-gardens';
 import {planetStyles} from './transit-config';
 import {realmDesign,realmSiteDistance} from './realm-layout';
-import {realmRoofGeometry} from './realm-world';
 import {globeDirection,planetPoint,planetUp,planetGeography,riverLatitude,roadLatitudes,roadLongitudes,type PlanetSurface} from './planet-geography';
 
 export type PlanetTown={name:string;direction:T.Vector3;position:T.Vector3;east:T.Vector3;north:T.Vector3};
@@ -80,7 +80,7 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
   });rails.name='River_Bridge_Railings';rails.computeBoundingSphere();root.add(rails);
   const towns=planetTowns(surface),buildings:{position:T.Vector3;radius:number;town:string}[]=[];
   const palette=planetStyles[surface.stop.id]?.homes??realm?.homes??(identity==='github'?['#e1e6ec','#414851','#bbc5d0','#f1f4f7']:identity==='linkedin'?['#f4f9ff','#c4d8e9','#0a66c2','#e7f0fa']:surface.stop.theme==='garden'?['#c9dfcf','#88bcad','#e3b196','#a3c9d2']:surface.stop.theme==='copper'?['#d4b785','#e3e3cd','#70a7a7','#cd9987']:['#b2d7e0','#c6b8d9','#8dcab9','#e3cf9f']);
-  const records:{position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;height:number;color:T.Color}[]=[];
+  const records:{address:string;position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;width:number;depth:number;height:number;accent:string;town:number}[]=[];
   towns.forEach((town,townIndex)=>{
     for(const side of [-1,1])for(const along of [-16,-8,0,8,16]){
       const direction=town.direction.clone().addScaledVector(town.east,along/surface.radius).addScaledVector(town.north,side*11/surface.radius).normalize();
@@ -88,46 +88,12 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
       const up=planetUp(surface,position),forward=town.position.clone().sub(position).projectOnPlane(up).normalize(),right=new T.Vector3().crossVectors(up,forward).normalize();
       const rotation=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
       const height=(worldKind==='foundry'?4.8:worldKind==='research'?7:6)+((townIndex+Math.abs(along))%3)*.8;
-      records.push({position,up,rotation,height,color:new T.Color(palette[(records.length+townIndex)%palette.length])});buildings.push({position,radius:3.45,town:town.name});
+      records.push({address:`${surface.stop.id}/town-${townIndex}/lot-${side}-${along}`,position,up,rotation,width:4.8,depth:4.8,height,accent:palette[(records.length+townIndex)%palette.length],town:townIndex});buildings.push({position,radius:3.7,town:town.name});
     }
   });
-  const pearl=finish(style?.stone??realm?.stone??cityPalette.pearl),brass=finish(style?.metal??realm?.metal??'#b8c5ce',0,.65),glazing=finish(identity==='github'?'#536c80':style?.glass??realm?.glass??cityPalette.glass,0,.36),windowLight=finish(style?.light??'#f5d69e',.3,.12);
-  glazing.roughness=.2;glazing.clearcoat=.85;
-  const bodies=new T.InstancedMesh(cityBlock(4.8,1,4.8,.2),finish('#ffffff'),records.length);
-  const roofs=new T.InstancedMesh(worldKind?realmRoofGeometry(worldKind):cityBlock(5.2,.26,5.2),pearl,records.length);
-  const doors=new T.InstancedMesh(craftedBox(1.15,2.2,.14),glazing,records.length);
-  const windows=new T.InstancedMesh(cityBlock(1.34,1.42,.14),glazing,records.length*4);
-  const foundations=new T.InstancedMesh(craftedBox(5.25,.24,5.25),pearl,records.length);
-  const cornices=new T.InstancedMesh(new T.BoxGeometry(5.08,.14,5.08),pearl,records.length);
-  const windowFrames=new T.InstancedMesh(cityBlock(1.54,1.62,.07),pearl,records.length*4);
-  const canopies=new T.InstancedMesh(craftedBox(1.85,.14,.7),brass,records.length);
-  const lanterns=new T.InstancedMesh(new T.BoxGeometry(.2,.38,.18),windowLight,records.length);
-  const solarPanels=new T.InstancedMesh(new T.BoxGeometry(1.5,.065,1.2),glazing,records.length);
-  const floorBands=new T.InstancedMesh(cityBlock(5.15,.2,5.15),pearl,records.length);
-  const balconyDecks=new T.InstancedMesh(cityBlock(4.35,.18,.84),pearl,records.length);
-  const balconyRails=new T.InstancedMesh(new T.BoxGeometry(4.35,.065,.065),brass,records.length);
-  const balconyPosts=new T.InstancedMesh(new T.BoxGeometry(.035,.77,.035),brass,records.length*6);
-  const lawnMaterial=new T.MeshStandardMaterial({color:identity==='github'?'#78987e':'#75b957',roughness:1});lawnMaterial.userData.surface='natural';
-  const roofGardens=new T.InstancedMesh(cityBlock(4.35,.04,3.2),lawnMaterial,records.length);
-  const shrubs=new T.InstancedMesh(new T.CapsuleGeometry(.26,.6,3,8),lawnMaterial,records.length*2);
-  records.forEach((record,index)=>{
-    dummy.quaternion.copy(record.rotation);dummy.position.copy(record.position).addScaledVector(record.up,record.height/2);dummy.scale.set(1,record.height,1);dummy.updateMatrix();bodies.setMatrixAt(index,dummy.matrix);bodies.setColorAt(index,record.color);
-    dummy.scale.set(1,1,1);dummy.position.copy(record.position).addScaledVector(record.up,record.height+.15);dummy.updateMatrix();roofs.setMatrixAt(index,dummy.matrix);
-    dummy.position.set(0,1.1,2.48).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();doors.setMatrixAt(index,dummy.matrix);
-    for(let floor=0;floor<2;floor++)for(const [side,offset] of [[-1,0],[1,1]]){
-      const elevation=floor===0?2.05:record.height*.74;
-      dummy.position.set(side*1.4,elevation,2.5).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();windows.setMatrixAt(index*4+floor*2+offset,dummy.matrix);
-      dummy.position.set(side*1.4,elevation,2.43).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();windowFrames.setMatrixAt(index*4+floor*2+offset,dummy.matrix);
-    }
-    for(const [detail,height,forward] of [[foundations,.14,0],[cornices,record.height-.05,0],[canopies,2.45,2.58],[lanterns,2.85,2.55],[solarPanels,record.height+.41,1.67],[floorBands,record.height*.5,0],[roofGardens,record.height+.32,-.45],[balconyDecks,record.height*.5+.13,2.75],[balconyRails,record.height*.5+1,3.1]] as const){
-      dummy.position.set(0,height,forward).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();detail.setMatrixAt(index,dummy.matrix);
-    }
-    for(let post=0;post<6;post++){dummy.position.set(-2.12+post*.848,record.height*.5+.61,3.1).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();balconyPosts.setMatrixAt(index*6+post,dummy.matrix)}
-    for(const [side,offset] of [[-1,0],[1,1]]){dummy.position.set(side*1.55,record.height+.91,-1.25).applyQuaternion(record.rotation).add(record.position);dummy.updateMatrix();shrubs.setMatrixAt(index*2+offset,dummy.matrix)}
-  });
-  for(const [mesh,name] of [[bodies,'Town_Houses'],[roofs,'Town_Roofs'],[doors,'Town_Doors'],[windows,'Town_Windows'],[foundations,'Town_Plinths'],[cornices,'Town_Cornices'],[windowFrames,'Town_WindowSurrounds'],[canopies,'Town_EntranceCanopies'],[lanterns,'Town_EntranceLanterns'],[solarPanels,'Town_SolarRoofs'],[floorBands,'Town_FloorBands'],[balconyDecks,'Town_Balconies'],[balconyRails,'Town_BalconyRails'],[balconyPosts,'Town_BalconyPosts'],[roofGardens,'Town_ArtificialTurfRoofs'],[shrubs,'Town_RooftopPlanting']] as const){mesh.name=name;mesh.computeBoundingSphere();mesh.castShadow=mesh!==windows&&mesh!==lanterns;mesh.receiveShadow=true;root.add(mesh)}
-  if(realm)for(const detail of [solarPanels,roofGardens,shrubs])detail.visible=false;
-  root.userData.staticCameraBounds=records.map(record=>new T.Box3(new T.Vector3(-2.8,0,-2.8),new T.Vector3(2.8,record.height+(realm?4:2),2.8)).applyMatrix4(new T.Matrix4().compose(record.position,record.rotation,new T.Vector3(1,1,1))));
+  const architectureStyle=planetArchitectureFor(surface.stop);
+  const architecture=towns.map((_,index)=>createArchitectureNeighborhood(root,architectureStyle,records.filter(record=>record.town===index)));
+  root.userData.architectureStyle=architectureStyle;root.userData.staticCameraBounds=architecture.flatMap(town=>town.bounds);
   const pools:{court:ReturnType<typeof createPoolCourt>;position:T.Vector3;inverse:T.Quaternion}[]=[];
   for(const town of towns){
     let placed=false;
@@ -153,7 +119,8 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
     }
   }
   const poolPoint=new T.Vector3();
-  return {root,roads,rivers,bridges,towns,buildings,pools,
+  return {root,roads,rivers,bridges,towns,buildings,pools,architecture,
+    updateArchitecture:(observer:T.Vector3,active:boolean)=>architecture.forEach(town=>town.update(observer,active)),
     reserved:(direction:T.Vector3,position:T.Vector3)=>{const land=planetGeography(surface,direction);return realmSiteDistance(surface.stop,surface.radius,direction)<5||land.road<7||land.river<6||towns.some(town=>town.position.distanceTo(position)<24)||pools.some(pool=>pool.position.distanceTo(position)<9)},
     blocked:(position:T.Vector3,padding=.45)=>planetGeography(surface,position.clone().sub(surface.center).normalize()).water||buildings.some(building=>position.distanceToSquared(building.position)<(building.radius+padding)**2)||pools.some(pool=>{poolPoint.copy(position).sub(pool.position).applyQuaternion(pool.inverse);return Math.abs(poolPoint.y)<3&&pool.court.contains(poolPoint.x,poolPoint.z,padding)}),
     update:(dt:number,reduced:boolean)=>{if(!reduced&&!identity)waterTexture.offset.x=(waterTexture.offset.x-dt*.055)%1;pools.forEach(pool=>pool.court.update(dt,reduced))},
