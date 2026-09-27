@@ -226,6 +226,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();clearJourneyRails();rockets.forEach((rocket,index)=>parkRocket(rocket,index));metro.root.visible=true;placeMetro(metro,pathFor(0,1),0);resetSurfaceFrame(player);updateStationDetails();publish(true)}
  return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,journey,neighborhood,civilizationLink,
+  arriveShared:(destination:number)=>{if(!Number.isInteger(destination)||!transitStops[destination])return false;home();journey.current=journey.destination=destination;arrive('metro');return true},
   groundBlocked:(position:T.Vector3,padding:number,stop:number)=>{
    if(landscapes[stop]?.blocked(position,padding))return true;
    for(let index=0;index<9;index++){const angle=index*Math.PI/4,offset=index===8?0:padding;if(stationaryBlocked(position.x+Math.cos(angle)*offset,position.y+.8,position.z+Math.sin(angle)*offset))return true}

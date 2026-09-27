@@ -41,6 +41,8 @@ next-env.d.ts
 /outputs/
 /work/
 /.cache/
+/.data/
+/public/assets/friends-pc/
 
 # personal reference photos - keep local
 /picsFOR3dModler/

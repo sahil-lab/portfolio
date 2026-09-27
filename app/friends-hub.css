@@ -1,0 +1,260 @@
+.friends-hub {
+ --club-bg:#102c30; --club-deep:#081e24; --club-ink:#edf6ed; --club-muted:#acc9c3; --club-line:#b5d9ce26; --club-jade:#b4e6cf; --club-gold:#e8c773; --club-red:#ff9a8a;
+ position:fixed; inset:0; top:0; left:0; transform:none; translate:none; z-index:70; display:flex; flex-direction:column; width:100%; height:100dvh; max-width:none; margin:0; padding:0; gap:0; border:0; border-radius:0; overflow:hidden; background:var(--club-bg); color:var(--club-ink); font:400 13px/1.5 'Space Grotesk',sans-serif; box-shadow:none;
+}
+.friends-hub * {box-sizing:border-box;letter-spacing:0}
+.friends-hub fieldset {min-width:0;margin:0;padding:0}
+.friends-hub .friends-race-controls,.friends-hub .sudoku-keypad {border:0}
+.friends-hub button,.friends-hub input,.friends-hub select {font:inherit}
+.friends-hub button,.friends-icon-link {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 12px;border:1px solid var(--club-line);border-radius:5px;background:#bbecd20a;color:var(--club-ink);cursor:pointer;line-height:1.3;text-decoration:none}
+.friends-hub button:hover:not(:disabled),.friends-icon-link:hover {background:#bbecd21a;border-color:#cbe7da66}
+.friends-hub button:disabled {opacity:.4;cursor:default}
+.friends-hub button:focus-visible,.friends-hub input:focus-visible,.friends-hub select:focus-visible,.friends-hub canvas:focus-visible,.friends-hub a:focus-visible,.friends-hub pre:focus-visible {outline:2px solid var(--club-gold);outline-offset:3px}
+.friends-hub svg {flex-shrink:0}
+.friends-hub h2,.friends-hub h3,.friends-hub p {margin:0}
+.friends-hub h2 {font:500 23px/1.2 'Fraunces',serif}
+.friends-hub h3 {font-size:13px;font-weight:500}
+.friends-hub input:not([type=range]):not([type=checkbox]):not([type=file]),.friends-hub select {width:100%;min-width:0;min-height:42px;padding:9px 10px;border:1px solid #a6c9bf50;border-radius:4px;background:#08232a;color:var(--club-ink)}
+.friends-hub label {display:flex;gap:7px;flex-direction:column;color:var(--club-muted);font-size:12px}
+.friends-hub input[type=range],.friends-hub input[type=checkbox] {accent-color:var(--club-jade)}
+.friends-hub .friends-primary {background:var(--club-jade);border-color:var(--club-jade);color:#163c39;font-weight:600}
+.friends-hub .friends-start {background:var(--club-gold);border-color:var(--club-gold);color:#253b31;font-weight:600}
+.friends-header {display:flex;align-items:center;justify-content:space-between;flex:0 0 auto;min-height:76px;padding:14px 24px;border-bottom:1px solid var(--club-line);gap:16px}
+.friends-header [data-slot=dialog-title] {font:500 25px/1.1 'Fraunces',serif;margin:0}
+.friends-connection {display:inline-flex;align-items:center;gap:7px;color:var(--club-muted);font-size:10px;margin-top:6px}
+.friends-connection:before {content:'';width:5px;height:5px;border-radius:50%;background:#dcad73}
+.friends-connection[data-state=connected]:before {background:#8be9b4}
+.friends-header-actions {display:flex;gap:6px}
+.friends-header-actions button,.friends-icon-link {width:40px;height:40px;min-height:40px;padding:0}
+.friends-error {flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#512d2c;padding:8px 20px;color:#ffe2d8;font-size:12px}
+.friends-error button {padding:0;min-height:30px;width:30px;border:0;background:none}
+.friends-welcome {position:relative;flex:1;min-height:0;overflow:auto}
+.friends-orbit-scene {position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
+.friends-orbit-scene canvas {display:block;width:100%;height:100%}
+.friends-orbit-scene>output {position:absolute;inset:30% 10%;color:var(--club-red);max-width:480px}
+.friends-join {position:relative;z-index:1;width:340px;max-width:calc(100% - 32px);margin:42px 32px;padding:24px;display:flex;flex-direction:column;gap:17px;background:#0c292ee8;border:1px solid #a7d3bd40;border-radius:6px;backdrop-filter:blur(12px)}
+.friends-join h2 {font-size:27px;margin-bottom:8px}
+.friends-tabs {display:flex;flex:0 0 auto;padding:0 20px;border-bottom:1px solid var(--club-line);gap:4px;overflow:auto;scrollbar-width:thin;background:#0a252b}
+.friends-tabs button {position:relative;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;white-space:nowrap;padding:13px 15px;color:var(--club-muted);min-height:52px}
+.friends-tabs button[aria-current=page] {color:var(--club-jade);border-bottom-color:var(--club-jade);background:#b1dfc309}
+.friends-tabs i {width:5px;height:5px;background:var(--club-gold);border-radius:50%;position:absolute;top:8px;right:6px}
+.friends-layout {display:grid;grid-template-columns:246px minmax(0,1fr);flex:1;min-height:0}
+.friends-sidebar {border-right:1px solid var(--club-line);padding:22px 18px;overflow:auto;scrollbar-width:thin;background:linear-gradient(180deg,#133337,#0c272c)}
+.friends-section-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.friends-section-heading h2 {font-size:19px}
+.friends-section-heading small {font-size:9px;color:var(--club-gold)}
+.friends-section-heading span {color:var(--club-muted);font-size:11px}
+.friends-roster ol {list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.friends-roster li {display:flex;align-items:center;gap:9px;min-height:44px}
+.friends-roster li>div {display:flex;flex-direction:column;flex:1;min-width:0}
+.friends-roster strong {font-size:12px;font-weight:500;overflow-wrap:anywhere}
+.friends-roster small {font-size:10px;color:var(--club-muted)}
+.friends-avatar-dot {width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 3px #ffffff0a;flex:0 0 auto}
+.friends-roster li[data-connected=false] {opacity:.5}
+.friend-ready {color:var(--club-jade)}
+.friend-not-ready {opacity:.13}
+.friends-swatches {border:0;padding:15px 0 0;margin:0;display:flex;gap:9px}
+.friends-swatches button {width:27px;height:27px;min-height:27px;border-radius:50%;padding:0;border:2px solid transparent;color:#10292c}
+.friends-swatches button[aria-pressed=true] {border-color:#fff}
+.friends-swatches button:disabled {opacity:.18}
+.friends-voice {border-top:1px solid var(--club-line);margin-top:22px;padding-top:18px;display:grid;gap:12px}
+.friends-voice>label {flex-direction:row;align-items:center}
+.friends-voice input {min-width:0;width:100%}
+.friends-voice p {font-size:11px;color:var(--club-red);margin-bottom:8px}
+.friends-voice small {font-size:10px;color:var(--club-muted)}
+.friends-inline {display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.friends-inline>label {min-width:90px;max-width:150px}
+.friends-room-code {display:grid;gap:5px;margin-top:24px;padding-top:16px;border-top:1px solid var(--club-line)}
+.friends-room-code span {font-size:10px;color:var(--club-muted)}
+.friends-room-code code {font:11px/1.7 'Space Grotesk',sans-serif;overflow-wrap:anywhere;user-select:all;color:var(--club-gold)}
+.friends-record {padding:20px 0;border-top:1px solid var(--club-line);margin-top:20px}
+.friends-record ol {display:grid;list-style:none;padding:0;margin:12px 0;gap:10px}
+.friends-record li {display:flex;gap:9px;align-items:center;font-size:12px}
+.friends-record li>b {font:500 16px 'Fraunces',serif;color:var(--club-gold);width:12px}
+.friends-record li>span {flex:1;min-width:0;overflow-wrap:anywhere}
+.friends-record li small,.friends-record li time {color:var(--club-muted);font-size:10px;white-space:nowrap}
+.friends-sidebar .friends-record li time {display:none}
+.friends-record p {font-size:10px;color:var(--club-muted);line-height:1.7}
+.friends-record p strong {font-weight:500;color:var(--club-ink)}
+.friends-main {position:relative;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin;background:radial-gradient(ellipse at 70% 0%,#24444322,transparent 70%),#0e292e}
+.friends-orbital-stage {position:relative;height:min(56dvh,530px);min-height:300px;border-bottom:1px solid var(--club-line)}
+.friends-main[data-view=race] .friends-orbital-stage {height:calc(100dvh - 128px);min-height:360px}
+.friends-main[data-view=ship] .friends-orbital-stage {height:55dvh}
+.friends-stage-label {position:absolute;left:26px;bottom:22px;pointer-events:none;text-shadow:0 2px 8px #0008}
+.friends-stage-label span,.ship-status>span {font-size:10px;color:var(--club-gold)}
+.friends-stage-label h2 {font-size:31px;margin-top:4px}
+.friends-lobby-controls {padding:24px;max-width:940px}
+.friends-game-options {display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.friends-game-options button[aria-pressed=true],.friends-segmented button[aria-pressed=true] {background:var(--club-jade);color:#163c39}
+.friends-segmented {display:flex;gap:3px;border:1px solid var(--club-line);border-radius:5px;margin:0;padding:3px}
+.friends-segmented button {border:0;min-height:36px}
+.friends-garage {margin-top:22px;padding-top:18px;border-top:1px solid var(--club-line)}
+.friends-garage h3 {margin-bottom:12px}
+.friends-car-options {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;max-width:660px}
+.friends-car-options button {flex-direction:column;gap:5px;min-height:104px;border-radius:6px}
+.friends-car-options button[aria-pressed=true] {border-color:var(--club-gold);background:#e8c77312}
+.friends-car-options small {font-size:10px;color:var(--club-muted)}
+.race-scoreboard {position:absolute;top:22px;left:24px;padding:14px 16px;min-width:210px;background:#0c272ee0;border:1px solid var(--club-line);border-radius:5px}
+.race-scoreboard>strong {font-size:23px;color:var(--club-gold)}
+.race-scoreboard>span {display:block;font-size:12px;font-variant-numeric:tabular-nums}
+.race-scoreboard ol {list-style:none;display:grid;gap:5px;padding:12px 0 0;margin:0}
+.race-scoreboard li {display:flex;gap:8px;align-items:center;font-size:11px}
+.race-scoreboard small {margin-left:auto;color:var(--club-muted)}
+.friends-race-controls {position:absolute;bottom:max(24px,env(safe-area-inset-bottom));left:24px;right:24px;display:flex;gap:10px;pointer-events:none}
+.friends-race-controls button {pointer-events:auto;touch-action:none;user-select:none;width:60px;height:60px;padding:0;background:#152e327a;border-color:#ffffff8c;color:white}
+.friends-race-controls button[data-control=brake] {margin-left:auto}
+.friends-race-controls button[data-control=gas] {background:#a9ddc82b;width:76px}
+.friends-race-controls button:active {background:#b4e6cf66}
+.friends-board-game {width:min(100%,600px);padding:22px;margin:auto;display:flex;flex-direction:column;gap:16px}
+.friends-game-toolbar {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.friends-game-toolbar h2 {display:flex;align-items:center;gap:9px}
+.friends-game-toolbar>output {font-size:12px;color:var(--club-muted)}
+.friends-game-toolbar label {flex-direction:row;align-items:center;font-size:11px}
+.friends-game-toolbar select {min-height:36px;max-width:105px;padding:5px}
+.chess-clocks {display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chess-clocks>div {display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-bottom:2px solid var(--club-line);min-width:0}
+.chess-clocks>div[data-active=true] {border-color:var(--club-gold);background:#e8c7730b}
+.chess-clocks span {font-size:11px;overflow-wrap:anywhere;color:var(--club-muted)}
+.chess-clocks time {font-size:28px;font-variant-numeric:tabular-nums;line-height:1.1}
+.chess-board {display:grid;grid-template-columns:repeat(8,minmax(0,1fr));aspect-ratio:1;border:5px solid #4b7972;width:100%}
+.chess-board button {position:relative;display:grid;place-items:center;width:100%;min-width:0;min-height:0;height:auto;aspect-ratio:1;border:0;border-radius:0;padding:0}
+.chess-board .chess-light {background:#d8e7cc}
+.chess-board .chess-dark {background:#568d7b}
+.chess-board button:hover:not(:disabled) {background:#bad19b}
+.chess-board button[aria-pressed=true] {background:#e2c86e;box-shadow:inset 0 0 0 3px #fff0b4}
+.chess-board button[data-legal=true]:after {content:'';position:absolute;width:18%;height:18%;border-radius:50%;background:#143d4866}
+.chess-piece {font:42px/1 'Segoe UI Symbol','Noto Sans Symbols 2',serif;color:#173139;text-shadow:0 1px 1px #ffffff90;user-select:none}
+.chess-board button[data-piece-color=w] .chess-piece {color:#fffdf0;-webkit-text-stroke:1px #294940;text-shadow:1px 2px 0 #183f4555}
+.chess-board small {position:absolute;font:9px/1 'Space Grotesk',sans-serif;color:#143c33}
+.chess-rank {top:4px;left:4px}.chess-file {bottom:3px;right:4px}
+.sudoku-board {display:grid;grid-template-columns:repeat(9,minmax(0,1fr));width:100%;aspect-ratio:1;border:2px solid #a4cdbb}
+.sudoku-board button {width:100%;min-height:0;aspect-ratio:1;padding:0;border:0;border-right:1px solid #789c8c4a;border-bottom:1px solid #789c8c4a;border-radius:0;font-size:24px;background:#13363a;color:#edca70}
+.sudoku-board button:nth-child(3n) {border-right:2px solid #a4cdbb}
+.sudoku-board button:nth-child(n+19):nth-child(-n+27),.sudoku-board button:nth-child(n+46):nth-child(-n+54) {border-bottom:2px solid #a4cdbb}
+.sudoku-board button[data-given=true] {color:#edf7e7;font-weight:600;background:#244348}
+.sudoku-board button[aria-pressed=true] {background:#b4e6cf;color:#123c38}
+.sudoku-board button[data-conflict=true] {color:#ff9f8a;background:#5b3033}
+.sudoku-notes {font-size:10px;max-width:80%;word-break:break-all;line-height:1.4}
+.sudoku-keypad {display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.sudoku-keypad button {padding:0;min-width:0;font-size:17px}
+.target-board {width:100%;aspect-ratio:1;display:block;touch-action:none;border:1px solid var(--club-line)}
+.friends-hub .target-trigger,.friends-hub .pong-court {display:block;width:100%;padding:0;min-height:0;overflow:hidden;border:0;border-radius:0;touch-action:none}
+.pong-game {width:min(100%,1080px)}
+.pong-board {width:100%;aspect-ratio:11/6;display:block;touch-action:none}
+.pong-score {display:grid;grid-template-columns:1fr 1fr;text-align:center}
+.pong-score>div {display:flex;flex-direction:column;gap:6px}
+.pong-score span {font-size:13px;color:var(--club-muted)}
+.pong-score strong {font-size:42px;line-height:1}
+.paddle-slider {display:flex!important;flex-direction:row!important;align-items:center;gap:12px;margin:8px 0}
+.paddle-slider input {flex:1;min-width:0}
+.friends-countdown {position:absolute;top:140px;left:50%;transform:translateX(-50%);font-size:60px;color:var(--club-gold);pointer-events:none;text-shadow:0 4px 12px #0009}
+.friends-match-time {display:block;text-align:center;padding:8px 0 20px;font:500 22px 'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;color:var(--club-gold)}
+.friends-results {max-width:660px;padding:22px;margin:auto}
+.friends-podium h3 {display:flex;align-items:center;justify-content:center;gap:8px;color:var(--club-gold)}
+.friends-podium ol {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:8px;margin:22px 0;padding:0;list-style:none}
+.friends-podium li {text-align:center;min-width:0}
+.podium-name {display:block;min-height:40px;font-size:13px;overflow-wrap:anywhere;padding:4px}
+.podium-step {background:#c5d7cf12;border:1px solid #c5d7cf3a;border-radius:3px 3px 0 0;display:flex;flex-direction:column;justify-content:center;height:95px}
+[data-place="1"] .podium-step {height:128px;border-color:#e8c7737a;background:#e8c77320}
+[data-place="3"] .podium-step {height:72px}
+.podium-step strong {font:500 35px 'Fraunces',serif;color:var(--club-gold)}
+.podium-step small {font-size:10px;color:var(--club-muted)}
+.friends-records-page {padding:26px;max-width:850px;margin:auto}
+.friends-records-page .friends-record h3 {font:500 21px 'Fraunces',serif}
+.friends-records-page .friends-record li {min-height:36px;font-size:14px}
+.friends-records-page .friends-record li small,.friends-records-page .friends-record li time {font-size:12px}
+.ship-status {position:absolute;left:26px;bottom:22px;right:24px;text-shadow:0 2px 8px #0009}
+.ship-status h2 {margin-top:6px;font-size:26px}
+.ship-status progress {display:block;margin-top:12px;width:220px;max-width:100%;height:5px;accent-color:var(--club-jade)}
+.friends-ship-controls {padding:22px}
+.friends-ports {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:20px;max-width:830px}
+.friends-ports button {justify-content:flex-start;text-align:left}
+.friends-ports button>span:first-child {width:13px;height:13px;border-radius:50%;flex:0 0 auto}
+.friends-ports button>span:nth-child(2) {overflow-wrap:anywhere;min-width:0}
+.friends-ports small {margin-left:auto;font-size:10px}
+.friends-computer {padding:24px;display:flex;flex-direction:column;gap:14px;min-height:560px;height:calc(100dvh - 130px)}
+.pc-toolbar {display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.pc-toolbar button {padding:8px 10px}
+.pc-toolbar .pc-network {flex-direction:row;align-items:center;margin-left:auto}
+.pc-restore {position:relative;width:42px;min-height:42px;display:grid!important;place-items:center;border:1px solid var(--club-line);border-radius:5px;overflow:hidden;cursor:pointer}
+.pc-restore input {position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.pc-display {position:relative;flex:1;min-height:250px;overflow:auto;background:#030c0f;border:1px solid #a1c6b640;border-radius:4px}
+.pc-console {margin:0;width:100%;height:100%;min-height:250px;padding:15px;overflow:auto;resize:none;border:0;background:transparent;font:13px/1.4 'Cascadia Code','Consolas',monospace;color:#c2f1d1;white-space:pre-wrap;overflow-wrap:anywhere}
+.pc-vga {overflow:auto;padding:12px;height:100%;color:#d4eacb}
+.pc-vga[hidden],.pc-console[hidden],.friends-main [hidden] {display:none!important}
+.pc-off {position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#70968c;pointer-events:none}
+.pc-off span {font:500 23px 'Fraunces',serif}.pc-off small {font-size:11px}
+.pc-command {display:flex;gap:8px;align-items:center}
+.pc-command input {flex:1;min-width:0}
+.pc-command>svg {color:var(--club-jade)}
+@media(min-width:1200px) {.friends-welcome .friends-join{margin:8dvh 5%}.friends-orbital-stage{min-height:360px}}
+@media(max-width:900px) {.friends-layout{grid-template-columns:205px minmax(0,1fr)}.friends-sidebar{padding:16px 12px}.friends-tabs{padding:0 10px}.friends-tabs button{padding:12px 11px}.friends-computer{padding:16px}.friends-header{padding:12px 18px}}
+@media(max-width:700px) {
+ .friends-header{min-height:69px;padding:10px 14px}.friends-header [data-slot=dialog-title]{font-size:23px}.friends-header-actions{gap:4px}.friends-header-actions button,.friends-icon-link{width:36px;min-height:36px;height:36px}
+ .friends-tabs{padding:0 6px;gap:0}.friends-tabs button{flex-direction:column;gap:3px;font-size:10px;min-width:63px;min-height:54px;padding:7px 9px}
+ .friends-layout{display:flex;flex-direction:column;overflow:auto}.friends-sidebar{display:flex;align-items:flex-start;gap:15px;flex:0 0 auto;padding:12px 14px;border-right:0;border-bottom:1px solid var(--club-line);overflow:auto}
+ .friends-roster{flex:1;min-width:185px}.friends-roster .friends-section-heading{margin-bottom:7px}.friends-roster .friends-section-heading h2{font-size:16px}.friends-roster ol{display:flex;flex-wrap:wrap;gap:4px 12px}.friends-roster li{min-height:27px;gap:6px}.friends-roster strong{font-size:10px}.friends-roster small{font-size:8px}.friends-avatar-dot{width:8px;height:8px}.friends-roster li>svg{width:12px}.friends-swatches{padding-top:8px;gap:8px}.friends-swatches button{width:24px;height:24px;min-height:24px}
+ .friends-voice{flex:0 0 132px;margin:0;padding:0;border:0;gap:6px}.friends-voice button{min-height:36px;font-size:10px;padding:8px}.friends-voice small{font-size:8px}.friends-voice .friends-inline{gap:3px}.friends-voice>label svg{width:13px}.friends-room-code,.friends-sidebar>.friends-record{display:none}
+ .friends-main{flex:1 0 auto;overflow:visible}.friends-orbital-stage{height:350px;min-height:280px}.friends-main[data-view=race] .friends-orbital-stage{height:calc(100dvh - 240px);min-height:370px}.friends-main[data-view=ship] .friends-orbital-stage{height:350px}
+ .friends-lobby-controls{padding:18px 14px}.friends-lobby-controls h2{font-size:22px}.friends-game-options{gap:4px}.friends-game-options button{font-size:11px;padding:8px}.friends-car-options{gap:5px}.friends-car-options button{font-size:11px;min-height:100px}.friends-car-options small{font-size:9px}
+ .friends-stage-label{left:17px;bottom:16px}.friends-stage-label h2{font-size:27px}.friends-board-game{padding:16px 12px;gap:12px}.chess-piece{font-size:32px}.chess-clocks time{font-size:25px}.chess-clocks>div{padding:8px}.chess-board small{font-size:8px}.sudoku-board button{font-size:20px}.sudoku-notes{font-size:8px}.sudoku-keypad{gap:3px}.sudoku-keypad button{min-height:40px;font-size:15px}.sudoku-keypad button svg{width:15px}
+ .race-scoreboard{left:12px;top:12px;min-width:180px;padding:10px}.race-scoreboard>strong{font-size:20px}.friends-race-controls{left:12px;right:12px;bottom:18px;gap:7px}.friends-race-controls button{width:48px;height:52px}.friends-race-controls button[data-control=gas]{width:62px}
+ .friends-join{margin:22px 16px;padding:20px;width:310px}.friends-join h2{font-size:24px}.friends-welcome{min-height:520px}.friends-welcome .friends-orbit-scene{min-height:520px}
+ .friends-ship-controls{padding:16px 12px}.friends-ports{grid-template-columns:1fr}.ship-status{left:16px;bottom:16px}.ship-status h2{font-size:23px}.friends-records-page{padding:20px 16px}.friends-computer{padding:14px 12px;height:600px;min-height:500px}.friends-computer h2{font-size:22px}.pc-toolbar{gap:5px}.pc-toolbar .pc-network{margin-left:0}.pc-console{font-size:11px}.pc-command>svg{display:none}.pc-command button{padding:8px}.friends-game-toolbar>output{font-size:11px}.friends-error{padding:8px 12px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce) {.friends-hub *{scroll-behavior:auto!important}}
+.friends-hub.friends-inworld {inset:90px 18px auto auto;width:min(740px,calc(100vw - 36px));height:min(740px,calc(100dvh - 112px));max-width:none;border:1px solid #b5d9ce4d;border-radius:7px;background:#102c30f5;box-shadow:0 18px 60px #0005}
+.friends-inworld .friends-header {min-height:64px;padding:12px 16px}
+.friends-inworld .friends-header [data-slot=dialog-title] {font-size:22px}
+.friends-inworld .friends-layout {grid-template-columns:188px minmax(0,1fr)}
+.friends-inworld .friends-sidebar {padding:16px 12px}
+.friends-inworld .friends-tabs {padding:0 7px}
+.friends-inworld .friends-tabs button {padding:9px 11px;font-size:11px;min-height:46px}
+.friends-inworld .friends-join {width:auto;max-width:none;margin:0;padding:22px;background:none;border:0;box-shadow:none;backdrop-filter:none}
+.friends-inworld .friends-welcome {min-height:0}
+.friends-inworld .friends-computer {height:520px;min-height:460px;padding:16px 12px}
+.friends-inworld .friends-ports {grid-template-columns:1fr}
+.friends-inworld .friends-records-page,.friends-inworld .friends-lobby-controls {padding:16px}
+.friends-station-toolbar {display:flex;gap:9px;padding:14px 16px;border-bottom:1px solid var(--club-line)}
+.friends-station-toolbar button {font-size:11px;min-height:38px}
+.friends-race-results {padding:18px}
+.friends-race-results ol {display:grid;gap:9px;list-style:none;padding:0;margin:18px 0}
+.friends-race-results li {display:flex;gap:10px;align-items:center}
+.friends-race-results li small {margin-left:auto}
+.friends-live-hud {position:fixed;inset:0;z-index:12;pointer-events:none;color:#eff5e7;font:12px/1.4 'Space Grotesk',sans-serif;--club-line:#b5d9ce26;--club-jade:#b4e6cf;--club-muted:#bbd3c7;--club-red:#ff9a8a}
+.friends-live-hud * {box-sizing:border-box;letter-spacing:0}
+.kingdom[data-shared-activity]>.screen-movement,.kingdom[data-shared-activity]>.location,.kingdom[data-shared-activity]>.world-notice {display:none}
+.friends-live-hud button {pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 12px;border:1px solid #b5d9ce66;border-radius:5px;background:#143238c9;color:#eff5e7;font:inherit;cursor:pointer}
+.friends-live-hud button:disabled {opacity:.4;cursor:default}
+.friends-live-hud button:focus-visible {outline:2px solid #e8c773;outline-offset:3px}
+.friends-live-status {position:absolute;top:90px;right:20px;display:flex;align-items:center;gap:8px;pointer-events:auto}
+.friends-live-status .friends-voice {padding:0;margin:0;border:0}
+.friends-live-status .friends-voice>label,.friends-live-status .friends-voice .friends-inline>small {display:none}
+.friends-live-status .friends-voice>div>output {max-width:220px;font-size:10px;background:#243d3e;padding:8px;display:block}
+.friends-live-hud .friends-race-controls {position:absolute;bottom:85px;left:24px;right:24px;display:flex;gap:10px;border:0;padding:0;margin:0;pointer-events:none}
+.friends-live-hud .friends-race-controls button {width:58px;height:58px;background:#18353970;border-color:#ffffffa6;touch-action:none;user-select:none}
+.friends-live-hud .friends-race-controls button[data-control=brake] {margin-left:auto}
+.friends-live-hud .friends-race-controls button[data-control=gas] {width:72px;background:#b4e6cf40}
+.friends-race-timer {position:absolute;top:100px;left:24px;padding:10px 16px;border:1px solid #b5d9ce44;border-radius:4px;background:#102d32cf;color:#f0d282;font-size:22px;font-variant-numeric:tabular-nums}
+.friends-live-ship {position:absolute;bottom:100px;left:24px;right:24px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.friends-live-ship>span {padding:9px 14px;background:#143238d9;border-radius:4px;font-size:12px}
+@media(max-width:700px){
+ .friends-hub.friends-inworld {inset:auto 10px 12px;width:calc(100vw - 20px);height:min(680px,74dvh);border-radius:6px}
+ .friends-inworld .friends-layout {display:flex;overflow:auto;min-height:0}
+ .friends-inworld .friends-sidebar {padding:10px 12px}
+ .friends-inworld .friends-header {padding:10px 12px;min-height:60px}
+ .friends-inworld .friends-tabs button {min-width:55px;padding:7px 8px;font-size:9px}
+ .friends-inworld .friends-board-game {padding:12px 10px}
+ .friends-inworld .chess-piece {font-size:28px}
+ .friends-inworld .friends-voice {flex-basis:105px}
+ .friends-inworld .friends-roster {min-width:166px}
+ .friends-inworld .friends-computer {height:460px}
+ .friends-live-status {top:125px;right:12px;gap:5px}
+ .friends-live-status button {padding:8px;font-size:11px;min-height:37px}
+ .friends-live-hud .friends-race-controls {left:12px;right:12px;bottom:150px;gap:8px}
+ .friends-live-hud .friends-race-controls button {width:46px;height:50px}
+ .friends-live-hud .friends-race-controls button[data-control=gas] {width:62px}
+ .friends-race-timer {top:170px;left:12px;font-size:18px;padding:8px 12px}
+ .friends-live-ship {left:12px;right:12px;bottom:148px;gap:6px}
+ .friends-live-ship button,.friends-live-ship>span {font-size:10px}
+}
