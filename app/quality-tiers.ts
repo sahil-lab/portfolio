@@ -15,6 +15,11 @@ export const qualityTiers:Record<QualityTier,QualityProfile>={
 export const qualityChoices:QualityChoice[]=['auto','high','balanced','low'];
 export const tierOrder:QualityTier[]=['low','balanced','high'];
 export const isQualityChoice=(value:unknown):value is QualityChoice=>typeof value==='string'&&(qualityChoices as string[]).includes(value);
+export function initialQuality(device:{memory?:number;cores?:number;coarse?:boolean}):QualityTier{return device.coarse||device.memory!==undefined&&device.memory<=4||device.cores!==undefined&&device.cores<=4?'low':'balanced'}
+export function renderPixelRatio(width:number,height:number,deviceRatio:number,tier:QualityTier,compact=false){
+ const budget=compact?1200000:tier==='high'?3600000:2400000;
+ return Math.max(.5,Math.min(deviceRatio,qualityTiers[tier].pixelRatio,Math.sqrt(budget/Math.max(1,width*height))));
+}
 
 export const qualityThresholds={demoteP95Ms:30,promoteP95Ms:12,promoteWindows:2};
 

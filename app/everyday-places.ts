@@ -6,24 +6,10 @@ import {batchScenery} from './static-batching';
 import {createCivicKit} from './civic-kit';
 import {createCapitalFountain} from './capital-fountain';
 import {rampHeight,type Ramp} from './traversal';
+import {createSpatialIndex} from './spatial-index';
 
-export const everydayKinds=['park','playground','mall','market','cinema','clinic','school','library','sports'] as const;
-export type EverydayKind=typeof everydayKinds[number];
-export const everydayPlaceNames:Record<EverydayKind,string>={park:'Public Park',playground:'Playground',mall:'Shopping Arcade',market:'Town Market',cinema:'Cinema',clinic:'Community Clinic',school:'Neighborhood School',library:'Public Library',sports:'Sports Court'};
-export const cityEverydaySites=[
- {id:'willow-park',kind:'park',name:'Willow Park',x:-50,z:279},
- {id:'play-garden',kind:'playground',name:'Play Garden',x:50,z:279},
- {id:'lantern-mall',kind:'mall',name:'Lantern Shopping Arcade',x:150,z:279},
- {id:'weekend-market',kind:'market',name:'Weekend Market',x:-150,z:179},
- {id:'picture-house',kind:'cinema',name:'The Picture House',x:250,z:279},
- {id:'community-clinic',kind:'clinic',name:'Community Clinic',x:250,z:179},
- {id:'neighborhood-school',kind:'school',name:'Neighborhood School',x:-150,z:79},
- {id:'public-library',kind:'library',name:'Open Shelf Library',x:-150,z:-21},
- {id:'sports-court',kind:'sports',name:'Community Sports Court',x:50,z:379},
-] as const satisfies readonly {id:string;kind:EverydayKind;name:string;x:number;z:number}[];
-export type CityEverydayId=typeof cityEverydaySites[number]['id'];
-const footprints:Record<EverydayKind,[number,number]>={park:[24,20],playground:[20,18],mall:[28,22],market:[24,20],cinema:[22,20],clinic:[20,18],school:[24,20],library:[22,20],sports:[20,24]};
-export function everydayFootprint(kind:EverydayKind){const [width,depth]=footprints[kind];return {width,depth}}
+export {everydayKinds,everydayPlaceNames,cityEverydaySites,everydayFootprint,type EverydayKind,type CityEverydayId} from './everyday-config';
+import {everydayPlaceNames,everydayFootprint,type EverydayKind} from './everyday-config';
 
 export function createEverydayPlace(options:{kind:EverydayKind;style:ArchitectureStyle;address:string;name?:string}){
  const {kind,style,address}=options,recipe=architectureRecipe(style,address),name=options.name??everydayPlaceNames[kind],profile=architectureProfiles[style],material=architectureMaterials(style),{width,depth}=everydayFootprint(kind);
@@ -167,12 +153,17 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
   }
  }
  solids.push(...civic.solids);fixed.userData.staticCameraBounds=solids.map(solid=>solid.clone());batchScenery(fixed,{});root.userData.features=features;
+ const collisionIndex=createSpatialIndex(solids,solid=>({minX:solid.min.x,maxX:solid.max.x,minZ:solid.min.z,maxZ:solid.max.z}),8),collisionCandidates=new Set<T.Box3>(),collisionBounds=new T.Box3();for(const solid of solids)collisionBounds.union(solid);
  const approach=new T.Vector3(0,.8,depth/2-2.6),point=new T.Vector3();
  const actions:Record<EverydayKind,string[]>={park:['Fountain on.','A quiet seat by the fountain.'],playground:['Swings and seesaw moving.','Another turn at the playground.'],mall:['Shops open: Books / Fashion / Groceries / Cafe.','The arcade is open.'],market:['Today: fresh produce, flowers, and handmade goods.'],cinema:['Tonight at the Picture House: A Journey Around the Planets.'],clinic:['Reception is open.'],school:['The school bell rings.'],library:['On the open shelf: Planet Atlas / Field Notes / Stories of the City.'],sports:['Court ready. The ball is in play.']};
  return {
     root,kind,style,name,width,depth,approach,solids,features,moving,ramps,decks,
     height(x:number,z:number,previous:number){for(const ramp of ramps){const elevation=rampHeight(ramp,x,z);if(elevation!==null&&Math.abs(previous-elevation)<.6)return elevation}for(const deck of decks)if(Math.abs(x-deck.x)<deck.width/2-.08&&Math.abs(z-deck.z)<deck.depth/2&&Math.abs(previous-deck.y)<.6)return deck.y;return null},
-  blocked(local:T.Vector3,padding=.4){return solids.some(solid=>local.y<solid.max.y+.4&&local.y>solid.min.y-.4&&local.x>solid.min.x-padding&&local.x<solid.max.x+padding&&local.z>solid.min.z-padding&&local.z<solid.max.z+padding)},
+  blocked(local:T.Vector3,padding=.4){
+   if(local.x<=collisionBounds.min.x-padding||local.x>=collisionBounds.max.x+padding||local.z<=collisionBounds.min.z-padding||local.z>=collisionBounds.max.z+padding||local.y<collisionBounds.min.y-.4||local.y>collisionBounds.max.y+.4)return false;
+   collisionIndex.query({minX:local.x-padding,maxX:local.x+padding,minZ:local.z-padding,maxZ:local.z+padding},collisionCandidates);
+   for(const solid of collisionCandidates)if(local.y<solid.max.y+.4&&local.y>solid.min.y-.4&&local.x>solid.min.x-padding&&local.x<solid.max.x+padding&&local.z>solid.min.z-padding&&local.z<solid.max.z+padding)return true;return false;
+  },
   near(local:T.Vector3){return Math.abs(local.y-.8)<3&&Math.hypot(local.x-approach.x,local.z-approach.z)<3.5},
   prompt(local:T.Vector3){return this.near(local)?`E \u00b7 ${name}`:null},
   interact(local:T.Vector3){if(!this.near(local))return null;activeUntil=time+12;return actions[kind][visits++%actions[kind].length]},

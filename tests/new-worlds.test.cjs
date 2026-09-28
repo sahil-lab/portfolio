@@ -170,15 +170,17 @@ test('integrated landscapes reserve landmark space, retain populations and cull 
   }
 });
 
-test('actual new-world boarding, demos, far-side rover driving and returns preserve saved visits and sparse rails',()=>{
+test('actual new-world boarding, demos, far-side rover driving and returns preserve saved visits and sparse rails',async context=>{
   const {createTransitWorld}=require('../app/transit-world.ts'),{disposeScene}=require('../app/scene-resources.ts');
   const storage=new Map([['kingdom-transit-v1',JSON.stringify({version:1,visited:['copper','prism']})]]);
   global.localStorage={getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)};
   const scene=new T.Scene(),player=new T.Group();let notice='',status;
   const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change:value=>status=value,open(){},notice:value=>notice=value,sound(){}});
+  context.after(()=>{world.dispose();disposeScene(scene)});
   for(const stop of newStops){
     const destination=transitStops.indexOf(stop),landscape=world.landscapes[destination],surface=world.surfaces[destination];
     world.hub();assert.equal(world.start(destination,'metro'),true);world.arriveNow();assert.equal(world.journey.current,destination);
+    assert.equal(await world.streaming.load(destination),true,stop.id+' detail must finish loading');
     assert.ok(Math.abs(player.position.y-stop.y)<1e-8);assert.ok(status.visited.includes(stop.id));
     player.position.copy(landscape.realm.landmarks[0].interactionPoint);world.update(.1,0,0,true);
     assert.match(world.prompt(),new RegExp(landscape.realm.landmarks[0].name));assert.equal(world.interact(),true);assert.equal(notice,landscape.realm.demo.snapshot.notice);
@@ -198,16 +200,18 @@ test('actual new-world boarding, demos, far-side rover driving and returns prese
   }
   const saved=JSON.parse(storage.get('kingdom-transit-v1'));assert.equal(saved.version,1);
   for(const id of ['motherboard','copper','prism',...newStops.map(stop=>stop.id)])assert.ok(saved.visited.includes(id));
-  assert.ok(world.civilizationLink);disposeScene(scene);
+  assert.ok(world.civilizationLink);
 });
 
-test('new-world landing approaches can be walked to the real demonstrations without teleporting or disabling collision',()=>{
+test('new-world landing approaches can be walked to the real demonstrations without teleporting or disabling collision',async context=>{
   global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*20})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
   global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
   const {createTransitWorld}=require('../app/transit-world.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),player=new T.Group();
   const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
+  context.after(()=>{world.dispose();disposeScene(scene)});
   for(const stop of newStops){
     const destination=transitStops.indexOf(stop);world.hub();assert.equal(world.start(destination,'metro'),true);world.arriveNow();
+    assert.equal(await world.streaming.load(destination),true,stop.id+' detail must finish loading');
     for(let step=0;step<12;step++)world.stepSurface(0,1,1.8);
     for(let step=0;step<8;step++)world.stepSurface(1,0,1.8);
     const landmark=world.landscapes[destination].realm.landmarks[0],target=landmark.interactionPoint;
@@ -221,7 +225,6 @@ test('new-world landing approaches can be walked to the real demonstrations with
     }
     assert.ok(player.position.distanceTo(target)<3,stop.name+' must have an open walking approach');assert.match(world.prompt(),new RegExp(landmark.name));assert.equal(world.interact(),true);
   }
-  disposeScene(scene);
 });
 
 

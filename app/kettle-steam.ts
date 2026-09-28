@@ -33,7 +33,6 @@ void main(){
  #include <colorspace_fragment>
 }`,
  });
- material.addEventListener('dispose',()=>texture.dispose());
  const puffs=new T.InstancedMesh(geometry,material,count);puffs.name='Kettle_RisingVapor';puffs.instanceMatrix.setUsage(T.DynamicDrawUsage);puffs.frustumCulled=false;root.add(puffs);
  const dummy=new T.Object3D();let time=0;
  function update(delta:number,reduced:boolean,active=true,wind=0){

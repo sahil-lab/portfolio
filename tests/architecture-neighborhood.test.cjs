@@ -10,3 +10,8 @@ test('unique neighborhood detail streams by proximity without altering silhouett
  let released=0;town.details.traverse(object=>{if(object.isMesh)object.geometry.addEventListener('dispose',()=>released++)});town.update(new T.Vector3(1000,0,0));assert.equal(town.detailed,false);assert.ok(released>0);assert.deepEqual(town.shells.children,shells);
  town.update(placements[0].position);assert.equal(town.detailed,true);town.update(placements[0].position,false);assert.equal(town.detailed,false);disposeScene(scene);
 });
+test('streamed neighborhoods start with unique lightweight roofs and release staged work when no longer needed',async()=>{
+ const {createWorkScheduler}=require('../app/work-scheduler.ts'),scheduler=createWorkScheduler(),scene=new T.Scene(),placements=[{address:'streamed-home',position:new T.Vector3(),rotation:new T.Quaternion(),width:4.8,depth:4.8,height:8}],town=createArchitectureNeighborhood(scene,'atelier',placements,100,undefined,{scheduler});
+ assert.equal(town.detailed,false);assert.ok(town.shells.children.length);town.update(new T.Vector3(0,1,4));assert.equal(town.loading,true);assert.equal(town.detailed,false);await scheduler.run(()=>{},10);await scheduler.run(()=>{},10);assert.equal(town.detailed,true);assert.equal(town.shells.visible,false);assert.ok(town.nearShells.children.length);
+ let released=0;town.details.traverse(object=>{if(object.geometry)object.geometry.addEventListener('dispose',()=>released++)});town.update(new T.Vector3(1000,0,0));assert.equal(town.detailed,false);assert.ok(released>0);assert.equal(town.shells.visible,true);town.update(new T.Vector3());town.dispose();scheduler.dispose();await Promise.resolve();assert.equal(town.detailed,false);disposeScene(scene);
+});

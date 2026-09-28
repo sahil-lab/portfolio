@@ -12,7 +12,7 @@ export const resumeBookSize={pageHeight:11.2,pageWidth:11.2*resume.pages[0].aspe
 export const resumeSpreads=[[0,1],[2,null]] as const;
 
 function labelTexture(lines:string[],background='#193f3b',color='#f4f8ef',aspect=1024/1448){
- const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.round(1024/aspect);
+ const canvas=document.createElement('canvas');canvas.width=lines.length===1&&lines[0].length===1?256:1024;canvas.height=Math.round(canvas.width/aspect);
  const context=canvas.getContext('2d')!;context.fillStyle=background;context.fillRect(0,0,canvas.width,canvas.height);
  context.textAlign='center';context.textBaseline='middle';context.fillStyle=color;
  lines.forEach((line,index)=>{context.font=`${index===0?700:500} ${lines.length>2?(index===0?78:48):Math.round(canvas.height*.7)}px "Space Grotesk",sans-serif`;context.fillText(line,canvas.width/2,canvas.height*(index+1)/(lines.length+1),canvas.width*.88)});

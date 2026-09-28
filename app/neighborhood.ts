@@ -18,8 +18,8 @@ export function clearStreetSegment(a:StreetBody,x:number,z:number,blocked:(x:num
 export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,y:number,z:number)=>boolean,notice:(s:string)=>void,playerRadius:()=>number=()=>.5){
  const root=new T.Group();root.name='QuietNeighborhoods';scene.add(root);const kit=createTransitModels();
  const stations:T.Group[]=[];
- const fixtures:StreetBody[]=[],walkers:(ReturnType<typeof createCuteResident>&{body:StreetBody;cx:number;cz:number;angle:number;wait:number;bubble:T.Sprite;animateBubble:ReturnType<typeof createSpeechBubble>['update'];speech:ReturnType<typeof createSpeechBubble>;dialogue:ReturnType<typeof createDialogueDeck>;speaking:boolean;seed:number})[]=[];
- const traffic:{root:T.Group;wheels:T.Mesh[];body:StreetBody;cx:number;cz:number;radius:number;angle:number;stop:number;direction:number}[]=[];
+ const fixtures:StreetBody[]=[],walkers:(ReturnType<typeof createCuteResident>&{station:number;body:StreetBody;cx:number;cz:number;angle:number;wait:number;bubble:T.Sprite;animateBubble:ReturnType<typeof createSpeechBubble>['update'];speech:ReturnType<typeof createSpeechBubble>;dialogue:ReturnType<typeof createDialogueDeck>;speaking:boolean;seed:number})[]=[];
+ const traffic:{station:number;root:T.Group;wheels:T.Mesh[];body:StreetBody;cx:number;cz:number;radius:number;angle:number;stop:number;direction:number}[]=[];
  const stalls:{x:number;y:number;z:number;name:string;dialogue:ReturnType<typeof createDialogueDeck>}[]=[];
  const stallBubbles:ReturnType<typeof createSpeechBubble>[]=[];
  const palette=['#829cbe','#92ac96','#d39b8e','#c9b993'];
@@ -53,14 +53,14 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
    const body={x:px,y,z:pz,r:.48};if(solid(px,y,pz)||fixtures.some(b=>touchesBody(px,y,pz,b)))continue;
     const variation=(index+i)%3,style:SpeechBubbleStyle=(['speech','thought','burst'] as const)[variation];
     const dialogue=createDialogueDeck(s.theme);actor.root.position.set(px,y,pz);const speech=createSpeechBubble(dialogue.next(),{style,width:4.6,phase:index*3+i});actor.root.add(speech.sprite);actors.add(actor.root);
-    walkers.push({...actor,body,cx:center.x,cz:center.z,angle:a,wait:i,bubble:speech.sprite,animateBubble:speech.update,speech,dialogue,speaking:false,seed:index*3+i});
+    walkers.push({...actor,station:index,body,cx:center.x,cz:center.z,angle:a,wait:i,bubble:speech.sprite,animateBubble:speech.update,speech,dialogue,speaking:false,seed:index*3+i});
   }
   for(let i=0;i<2;i++){
    const car=kit.rover(palette[(index+i)%4]),driver=resident(palette[(index+i+2)%4]);driver.root.position.set(0,.85,-.25);car.root.add(driver.root);
    const cx=index?s.x:-39,cz=index?s.z-3:30,radius=index?16.5:6,angle=i*Math.PI;
    const body={x:cx+Math.sin(angle)*radius,y,z:cz+Math.cos(angle)*radius,r:2.25};
    if(solid(body.x,y,body.z)||fixtures.some(b=>touchesBody(body.x,y,body.z,b,body.r)))continue;
-   car.root.position.set(body.x,y,body.z);car.root.rotation.y=angle+Math.PI/2;car.root.name='ResidentDrivenRover';actors.add(car.root);traffic.push({...car,body,cx,cz,radius,angle,stop:0,direction:1});
+  car.root.position.set(body.x,y,body.z);car.root.rotation.y=angle+Math.PI/2;car.root.name='ResidentDrivenRover';actors.add(car.root);traffic.push({...car,station:index,body,cx,cz,radius,angle,stop:0,direction:1});
   }
   batchScenery(fixed,{});
  });
@@ -70,22 +70,24 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
  let activeSpeaker:typeof walkers[number]|undefined;
  let requestedSpeaker:typeof walkers[number]|undefined,requestUntil=0;
  const staticBlocked=(x:number,y:number,z:number,padding=.4)=>solid(x,y,z)||fixtures.some(b=>touchesBody(x,y,z,b,padding));
- const bodyBlocked=(x:number,y:number,z:number,exclude:StreetBody,padding=.4)=>[...walkers,...traffic].some(a=>a.body!==exclude&&touchesBody(x,y,z,a.body,padding));
- function update(dt:number,reduced:boolean,visibleStops?:ReadonlySet<number>){
+ const bodyBlocked=(x:number,y:number,z:number,exclude:StreetBody,padding=.4)=>walkers.some(actor=>actor.body!==exclude&&touchesBody(x,y,z,actor.body,padding))||traffic.some(actor=>actor.body!==exclude&&touchesBody(x,y,z,actor.body,padding));
+ function update(dt:number,reduced:boolean,visibleStops:ReadonlySet<number>=visibleTransitStops(player.position)){
   updateVisibility(visibleStops);
   dt=Number.isFinite(dt)?Math.max(0,dt):0;
   clock+=dt;
-    stallBubbles.forEach(bubble=>bubble.update(dt,true,reduced));
+    stallBubbles.forEach((bubble,index)=>{if(visibleStops.has(index))bubble.update(dt,true,reduced);else bubble.sprite.visible=false});
     let speaker:typeof walkers[number]|undefined,nearestSpeaker=36;
-    for(const candidate of walkers){const distance=player.position.distanceToSquared(candidate.root.position);if(distance<nearestSpeaker&&(clock+candidate.seed*3)%18<5){speaker=candidate;nearestSpeaker=distance}}
+    for(const candidate of walkers){if(!visibleStops.has(candidate.station))continue;const distance=player.position.distanceToSquared(candidate.root.position);if(distance<nearestSpeaker&&(clock+candidate.seed*3)%18<5){speaker=candidate;nearestSpeaker=distance}}
     if(requestedSpeaker&&clock<requestUntil&&player.position.distanceToSquared(requestedSpeaker.root.position)<64)speaker=requestedSpeaker;
     if(reduced||!activeSpeaker?.bubble.visible)activeSpeaker=speaker;
   for(const car of traffic){
+    if(!visibleStops.has(car.station))continue;
    const next=car.angle+car.direction*dt*2.1/car.radius,x=car.cx+Math.sin(next)*car.radius,z=car.cz+Math.cos(next)*car.radius;
    const blocked=(px:number,y:number,pz:number)=>staticBlocked(px,y,pz,car.body.r)||[[0,0],[1.7,0],[-1.7,0],[0,1.7],[0,-1.7]].some(([ox,oz])=>solid(px+ox,y,pz+oz))||bodyBlocked(px,y,pz,car.body,car.body.r)||touchesBody(px,y,pz,{x:player.position.x,y:player.position.y,z:player.position.z,r:playerRadius()},car.body.r+.7);
    if(clearStreetSegment(car.body,x,z,blocked)){car.stop=0;car.angle=next;car.body.x=x;car.body.z=z;car.root.position.set(x,car.body.y,z);car.root.rotation.y=next+car.direction*Math.PI/2;car.wheels.forEach(w=>w.rotation.x+=dt*4)}else{car.stop+=dt;if(car.stop>3){car.direction*=-1;car.stop=0}}
   }
   for(const w of walkers){
+    if(!visibleStops.has(w.station)){w.bubble.visible=false;w.speaking=false;continue}
     const speaking=w===speaker&&w===activeSpeaker;if(speaking&&!w.speaking)w.speech.setText(w.dialogue.next());w.speaking=speaking;w.animateBubble(dt,speaking,reduced);
    let moving=false;
    if(w.wait>0)w.wait=Math.max(0,w.wait-dt);
@@ -101,9 +103,9 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
   }
  }
  const nearest=()=>stalls.find(s=>Math.abs(player.position.y-s.y)<2&&Math.hypot(player.position.x-s.x,player.position.z-s.z)<3.5);
- const nearestWalker=()=>walkers.filter(walker=>player.position.distanceToSquared(walker.root.position)<12).sort((first,second)=>player.position.distanceToSquared(first.root.position)-player.position.distanceToSquared(second.root.position))[0];
+ const nearestWalker=()=>{let nearest:typeof walkers[number]|undefined,distance=12;for(const walker of walkers){const candidate=player.position.distanceToSquared(walker.root.position);if(candidate<distance){nearest=walker;distance=candidate}}return nearest};
  return {update,root,traffic,walkers,
-  blocked:(x:number,y:number,z:number)=>fixtures.some(b=>touchesBody(x,y,z,b))||[...traffic,...walkers].some(a=>touchesBody(x,y,z,a.body)),
+  blocked:(x:number,y:number,z:number)=>fixtures.some(b=>touchesBody(x,y,z,b))||traffic.some(actor=>touchesBody(x,y,z,actor.body))||walkers.some(actor=>touchesBody(x,y,z,actor.body)),
   prompt:()=>nearest()?'E · Say hello at '+nearest()!.name:nearestWalker()?'E · Talk to a neighbour':null,
   interact:()=>{const s=nearest();if(s){notice(s.name+': '+s.dialogue.next());return true}const walker=nearestWalker();if(!walker)return false;requestedSpeaker=walker;requestUntil=clock+6;walker.react();walker.speech.setText(walker.dialogue.next());walker.speaking=true;notice('Neighbour: '+walker.speech.text);return true},
  };

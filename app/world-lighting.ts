@@ -20,16 +20,18 @@ export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,sec
  return {...light,snapshot,tint};
 }
 export function createCityLightResponse(scene:T.Scene){
- const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;roughness:number;window:boolean;paving:boolean}>();let elapsed=2;
+ const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;roughness:number;window:boolean;paving:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
+ const removed=(event:{target:unknown})=>{const material=event.target as T.MeshStandardMaterial;surfaces.delete(material);material.removeEventListener('dispose',removed)};
  return {
   update(delta:number,night:number,wet:number){
    elapsed+=Math.max(0,delta);if(elapsed>=1){elapsed=0;scene.traverse(object=>{if(!(object instanceof T.Mesh))return;for(const material of Array.isArray(object.material)?object.material:[object.material]){
     if(!(material instanceof T.MeshStandardMaterial)||surfaces.has(material))continue;
     const window=material.userData.surface==='glass',paving=material.userData.cityPaving===true;
-    if(window||paving)surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,roughness:material.roughness,window,paving});
+    if(window||paving){surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
    }})}
-   for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(new T.Color('#f6d8a1'),night);material.emissiveIntensity=base.intensity*(1-night)+.65*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
+    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,night);material.emissiveIntensity=base.intensity*(1-night)+.65*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
   },
+  dispose(){for(const material of surfaces.keys())material.removeEventListener('dispose',removed);surfaces.clear()},
   get count(){return surfaces.size},
  };
 }

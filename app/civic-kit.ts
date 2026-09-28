@@ -59,7 +59,7 @@ export function createCivicKit(){
   solids.push(new T.Box3(new T.Vector3(x-.87,0,z-.38),new T.Vector3(x+.87,1.4,z+.38)));return group;
  }
  function plaque(parent:T.Object3D,title:string,subtitle:string,x:number,y:number,z:number,width=6){
-  const canvas=document.createElement('canvas');canvas.width=1536;canvas.height=384;const context=canvas.getContext('2d')!;
+    const canvas=document.createElement('canvas');canvas.width=width>=8?1536:width>=5?1024:768;canvas.height=canvas.width/4;const context=canvas.getContext('2d')!;context.scale(canvas.width/1536,canvas.width/1536);
   context.fillStyle='#edf2e5';context.fillRect(0,0,1536,384);context.strokeStyle='#a89562';context.lineWidth=8;context.strokeRect(13,13,1510,358);context.textAlign='center';context.textBaseline='middle';context.fillStyle='#23474c';context.font='600 104px "Space Grotesk", sans-serif';context.fillText(title,768,143,1430);context.fillStyle='#617d77';context.font='500 43px "Space Grotesk", sans-serif';context.fillText(subtitle,768,281,1410);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;const group=new T.Group();group.name='Civic_Plaque_'+title;group.position.set(x,y,z);parent.add(group);box(group,'Civic_PlaqueBacking',new T.Vector3(),[width+.16,width/4+.16,.22],materials.ink);createReadableDisplay(group,'Civic_PlaqueText',texture,width,width/4,.25,new T.Vector3());return group;
  }

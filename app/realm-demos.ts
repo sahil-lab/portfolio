@@ -51,11 +51,13 @@ function skillsSnapshot(index:number):RealmDemoSnapshot{
 }
 export function createRealmDemo(kind:PlanetWorldKind){
   let index=-1,snapshot:RealmDemoSnapshot|null=null;
+  const count=kind==='research'?samples.length:kind==='foundry'?foundryProjects.length:4;
+  function restore(next:number){if(!Number.isInteger(next)||next<0||next>=count)return null;index=next;snapshot=kind==='research'?researchSnapshot(index):kind==='foundry'?foundrySnapshot(index):skillsSnapshot(index);return snapshot}
   return {
     get snapshot(){return snapshot},
+    restore,
     activate(){
-      const count=kind==='research'?samples.length:kind==='foundry'?foundryProjects.length:4;index=(index+1)%count;
-      snapshot=kind==='research'?researchSnapshot(index):kind==='foundry'?foundrySnapshot(index):skillsSnapshot(index);return snapshot;
+      return restore((index+1)%count)!;
     },
   };
 }

@@ -3,7 +3,7 @@ import {useState} from 'react';
 import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sheet';
 
 import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
-import {districts} from './world';
+import {districts} from './world-config';
 import {KingdomSimulation} from './simulation';
 import {portfolio,projects} from './portfolio';
 const notes=['The Packet Press is a fictional boot-time guide. Deliveries are optional; every district and exhibit is already open.','A FIFO ready queue and three non-preemptive cores. Real CPUs use instruction pipelines, interrupts, caches, and more complex scheduling.','Twelve equal-size slots represent explicitly allocated volatile memory. Real RAM uses byte addresses and does not move shelves; data here resets on reload.','Three.js renders actual geometry, PBR materials, and lights immediately. This is a simplified artist workflow, not a GPU pipeline debugger.','A fixed, lossless route illustrates forwarding hops. Real networks choose routes using forwarding tables and may drop, reorder, or retry packets.','A binary search over sorted index keys illustrates pruning. Production database indexes commonly use B-trees, with pages, concurrency control, and disk access.','Two desired replicas on three eligible one-slot nodes. Readiness gates endpoints; a controller creates replacements and a scheduler selects capacity. Timing and failure detection are simplified.','A keyed append-only log with three partitions and two independent groups. Order is guaranteed within a partition only. Offsets are the next event to read; retention is the current session, capped at 90 events. World tracks show the latest 16 events per partition.'];

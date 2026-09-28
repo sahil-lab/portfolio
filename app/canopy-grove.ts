@@ -2,6 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createAstraCanopy,type CanopyKind,type CanopyDetail} from './astra-canopy';
 import {disposeScene} from './scene-resources';
+import {createSpatialIndex} from './spatial-index';
 
 export type CanopyPlacement={id:string;kind:CanopyKind;position:T.Vector3;rotation:T.Quaternion;scale:number;stretch?:number;patch:string};
 export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='full'){
@@ -79,8 +80,12 @@ export function createCanopyGrove(placements:CanopyPlacement[],ground?:(point:T.
   const mesh=new T.InstancedMesh(geometry,materials.wood,footings.length);mesh.name='Banyan_GroundedRootFeet';footings.forEach((foot,index)=>mesh.setMatrixAt(index,foot.matrix));mesh.castShadow=mesh.receiveShadow=true;mesh.computeBoundingSphere();root.add(mesh);
  }
  root.userData.staticCameraBounds=cameraBounds;let clock=0;
+ const columnIndex=createSpatialIndex(columns,column=>{const endX=column.position.x+column.up.x*column.height,endZ=column.position.z+column.up.z*column.height;return {minX:Math.min(column.position.x,endX)-column.radius,maxX:Math.max(column.position.x,endX)+column.radius,minZ:Math.min(column.position.z,endZ)-column.radius,maxZ:Math.max(column.position.z,endZ)+column.radius}},16),columnCandidates=new Set<typeof columns[number]>();
  return {root,placements,groups,columns,assets,
-  blocked(position:T.Vector3,padding=.45){return columns.some(column=>{offset.copy(position).sub(column.position);const height=offset.dot(column.up);if(height<-.5-padding||height>column.height+.1)return false;normal.copy(offset).addScaledVector(column.up,-height);return normal.lengthSq()<(column.radius+padding)**2})},
+    blocked(position:T.Vector3,padding=.45){
+     columnIndex.query({minX:position.x-padding-.6,maxX:position.x+padding+.6,minZ:position.z-padding-.6,maxZ:position.z+padding+.6},columnCandidates);
+     for(const column of columnCandidates){offset.copy(position).sub(column.position);const height=offset.dot(column.up);if(height<-.5-padding||height>column.height+.1)continue;normal.copy(offset).addScaledVector(column.up,-height);if(normal.lengthSq()<(column.radius+padding)**2)return true}return false;
+    },
   update(delta:number,reduced:boolean,observer:T.Vector3,active=true){
    if(active&&!reduced&&Number.isFinite(delta))clock+=Math.max(0,Math.min(.1,delta));materials.update(clock,reduced||!active);
    for(const group of groups){const distance=observer.distanceTo(group.center),threshold=group.full.visible?85:65,near=active&&distance<group.span+threshold;group.full.visible=near;group.distant.visible=!near}

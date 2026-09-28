@@ -14,36 +14,18 @@ import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createPlanetPublicSpaces} from './planet-public-spaces';
 import {createPlanetCanopy} from './planet-canopy';
 export {createPlanetSurface,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
+export {moveOnPlanet,resetSurfaceFrame} from './planet-movement';
 
 const vertical=new T.Vector3(0,1,0);
-export function resetSurfaceFrame(player:T.Group){player.up.copy(vertical);delete player.userData.surfaceFrame;player.rotation.set(0,0,0)}
-export function moveOnPlanet(player:T.Group,surface:PlanetSurface,axisX:number,axisZ:number,distance:number,blocked:(position:T.Vector3)=>boolean=()=>false){
-  const frame=(player.userData.surfaceFrame??=new T.Quaternion()) as T.Quaternion;
-  const length=Math.max(1,Math.hypot(axisX,axisZ)),steps=Math.max(1,Math.ceil(Math.abs(distance)/.2));
-  let facing=new T.Vector3(0,0,1).applyQuaternion(player.quaternion);
-  for(let step=0;step<steps;step++){
-    const up=planetUp(surface,player.position),direction=new T.Vector3(axisX/length,0,axisZ/length).applyQuaternion(frame).projectOnPlane(up);
-    if(direction.lengthSq()>.00001){
-      direction.normalize();const candidate=player.position.clone().addScaledVector(direction,distance/steps);
-      planetPoint(surface,candidate.sub(surface.center),candidate);
-      if(!blocked(candidate)){
-        const nextUp=planetUp(surface,candidate),rotation=new T.Quaternion().setFromUnitVectors(up,nextUp);
-        frame.premultiply(rotation).normalize();player.position.copy(candidate);facing.copy(direction).applyQuaternion(rotation);
-      }
-    }
-  }
-  player.up.copy(planetUp(surface,player.position));facing.projectOnPlane(player.up).normalize();
-  if(facing.lengthSq()<.001)facing.set(0,0,1).applyQuaternion(frame).projectOnPlane(player.up).normalize();
-  const right=new T.Vector3().crossVectors(player.up,facing).normalize();facing.crossVectors(right,player.up).normalize();
-  player.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(right,player.up,facing));
-}
-
-export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
+export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);
   const identity=civilizationFor(surface.stop),palette=identity?civilizations[identity]:null;
   const infrastructure=createPlanetInfrastructure(root,surface);
+  yield 'towns';
   const publicSpaces=createPlanetPublicSpaces(root,surface,infrastructure);
+  yield 'public-spaces';
   const realm=createRealmWorld(root,surface),design=realmDesign(surface.stop);
+  yield 'realm';
   const style=planetStyles[surface.stop.id]??design;
   function terrainGeometry(width:number,height:number){
   const geometry=new T.SphereGeometry(1,width,height),positions=geometry.getAttribute('position'),colors=new Float32Array(positions.count*3);
@@ -60,6 +42,7 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   return geometry;
   }
   const globe=new T.Mesh(terrainGeometry(design?128:160,design?88:112),new T.MeshStandardMaterial({vertexColors:true,roughness:1}));globe.name=surface.stop.name+'_Planet';globe.position.copy(surface.center);globe.receiveShadow=true;root.add(globe);
+  yield 'terrain';
   const solids:{position:T.Vector3;radius:number}[]=[];
   const outposts:{root:T.Group;position:T.Vector3;name:string;architecture:ReturnType<typeof createArchitectureNeighborhood>;inverse:T.Quaternion}[]=[];
   for(let index=0;index<5;index++){
@@ -71,10 +54,14 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
     const antenna=new T.Mesh(new T.CylinderGeometry(.08,.1,4,8),new T.MeshStandardMaterial({color:'#d8d3ac'}));antenna.position.set(2.8,2.2,0);group.add(antenna);
     const signal=new T.Mesh(new T.OctahedronGeometry(.45),new T.MeshBasicMaterial({color:'#b1f6da'}));signal.position.set(2.8,4.5,0);group.add(signal);
     const name=index===4?'South pole observatory':'Horizon outpost '+(index+1);group.name=name;outposts.push({root:group,position,name,architecture,inverse:group.quaternion.clone().invert()});solids.push({position:position.clone(),radius:2.9});
+    yield 'outpost';
   }
   const vegetation=createPlanetCanopy(root,surface,infrastructure,publicSpaces.places,outposts);
+  yield 'vegetation';
   const population=createPlanetPopulation(root,surface,infrastructure.towns);
+  yield 'population';
   const civilization=createCivilizationWorld(root,surface);
+  yield 'civilization';
   batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root});
   const details=new T.Group();details.name='Planet_SurfaceDetails';details.add(...root.children);root.add(details);
   const distant=new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
@@ -86,4 +73,8 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
     blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||vegetation.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
     nearest:(position:T.Vector3)=>outposts.find(outpost=>position.distanceTo(outpost.position)<7),
   };
+}
+
+export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
+ const builder=buildPlanetLandscape(parent,surface);let result=builder.next();while(!result.done)result=builder.next();return result.value;
 }

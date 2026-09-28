@@ -9,7 +9,7 @@ export function architectureMaterials(style:ArchitectureStyle,accent?:string){
  materials.leaf.userData.surface=materials.wood.userData.surface='natural';materials.wall.userData.surface=materials.stone.userData.surface='ceramic';materials.glass.userData.surface='glass';return materials;
 }
 export type ArchitectureMaterials=ReturnType<typeof architectureMaterials>;
-export type BuildingCraftOptions={style:ArchitectureStyle;address:string;width?:number;height?:number;depth?:number;materials?:ArchitectureMaterials;detail?:boolean;stairs?:boolean};
+export type BuildingCraftOptions={style:ArchitectureStyle;address:string;width?:number;height?:number;depth?:number;materials?:ArchitectureMaterials;detail?:boolean;stairs?:boolean;distant?:boolean};
 function roofProfile(points:[number,number][],depth:number){
  const shape=new T.Shape(points.map(point=>new T.Vector2(...point)));shape.closePath();return new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:4}).translate(0,0,-depth/2);
 }
@@ -32,7 +32,7 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
   box('Residence_FloorCornice',floor.x,floor.top-.03,floor.z,floor.width+.14,.12,floor.depth+.14,materials.stone);
     for(let face=0;face<4;face++){
      const rotation=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),face*Math.PI/2),span=face%2?floor.depth:floor.width,radius=(face%2?floor.width:floor.depth)/2;
-     const bays=span<3?2:recipe.bays,bayWidth=Math.min(1.38,span/(bays+1)*.87),bayHeight=Math.min(2.3,(floor.top-floor.bottom)*.64);
+    const bays=options.distant?1:span<3?2:recipe.bays,bayWidth=options.distant?span*.58:Math.min(1.38,span/(bays+1)*.87),bayHeight=Math.min(2.3,(floor.top-floor.bottom)*.64);
      for(let bay=0;bay<bays;bay++){
       const horizontal=(bay-(bays-1)/2)*span/(bays+.65)+(recipe.rhythm-.5)*.12;
       if(level===0&&face===0&&Math.abs(horizontal-doorX)<(bayWidth+doorWidth+.24)/2+.14)continue;
@@ -86,7 +86,8 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
  }else if(style==='solstice'||style==='atelier'){
   const terraceY=roofY+.24,shadeWidth=top.width*(.5+recipe.rhythm*.28),offset=recipe.roofOffset*top.width;
   for(const side of [-1,1])for(const back of [-1,1])box(style==='solstice'?'Solstice_PergolaPost':'Atelier_RoofPavilionPost',roofX+offset+side*shadeWidth/2,terraceY+.6,roofZ+back*top.depth*.28,.1,1.26,.1,materials.wood);
-  for(let slat=0;slat<5+recipe.attachment;slat++)box('Terrace_ShadeSlat',roofX+offset-shadeWidth*.6+slat*shadeWidth*1.2/(4+recipe.attachment),terraceY+1.23,roofZ,.075,.09,top.depth*.76,materials.wood);
+  if(options.distant)box('Terrace_ShadeSilhouette',roofX+offset,terraceY+1.23,roofZ,shadeWidth*1.2,.09,top.depth*.76,materials.wood);
+  else for(let slat=0;slat<5+recipe.attachment;slat++)box('Terrace_ShadeSlat',roofX+offset-shadeWidth*.6+slat*shadeWidth*1.2/(4+recipe.attachment),terraceY+1.23,roofZ,.075,.09,top.depth*.76,materials.wood);
   if(style==='solstice'){mesh('Solstice_StairLantern',new T.CylinderGeometry(.4,.4,.65,10),materials.stone,roofX-width*.24,roofY+.55,roofZ-depth*.24);mesh('Solstice_LanternDome',new T.SphereGeometry(.44,12,6,0,Math.PI*2,0,Math.PI/2),materials.metal,roofX-width*.24,roofY+.88,roofZ-depth*.24)}
   else box('Atelier_RoofStudio',roofX-width*.24,roofY+.45,roofZ-depth*.22,width*.3,.55,depth*.32,materials.wall);
  }else if(style==='cloud'){

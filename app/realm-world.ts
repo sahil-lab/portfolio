@@ -430,6 +430,7 @@ export function createRealmWorld(parent:T.Object3D,surface:PlanetSurface){
     });
   }
   return {root,silhouette,landmarks,indicators,movements,demo,blocked,nearest,
+    restore:(index:number)=>{const snapshot=demo.restore(index);if(snapshot)display(snapshot)},
     reserved:(direction:T.Vector3)=>realmSiteDistance(surface.stop,surface.radius,direction)<4,
     interact:(position:T.Vector3)=>{const landmark=nearest(position);if(!landmark)return null;const snapshot=demo.activate();display(snapshot);return landmark.id==='archive'?snapshot.title+' / '+snapshot.source+' / '+snapshot.notice:snapshot.notice},
     update:(dt:number,reduced:boolean,active=true)=>{

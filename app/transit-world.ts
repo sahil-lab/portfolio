@@ -9,12 +9,14 @@ import {visibleTransitStops} from './transit-visibility';
 import {createWoodenSign,type WoodenSignShape} from './wooden-sign';
 import {civilizationFor,civilizations} from './civilization-config';
 import {createCivilizationLink} from './civilization-link';
-import {createPlanetSurface,createPlanetLandscape,planetPoint,moveOnPlanet,resetSurfaceFrame} from './planet-surface';
+import {createPlanetSurface,planetPoint} from './planet-geography';
+import {moveOnPlanet,resetSurfaceFrame} from './planet-movement';
+import {createPlanetStreamer} from './planet-streaming';
 import {motherboardBounds} from './world-config';
 import {realmDesign} from './realm-layout';
 
-export type TransitStatus={current:number;mode:TransitMode|null;destination:number;progress:number;driving:boolean;nearMetro:boolean;nearRocket:boolean;visited:string[]};
-export const emptyTransit:TransitStatus={current:0,mode:null,destination:1,progress:0,driving:false,nearMetro:false,nearRocket:false,visited:['motherboard']};
+export {emptyTransit,type TransitStatus} from './transit-state';
+import type {TransitStatus} from './transit-state';
 const stopExtent=(stop:TransitStop)=>(stop.radius??28)+(stop.worldKind?48:30);
 const bounds={
  minX:Math.min(motherboardBounds.minX,...transitStops.map(stop=>stop.x-stopExtent(stop))),
@@ -36,7 +38,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  let visited=['motherboard'];try{const raw=JSON.parse(localStorage.getItem('kingdom-transit-v1')??'null');if(raw?.version===1&&Array.isArray(raw.visited))visited=[...new Set<string>(['motherboard',...raw.visited.filter((id:unknown)=>typeof id==='string'&&transitStops.some(s=>s.id===id))])]}catch{/* Storage is optional. */}
  const obstacles:{x:number;z:number;y:number;r:number}[]=[],planetSignals:T.Mesh[]=[],rotating:T.Object3D[]=[];
  const surfaces=transitStops.map((stop,index)=>index?createPlanetSurface(stop,stop.radius):null);
- const landscapes=surfaces.map(surface=>surface?createPlanetLandscape(fixed,surface):null);
+ const streaming=createPlanetStreamer(fixed,surfaces),landscapes=streaming.landscapes;
  let driveX=0,driveZ=1;
  const cars=transitStops.map((stop,index)=>{const car=kit.rover(stop.color);car.root.position.set(stop.x-10,stop.y,stop.z+3);stations[index].actors.add(car.root);return car});
  const rockets=transitStops.map((stop,index)=>{const rocket=kit.rocket(stop.color);rocket.root.position.set(stop.x+10,stop.y,stop.z+2);stations[index].actors.add(rocket.root);return rocket});
@@ -127,6 +129,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  }
  function stepSurface(dx:number,dz:number,distance:number,driving=false){
   const surface=surfaces[journey.current];if(!surface||journey.mode)return false;
+  if(!streaming.ready(journey.current)){streaming.prefetch(journey.current);return true}
   moveOnPlanet(player,surface,dx,dz,distance,position=>surfaceBlocked(position,driving?2.25:.45));return true;
  }
  function height(x:number,z:number,previous:number){
@@ -148,6 +151,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   }
  }
  function arrive(mode:TransitMode,dt=0,reduced=true){
+  streaming.prefetch(journey.current);
   const s=current();player.position.set(s.x+(mode==='rocket'?13.8:-4),s.y,s.z+2);resetSurfaceFrame(player);
   if(mode==='rocket'&&flightRocket){
    const waiting=rockets[journey.current];parkRocket(waiting,flightOrigin);rockets[flightOrigin]=waiting;
@@ -161,6 +165,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  function start(destination:number,mode:TransitMode){
   if(carIndex!==null||journey.mode||!(mode==='metro'?nearMetro():nearRocket())){callbacks.notice('Walk to the '+(mode==='metro'?'metro platform':'rocket pad')+' to board.');return false}
   if(!journey.start(destination,mode))return false;callbacks.sound();flightOrigin=journey.current;activePath=pathFor(journey.current,destination);metroReversed=metro.carriages[0].body.position.z>current().z;
+  streaming.prefetch(destination);
   resetSurfaceFrame(player);metro.root.visible=mode==='metro';if(mode==='metro')showJourneyRails(journey.current,destination);else clearJourneyRails();
   flightRocket=mode==='rocket'?rockets[journey.current]:null;if(flightRocket){root.add(flightRocket.root);flightRocket.root.visible=true;rockets[destination].root.visible=false}
   poseJourney(0,false);updateStationDetails();publish(true);return true;
@@ -182,17 +187,17 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   if(journey.mode)return true;if(carIndex!==null)return leaveCar();
   const car=nearCar();if(car>=0){carIndex=car;player.position.copy(cars[car].root.position);callbacks.notice('Driving · WASD / arrows or the joystick. E to park and step out.');publish(true);return true}
   if(nearMetro()||nearRocket()){callbacks.open();return true}
-  const publicPlace=landscapes[journey.current]?.publicSpaces.interact(player.position);if(publicPlace){callbacks.sound();callbacks.notice(publicPlace);return true}
+  const publicPlace=landscapes[journey.current]?.publicSpaces?.interact(player.position);if(publicPlace){callbacks.sound();callbacks.notice(publicPlace);return true}
   const demonstration=landscapes[journey.current]?.realm?.interact(player.position);if(demonstration){callbacks.sound();callbacks.notice(demonstration);return true}
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost){station();callbacks.notice(outpost.name+' \u00b7 Returned to the landing station.');return true}
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark){callbacks.notice(landmark.name+' / '+landmark.description);return true}
-  const conversation=landscapes[journey.current]?.population.interact(player.position);if(conversation){callbacks.notice(conversation);return true}
+  const conversation=landscapes[journey.current]?.population?.interact(player.position);if(conversation){callbacks.notice(conversation);return true}
   if(neighborhood.interact())return true;
   const s=current();if(journey.current&&closeTo(s.x+resonatorOffset.x,s.y,s.z+resonatorOffset.z,4)){const orb=planetSignals[journey.current-1],m=orb.material as T.MeshStandardMaterial;m.emissiveIntensity=m.emissiveIntensity>.5?.3:1.1;callbacks.sound();callbacks.notice(s.name+' resonator '+(m.emissiveIntensity>.5?'awake. Light travels around the satellite.':'resting.'));return true}return false;
  }
  function update(dt:number,dx:number,dz:number,reduced:boolean,walkingSpeed=2.75){
   civilizationLink.update(dt,reduced);
-  landscapes.forEach((landscape,index)=>landscape?.update(dt,reduced,player,journey.current===index&&!journey.mode));
+  streaming.update(dt,reduced,player,journey.mode?null:journey.current,journey.mode?journey.destination:null);
   clock+=dt;statusClock+=dt;if(!reduced)rotating.forEach((o,i)=>{o.rotation.y+=dt*(.16+i*.05);o.rotation.z=Math.sin(clock*.35+i)*.08});
   if(journey.mode){
     const mode=journey.mode;
@@ -213,11 +218,12 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  function prompt(){
   if(journey.mode)return (journey.mode==='metro'?'Metro to ':'Rocket to ')+transitStops[journey.destination].name+' \u00b7 '+Math.round(journey.progress*100)+'%';
   if(carIndex!==null)return 'E \u00b7 Park rover and step out';if(nearCar()>=0)return 'E \u00b7 Drive rover';if(nearMetro())return 'E \u00b7 Choose a metro destination';if(nearRocket())return 'E \u00b7 Launch to another world';
+  if(journey.current&&!streaming.ready(journey.current))return landscapes[journey.current]?.state==='failed'?'Destination unavailable. Return to the station or try again.':'Preparing '+current().name;
   const demonstration=landscapes[journey.current]?.realm?.nearest(player.position);if(demonstration)return 'E \u00b7 '+demonstration.name;
-  const publicPlace=landscapes[journey.current]?.publicSpaces.prompt(player.position);if(publicPlace)return publicPlace;
+  const publicPlace=landscapes[journey.current]?.publicSpaces?.prompt(player.position);if(publicPlace)return publicPlace;
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost)return 'E \u00b7 '+outpost.name+' / return to station';
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark)return 'E \u00b7 '+landmark.name;
-  const conversation=landscapes[journey.current]?.population.prompt(player.position);if(conversation)return conversation;
+  const conversation=landscapes[journey.current]?.population?.prompt(player.position);if(conversation)return conversation;
   const neighbour=neighborhood.prompt();if(neighbour)return neighbour;
   const stop=current();if(journey.current&&closeTo(stop.x+resonatorOffset.x,stop.y,stop.z+resonatorOffset.z,4))return 'E \u00b7 Wake the satellite resonator';
   return journey.current?'Explore '+stop.name:null;
@@ -227,7 +233,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   cars[journey.current].root.position.set(stop.x-10,stop.y,stop.z+3);cars[journey.current].root.rotation.set(0,0,0);updateStationDetails();publish(true);return true;
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();clearJourneyRails();rockets.forEach((rocket,index)=>parkRocket(rocket,index));metro.root.visible=true;placeMetro(metro,pathFor(0,1),0);resetSurfaceFrame(player);updateStationDetails();publish(true)}
- return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,journey,neighborhood,civilizationLink,
+ return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,streaming,journey,neighborhood,civilizationLink,dispose:()=>{streaming.dispose();clearJourneyRails()},
   arriveShared:(destination:number)=>{if(!Number.isInteger(destination)||!transitStops[destination])return false;home();journey.current=journey.destination=destination;arrive('metro');return true},
   groundBlocked:(position:T.Vector3,padding:number,stop:number)=>{
    if(landscapes[stop]?.blocked(position,padding))return true;
@@ -236,7 +242,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   },
   updateFlightView:(dt:number,reduced:boolean,observer:T.Group,currentStop:number)=>{
    civilizationLink.update(dt,reduced);
-   landscapes.forEach((landscape,index)=>landscape?.update(dt,reduced,observer,index===currentStop));
+  streaming.update(dt,reduced,observer,currentStop);
    updateStationDetails(dt,reduced,observer,currentStop);
   },
   reset:()=>{visited=['motherboard'];try{localStorage.removeItem('kingdom-transit-v1')}catch{}home()},

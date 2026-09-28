@@ -53,16 +53,18 @@ test('neighborhood batches each stop separately and hides distant fixtures and v
  assert.equal(neighborhood.root.getObjectByName('Neighborhood_skills-technology').visible,true);
 });
 
-test('hidden neighborhood residents and traffic continue simulating and can be revealed without recreation',context=>{
+test('hidden neighborhood residents and traffic sleep and resume without recreation or catch-up jumps',context=>{
  const scene=new T.Scene(),player=new T.Group();player.position.set(10000,10000,10000);
  const neighborhood=createNeighborhood(scene,player,()=>false,()=>{});context.after(()=>disposeScene(scene));
  const traffic=neighborhood.traffic.map(car=>({car,angle:car.angle,id:car.root.uuid}));
  const walkers=neighborhood.walkers.map(walker=>({walker,position:walker.root.position.clone(),id:walker.root.uuid}));
  for(let step=0;step<90;step++)neighborhood.update(.1,true,new Set());
- for(const {car,angle,id} of traffic){assert.notEqual(car.angle,angle);assert.equal(car.root.uuid,id);assert.equal(renderVisible(car.root),false)}
- for(const {walker,position,id} of walkers){assert.ok(walker.root.position.distanceTo(position)>.05);assert.equal(walker.root.uuid,id);assert.equal(renderVisible(walker.root),false)}
+ for(const {car,angle,id} of traffic){assert.equal(car.angle,angle);assert.equal(car.root.uuid,id);assert.equal(renderVisible(car.root),false)}
+ for(const {walker,position,id} of walkers){assert.deepEqual(walker.root.position,position);assert.equal(walker.root.uuid,id);assert.equal(renderVisible(walker.root),false)}
  neighborhood.update(0,true,new Set([2]));
  for(const {car} of traffic)assert.equal(renderVisible(car.root),car.body.y===transitStops[2].y);
+ for(let step=0;step<90;step++)neighborhood.update(.1,true,new Set([2]));
+ for(const {car,angle} of traffic)assert.equal(car.angle!==angle,car.station===2);
 });
 
 function createWorld(context){
@@ -70,7 +72,7 @@ function createWorld(context){
  const storage=new Map();global.localStorage={getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)};
  const scene=new T.Scene(),player=new T.Group(),home=transitStops[0];player.position.set(home.x,home.y,home.z);
  const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
- context.after(()=>disposeScene(scene));return {scene,player,world,storage};
+ context.after(()=>{world.dispose();disposeScene(scene)});return {scene,player,world,storage};
 }
 
 function assertVisibleStops(scene,expected){
@@ -82,7 +84,7 @@ function assertVisibleStops(scene,expected){
  });
 }
 
-test('current and observed stops alone retain station details, parked actors and world-space batched camera bounds',context=>{
+test('current and observed stops alone retain station details, parked actors and world-space batched camera bounds',async context=>{
  const {scene,player,world}=createWorld(context);world.hub();assertVisibleStops(scene,[0]);
  let totalDrawables=0,visibleDrawables=0;
  transitStops.forEach((stop,index)=>{
@@ -102,7 +104,7 @@ test('current and observed stops alone retain station details, parked actors and
   }
  });
  assert.ok(visibleDrawables>0&&visibleDrawables<totalDrawables/4);
- const original=player.position.clone();world.landscapes[9].root.userData.observed=true;world.update(0,0,0,true);
+ const original=player.position.clone();world.landscapes[9].root.userData.observed=true;assert.equal(await world.streaming.load(9),true);world.update(0,0,0,true);
  assertVisibleStops(scene,[0,9]);assert.deepEqual(player.position.toArray(),original.toArray());assert.equal(world.landscapes[9].details.visible,true);
  world.landscapes[9].root.userData.observed=false;world.update(0,0,0,true);assertVisibleStops(scene,[0]);
  assert.equal(world.start(9,'metro'),true);world.arriveNow();assertVisibleStops(scene,[9]);

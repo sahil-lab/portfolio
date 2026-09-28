@@ -40,13 +40,15 @@ test('invalid and resumed frames cannot jump the planet around its orbit',()=>{
   rotation.reset();assert.equal(rotation.angle,0);
 });
 
-test('batched transit worlds keep complete planets together and restore landing coordinates',()=>{
+test('batched transit worlds keep complete planets together and restore landing coordinates',async()=>{
   global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*20})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
   global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
   const {createTransitWorld}=require('../app/transit-world.ts'),{disposeScene}=require('../app/scene-resources.ts');
   const scene=new T.Scene(),player=new T.Group(),transport=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
   const within=(object,ancestor)=>{while(object){if(object===ancestor)return true;object=object.parent}return false};
+  assert.equal(transport.streaming.snapshot().resident,0);
   for(const landscape of transport.landscapes.filter(Boolean)){
+    assert.equal(await landscape.load(),true);
     assert.ok(within(landscape.globe,landscape.root));
     for(const outpost of landscape.outposts)assert.ok(within(outpost.root,landscape.root));
     if(landscape.civilization)assert.ok(within(landscape.civilization.root,landscape.root));
@@ -54,7 +56,8 @@ test('batched transit worlds keep complete planets together and restore landing 
     landscape.rotation.update(.1,false,true);assert.ok(landscape.root.rotation.y>0);
     assert.ok(position.distanceTo(landscape.globe.getWorldPosition(new T.Vector3()))<1e-9);
     landscape.rotation.reset();assert.deepEqual(landscape.root.position.toArray(),[0,0,0]);assert.equal(landscape.root.rotation.y,0);
+    landscape.unload();
   }
-  transport.hub();assert.equal(transport.start(1,'metro'),true);transport.arriveNow();assert.equal(transport.journey.current,1);assert.match(transport.prompt(),/metro/);disposeScene(scene);
+  transport.hub();assert.equal(transport.start(1,'metro'),true);transport.arriveNow();assert.equal(transport.journey.current,1);assert.match(transport.prompt(),/metro/);transport.dispose();disposeScene(scene);
 });
 

@@ -26,30 +26,32 @@ test('street actors cannot tunnel through a thin object and collisions respect d
 test('every satellite has two resident drivers and three walkers; they move and yield to the courier',()=>{
  const scene=new T.Scene(),player=new T.Group();player.position.set(500,0,500);const n=createNeighborhood(scene,player,()=>false,()=>{});
  for(const s of transitStops.slice(1)){assert.equal(n.traffic.filter(c=>c.body.y===s.y).length,2);assert.equal(n.walkers.filter(c=>c.body.y===s.y).length,3)}
- const car=n.traffic.find(c=>c.body.y===transitStops[1].y),before=car.root.position.clone();n.update(.1,false);assert.ok(car.root.position.distanceTo(before)>.15);
+ const car=n.traffic.find(c=>c.body.y===transitStops[1].y),before=car.root.position.clone();n.update(.1,false,new Set([1]));assert.ok(car.root.position.distanceTo(before)>.15);
  player.position.copy(car.root.position);const stopped=car.root.position.clone();for(let i=0;i<60;i++)n.update(1/60,false);assert.deepEqual(car.root.position.toArray(),stopped.toArray());
- player.position.set(500,0,500);n.update(.1,false);assert.ok(car.root.position.distanceTo(stopped)>.15);
+ player.position.set(500,0,500);n.update(.1,false,new Set([1]));assert.ok(car.root.position.distanceTo(stopped)>.15);
 });
 test('camera tracks world coordinates when the kingdom is doubled',()=>{
  const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera();scene.add(player);scene.scale.setScalar(2);player.position.set(20,.8,-50);const rig=createGameCamera(camera,scene,player);rig.update(.016,false,defaultSettings);
  const direction=new T.Vector3();camera.getWorldDirection(direction);const target=player.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,1.5,0));assert.ok(direction.dot(target.sub(camera.position).normalize())>.999);
 });
-test('actual planet layout leaves driving rings clear; parking and station shells are solid',()=>{
+test('actual planet layout leaves driving rings clear; parking and station shells are solid',context=>{
  const {createTransitWorld}=require('../app/transit-world.ts');
  global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
  const scene=new T.Scene(),player=new T.Group();player.position.set(500,0,500);
  const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
+ context.after(()=>world.dispose());assert.equal(world.streaming.snapshot().resident,0);
  const cars=world.neighborhood.traffic.filter(c=>c.body.y>1),initial=cars.map(c=>c.angle);
- for(let i=0;i<3600;i++)world.update(1/30,0,0,true);
+ for(let i=0;i<3600;i++)world.neighborhood.update(1/30,true,new Set(transitStops.map((_,index)=>index)));
  cars.forEach((car,i)=>assert.ok(car.angle-initial[i]>Math.PI*2,`car on deck ${car.body.y} only advanced ${car.angle-initial[i]}`));
  const hub=transitStops[0];world.hub();assert.equal(world.blocked(hub.x,hub.z),true);assert.equal(world.blocked(hub.x+10,hub.z+2),true);assert.equal(world.blocked(hub.x-10,hub.z+3),true);
  assert.equal(world.start(1,'metro'),true);world.arriveNow();assert.equal(world.journey.current,1);const stop=transitStops[1];assert.equal(world.height(stop.x,stop.z,stop.y),stop.y);assert.equal(world.height(stop.x+35,stop.z,stop.y),null);
 });
-test('a visitor can walk around the canopy, board, drive and park the garden rover',()=>{
+test('a visitor can walk around the canopy, board, drive and park the garden rover',async context=>{
  const {createTransitWorld}=require('../app/transit-world.ts'),{moveCharacter}=require('../app/character-controller.ts');
  global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
  const player=new T.Group(),world=createTransitWorld(new T.Scene(),player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
  world.hub();world.start(2,'metro');world.arriveNow();
+ context.after(()=>world.dispose());assert.equal(await world.streaming.load(2),true);
  const step=(x,z,n)=>{for(let i=0;i<n;i++){moveCharacter(player,x,z,.75,world.blocked,world.height,world.bounds);world.update(.1,0,0,true)}};
  step(0,1,10);step(-1,0,8);step(0,-1,5);
  assert.match(world.prompt(),/Drive rover/,player.position.toArray().join(','));world.interact();assert.equal(world.driving,true);
@@ -57,32 +59,35 @@ test('a visitor can walk around the canopy, board, drive and park the garden rov
  world.interact();assert.equal(world.driving,false);assert.ok(!world.blocked(player.position.x,player.position.z));
 });
 
-test('satellite signals keep their interactions beside their relocated models',()=>{
+test('satellite signals keep their interactions beside their relocated models',async context=>{
  const {createTransitWorld}=require('../app/transit-world.ts');global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
  const scene=new T.Scene(),player=new T.Group();let message='';
  const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice:text=>message=text,sound(){}});
  world.hub();world.start(2,'metro');world.arriveNow();const stop=transitStops[2];
+ context.after(()=>world.dispose());assert.equal(await world.streaming.load(2),true);
  const signal=scene.getObjectByName(stop.id+'_Resonator');assert.equal(signal.position.x,stop.x+resonatorOffset.x);assert.equal(signal.position.z,stop.z+resonatorOffset.z);
  player.position.set(signal.position.x,stop.y,signal.position.z-3.8);
  assert.match(world.prompt(),/Wake the satellite resonator/);assert.equal(world.interact(),true);assert.match(message,/resonator awake/);
 });
 
-test('independent angel viewing activates a planet without moving the courier or advancing its journey',()=>{
+test('independent angel viewing activates a planet without moving the courier or advancing its journey',async()=>{
  const {createTransitWorld}=require('../app/transit-world.ts'),{disposeScene}=require('../app/scene-resources.ts');global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
  const scene=new T.Scene(),player=new T.Group(),observer=new T.Group();player.position.set(150,.8,103);
  const world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
  const before=player.position.clone();observer.position.set(transitStops[7].x,transitStops[7].y+120,transitStops[7].z);
+ assert.equal(await world.streaming.load(7),true);
  for(let frame=0;frame<20;frame++)world.updateFlightView(1/60,true,observer,7);
  assert.deepEqual(player.position,before);assert.equal(world.journey.current,0);assert.equal(world.journey.mode,null);assert.equal(world.driving,false);
- assert.ok(world.landscapes[7].details.visible);assert.equal(world.landscapes[2].details.visible,false);
- world.updateFlightView(1/60,true,observer,2);assert.ok(world.landscapes[2].details.visible);assert.equal(world.landscapes[7].details.visible,false);
- disposeScene(scene);
+ assert.ok(world.landscapes[7].details.visible);assert.equal(world.landscapes[2].loaded,false);
+ assert.equal(await world.streaming.load(2),true);world.updateFlightView(1/60,true,observer,2);assert.ok(world.landscapes[2].details.visible);assert.equal(world.landscapes[7].details.visible,false);
+ world.dispose();disposeScene(scene);
 });
 
-test('rover driving and dismounting work on the far hemisphere and station recall restores flat gravity',()=>{
+test('rover driving and dismounting work on the far hemisphere and station recall restores flat gravity',async context=>{
  const {createTransitWorld}=require('../app/transit-world.ts'),{planetPoint,planetUp}=require('../app/planet-surface.ts'),{disposeScene}=require('../app/scene-resources.ts');
  global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};const scene=new T.Scene(),player=new T.Group(),world=createTransitWorld(scene,player,{blocked:()=>false,ground:()=>.8,change(){},open(){},notice(){},sound(){}});
  world.hub();world.start(2,'metro');world.arriveNow();const stop=transitStops[2],surface=world.surfaces[2];
+ context.after(()=>world.dispose());assert.equal(await world.streaming.load(2),true);
  player.position.set(stop.x-6.8,stop.y,stop.z+3);assert.equal(world.interact(),true);assert.equal(world.driving,true);
  let point;for(let attempt=0;attempt<20;attempt++){const candidate=planetPoint(surface,new T.Vector3(.2+attempt*.1,-.8,.5));if(!world.landscapes[2].blocked(candidate,6)){point=candidate;break}}assert.ok(point);
  player.position.copy(point);player.up.copy(planetUp(surface,point));player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),player.up);player.quaternion.copy(player.userData.surfaceFrame);

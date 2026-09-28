@@ -38,7 +38,7 @@ function woodGrain(){
 }
 
 function lettering(text:string,width:number,height:number){
-  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.round(1024*height/width);
+  const canvas=document.createElement('canvas');canvas.width=width>=4?1024:512;canvas.height=Math.round(canvas.width*height/width);
   const context=canvas.getContext('2d')!;
   const maximumWidth=canvas.width*.92,maximumHeight=canvas.height*.88;
   let lines:string[]=[],fontSize=Math.floor(Math.min(200,maximumHeight/1.12));

@@ -8,6 +8,7 @@ import {motherboardBounds} from './world-config';
 import {cityBlockPlan,cityDistrictReserved,nearestCityDistrict} from './city-districts';
 import {createAuthoredDistricts} from './city-district-world';
 import {createCanopyAsset,createCanopyGrove,createCanopyMaterials,type CanopyPlacement} from './canopy-grove';
+import {createWorkScheduler} from './work-scheduler';
 
 type Lot={address:string;x:number;z:number;scale:number;variant:number;yaw:number;width:number;depth:number;height:number};
 type Skin={geometry:T.BufferGeometry;material:T.Material};
@@ -34,6 +35,7 @@ export function createCityExpansion(parent:T.Object3D){
   const dummy=new T.Object3D(),lots:Lot[]=[],cells=new Map<string,Lot[]>(),neighborhoods:T.LOD[]=[],cameraBounds:T.Box3[]=[];
   const streetTrees:{x:number;z:number;height:number}[]=[],treeCells=new Map<string,typeof streetTrees>();
   const architecture:{town:ReturnType<typeof createArchitectureNeighborhood>;x:number;z:number}[]=[];
+  const scheduler=createWorkScheduler();
   const sharedFinishes={materials:architectureMaterials('atelier'),paints:new Map<string,T.MeshStandardMaterial>()};
   const farRegions=new Map<string,{root:T.Group;blocks:{lod:T.LOD;far:T.Group}[]}>();
   const cellKey=(x:number,z:number)=>Math.floor((x+500)/100)+','+Math.floor((z+1171)/100);
@@ -72,7 +74,7 @@ export function createCityExpansion(parent:T.Object3D){
       const lot={address:`motherboard/block-${column}-${row}/lot-${x}-${z}`,x:centerX+x,z:centerZ+z,scale,variant,yaw,width:(sideways?4.2:4.6)*scale,depth:(sideways?4.6:4.2)*scale,height:heights[variant]*scale+3};lots.push(lot);localLots.push(lot);
       cameraBounds.push(new T.Box3(new T.Vector3(lot.x-lot.width/2,0,lot.z-lot.depth/2),new T.Vector3(lot.x+lot.width/2,lot.height,lot.z+lot.depth/2)));
     }
-    const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),72,sharedFinishes);
+    const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),105,sharedFinishes,{scheduler});
     architecture.push({town,x:centerX,z:centerZ});
     for(const group of [middle,far])for(const source of town.shells.children){const mesh=(source as T.Mesh).clone();mesh.name='City_UniqueRoofscape';mesh.castShadow=group===middle;group.add(mesh)}
     const regionKey=Math.floor(centerX/300)+','+Math.floor(centerZ/300);let region=farRegions.get(regionKey);
@@ -123,5 +125,5 @@ export function createCityExpansion(parent:T.Object3D){
     if(banyanGroves.blocked(blockPosition.set(x,y,z))||(treeCells.get(cellKey(x,z))??[]).some(tree=>y<tree.height&&y>-.2&&Math.hypot(x-tree.x,z-tree.z)<.65))return true;
     return (cells.get(cellKey(x,z))??[]).some(lot=>y<lot.height&&Math.abs(x-lot.x)<lot.width/2+.55&&Math.abs(z-lot.z)<lot.depth/2+.55);
   }
-  return {root,lots,neighborhoods,architecture,farRegions,quarter,authored,streetTrees,banyanGroves,update,blocked,bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
+  return {root,lots,neighborhoods,architecture,farRegions,quarter,authored,streetTrees,banyanGroves,update,blocked,streaming:()=>({loaded:architecture.filter(({town})=>town.detailed).length,loading:architecture.filter(({town})=>town.loading).length,pending:scheduler.pending,total:architecture.length}),dispose:()=>{scheduler.dispose();architecture.forEach(({town})=>town.dispose())},bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
 }

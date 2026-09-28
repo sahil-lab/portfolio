@@ -6,6 +6,8 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import type {Settings} from './persistence';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
+export const presentationPixelBudget=1600000;
+export function presentationPixelRatio(width:number,height:number,ratio:number){return Math.min(ratio,Math.sqrt(presentationPixelBudget/Math.max(1,width*height)))}
 
 export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera){
   let composer:EffectComposer|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined;
@@ -14,12 +16,12 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
   function release(){bloom?.materialHighPassFilter.dispose();bloom?.dispose();output?.dispose();composer?.dispose();composer=undefined;bloom=undefined;output=undefined}
   function resize(nextWidth:number,nextHeight:number){
     width=Math.max(1,nextWidth);height=Math.max(1,nextHeight);
-    if(composer){composer.setPixelRatio(renderer.getPixelRatio());composer.setSize(width,height)}
+    if(composer){composer.setPixelRatio(presentationPixelRatio(width,height,renderer.getPixelRatio()));composer.setSize(width,height)}
   }
   function quality(value:Settings['quality']){
     if(value==='low'){release();return}
     if(composer)return;
-    const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,samples:Math.min(2,renderer.capabilities.maxSamples)});
+    const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,samples:0});
     composer=new EffectComposer(renderer,target);
     bloom=new UnrealBloomPass(new T.Vector2(1,1),kingdomBloom.strength,kingdomBloom.radius,kingdomBloom.threshold);
     bloom.materialHighPassFilter.fragmentShader=`
