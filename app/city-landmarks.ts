@@ -4,6 +4,7 @@ import {createCuteResident} from './cute-resident';
 import {createReadableDisplay} from './readable-display';
 import {createTransitModels} from './transit-models';
 import {batchScenery} from './static-batching';
+import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 
 export const citySquare={x:150,z:79};
 export function createCityLandmarks(parent:T.Object3D){
@@ -93,11 +94,12 @@ export function createCityLandmarks(parent:T.Object3D){
     for(let petal=0;petal<5;petal++){const angle=petal/5*Math.PI*2;const bloom=mesh('Florist_Petal',new T.SphereGeometry(1,10,8),pink,Math.cos(angle)*.85,Math.sin(angle)*.85,0,petalRoot);bloom.scale.set(.75,.75,.22)}
     mesh('Florist_Pollen',new T.SphereGeometry(.53,12,8),gold,0,0,.21,petalRoot);
   }
-  const trunkGeometry=new T.CylinderGeometry(.2,.32,2.8,8),crownGeometry=new T.SphereGeometry(1,12,9);
+  const treeShape=createCanopyAsset('tree','distant'),treeMaterials=createCanopyMaterials();
+  root.userData.canopyStyle='astra-layered-leaf';root.userData.layeredTreeCount=6;
   for(const [x,z] of [[-32,-33],[32,-33],[-31,4],[30,7],[24,31],[-12,33]]){
     box('Quarter_Planter',x,.42,z,2.8,.85,2.8,finish.pearl);
-    mesh('Quarter_TreeTrunk',trunkGeometry,gold,x,2,z);
-    for(let lobe=0;lobe<3;lobe++){const crown=mesh('Quarter_CloudTopiary',crownGeometry,lobe%2?mint.lawn:mint.paint,x+(lobe-1)*.67,3.8+(lobe%2)*.7,z);crown.scale.set(1.2,1.6,1.2)}
+    const trunk=mesh('Quarter_BranchingTree',treeShape.wood,treeMaterials.wood,x,.83,z),crown=mesh('Quarter_LayeredLeafCanopy',treeShape.crown,treeMaterials.leaf,x,.83,z);
+    for(const object of [trunk,crown]){object.scale.set(.32,.44,.32);object.rotation.y=(x+z)*.13}
     solids.push({x,z,width:2.8,depth:2.8,height:5.5});
   }
   for(const [x,z] of [[14,20],[13,33],[-9,19]]){

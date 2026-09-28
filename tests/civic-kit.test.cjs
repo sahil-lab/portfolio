@@ -7,5 +7,5 @@ test('civic lamp families use different silhouettes without adding real-time lig
 });
 test('trees, seating, and ordinary street utilities share geometry and keep bounded colliders',()=>{
  const kit=createCivicKit(),root=new T.Group();for(const [index,kind] of ['shade','blossom','column'].entries())kit.tree(root,index*8,0,kind,index);kit.bench(root,0,8);kit.utilities(root,8,8);kit.flowers(root,0,14,5,1.5);
- assert.equal(kit.solids.length,5);assert.ok(root.getObjectByName('Civic_BenchSlat'));assert.ok(root.getObjectByName('Civic_RecyclingBin'));assert.ok(root.getObjectByName('Civic_PlantedFlowers'));const crowns=[];root.traverse(object=>{if(object.name==='Civic_OrganicCrown')crowns.push(object.geometry)});assert.equal(new Set(crowns).size,1);disposeScene(root);
+ assert.equal(kit.solids.length,5);assert.ok(root.getObjectByName('Civic_BenchSlat'));assert.ok(root.getObjectByName('Civic_RecyclingBin'));assert.ok(root.getObjectByName('Civic_PlantedFlowers'));const crowns=[];root.traverse(object=>{if(object.name==='Civic_OrganicCrown')crowns.push(object.geometry)});assert.equal(new Set(crowns).size,1);assert.ok(crowns.every(geometry=>geometry.attributes.canopyWeight&&geometry.attributes.canopyPhase));assert.equal(root.getObjectByName('Civic_Tree_shade').userData.canopyStyle,'astra-layered-leaf');disposeScene(root);
 });

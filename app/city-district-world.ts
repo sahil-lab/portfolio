@@ -6,6 +6,7 @@ import {createReadableDisplay} from './readable-display';
 import {batchScenery} from './static-batching';
 import {rampHeight,type Ramp} from './traversal';
 import {createCuteResident} from './cute-resident';
+import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 
 type DistrictSolid={x:number;z:number;y:number;width:number;depth:number;height:number};
 export const districtWalkways:Record<Exclude<CityDistrictKind,'lantern'>,{level:number;depth:number}>={
@@ -18,8 +19,10 @@ export function createAuthoredDistricts(parent:T.Object3D){
   const leaf=new T.MeshStandardMaterial({color:'#7ca16c',roughness:1});leaf.userData.surface='natural';
   const glass=finish('#7fb7b9',.055,.26);glass.roughness=.24;glass.userData.surface='glass';
   const signal=finish('#ecd5a1',.26,.1),ground=finish('#778e83');ground.roughness=.88;ground.userData.surface='natural';
+  const treeShape=createCanopyAsset('tree','distant'),treeMaterials=createCanopyMaterials();
   const districts=cityDistricts.filter(district=>district.id!=='lantern').map(district=>{
     const group=new T.Group();group.name='District_'+district.id;root.add(group);
+    group.userData.canopyStyle='astra-layered-leaf';group.userData.layeredTreeCount=6;
     const staticRoot=new T.Group();staticRoot.name='District_StaticCraft';group.add(staticRoot);
     const solids:DistrictSolid[]=[],moving:T.Object3D[]=[],fixtures:T.Object3D[]=[],lights:T.Mesh[]=[];
     const accent=finish(district.accent),walk=districtWalkways[district.id as keyof typeof districtWalkways];
@@ -81,8 +84,8 @@ export function createAuthoredDistricts(parent:T.Object3D){
       box('District_TurfPocket',side*29,.49,20,7.9,.075,11.4,leaf);
       for(let tree=0;tree<3;tree++){
         const x=side*29+(tree-1)*2.3,z=18+(tree%2)*3;
-        mesh('District_PrunedTrunk',new T.CylinderGeometry(.1,.23,2.7,7),wood,x,1.9,z);
-        const crown=mesh('District_PrunedCanopy',new T.SphereGeometry(1,10,8),leaf,x,3.7,z);crown.scale.set(1.25,1.75,1.15);
+        const trunk=mesh('District_BranchingTree',treeShape.wood,treeMaterials.wood,x,.52,z),crown=mesh('District_LayeredLeafCanopy',treeShape.crown,treeMaterials.leaf,x,.52,z);
+        for(const object of [trunk,crown]){object.scale.set(.23,.43,.23);object.rotation.y=tree*.93+side}
       }
       beam('District_WayLamp',new T.Vector3(side*8,0,28),new T.Vector3(side*8,4.9,28),.08,metal);
       mesh('District_LampSeal',new T.CylinderGeometry(.35,.4,.12,14),brass,side*8,5.1,28);

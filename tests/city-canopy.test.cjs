@@ -1,0 +1,13 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
+global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
+const T=require('three'),{createCityExpansion}=require('../app/city-expansion.ts'),{disposeScene}=require('../app/scene-resources.ts');
+test('motherboard street trees share the reference leaves and large banyan courtyards do not overlap homes',()=>{
+ const scene=new T.Scene(),city=createCityExpansion(scene);assert.ok(city.streetTrees.length>800);assert.ok(city.banyanGroves.placements.length>=2,'large banyans need clear city courtyards');assert.ok(city.banyanGroves.placements.every(record=>record.scale>1.4));
+ const first=city.neighborhoods[0],second=city.neighborhoods[1],canopy=first.getObjectByName('City_LayeredLeafCanopies');assert.ok(canopy.geometry.attributes.canopyWeight);assert.equal(canopy.geometry,second.getObjectByName('City_LayeredLeafCanopies').geometry);assert.equal(city.root.getObjectByName('City_RoundedStreetTrees'),undefined);
+ assert.equal(city.quarter.root.userData.layeredTreeCount,6);assert.equal(city.quarter.root.userData.canopyStyle,'astra-layered-leaf');
+ const plantedDistricts=city.authored.root.children.filter(group=>group.userData.layeredTreeCount===6);assert.equal(plantedDistricts.length,5);assert.ok(plantedDistricts.every(group=>group.userData.canopyStyle==='astra-layered-leaf'));
+ for(const owner of [city.quarter.root,...plantedDistricts]){let leafVertices=0;owner.traverse(object=>{if(object.geometry?.attributes.canopyWeight)leafVertices+=object.geometry.attributes.position.count});assert.ok(leafVertices>=6*84*18,'landmark trees must retain individually shaped leaves after batching')}
+ for(const tree of city.banyanGroves.placements){const radius=city.banyanGroves.assets.get('banyan/full').radius*tree.scale;assert.ok(city.lots.every(lot=>Math.hypot(Math.max(0,Math.abs(lot.x-tree.position.x)-lot.width/2),Math.max(0,Math.abs(lot.z-tree.position.z)-lot.depth/2))>radius));assert.equal(city.blocked(tree.position.x,tree.position.z,.8),true)}
+ for(const [x,z] of [[-100,279],[200,379],[150,287.4],[52,201]])assert.equal(city.blocked(x,z,.8),false);console.log('City street trees: '+city.streetTrees.length+'; large banyans: '+city.banyanGroves.placements.length);disposeScene(scene);
+});

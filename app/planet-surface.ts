@@ -3,7 +3,7 @@ import {planetPoint,planetUp,planetGeography,type PlanetSurface} from './planet-
 import {createPlanetInfrastructure} from './planet-infrastructure';
 import {createPlanetPopulation} from './planet-population';
 import {civilizationFor,civilizations} from './civilization-config';
-import {createCivilizationWorld,civilizationLogoReserved} from './civilization-world';
+import {createCivilizationWorld} from './civilization-world';
 import {batchScenery} from './static-batching';
 import {createPlanetRotation} from './planet-rotation';
 import {planetStyles} from './transit-config';
@@ -12,6 +12,7 @@ import {createRealmWorld} from './realm-world';
 import {planetArchitectureFor} from './architecture-profiles';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createPlanetPublicSpaces} from './planet-public-spaces';
+import {createPlanetCanopy} from './planet-canopy';
 export {createPlanetSurface,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
 
 const vertical=new T.Vector3(0,1,0);
@@ -42,7 +43,7 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   const identity=civilizationFor(surface.stop),palette=identity?civilizations[identity]:null;
   const infrastructure=createPlanetInfrastructure(root,surface);
   const publicSpaces=createPlanetPublicSpaces(root,surface,infrastructure);
-  const realm=createRealmWorld(root,surface),design=realmDesign(surface.stop),worldKind=surface.stop.worldKind;
+  const realm=createRealmWorld(root,surface),design=realmDesign(surface.stop);
   const style=planetStyles[surface.stop.id]??design;
   function terrainGeometry(width:number,height:number){
   const geometry=new T.SphereGeometry(1,width,height),positions=geometry.getAttribute('position'),colors=new Float32Array(positions.count*3);
@@ -59,21 +60,7 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   return geometry;
   }
   const globe=new T.Mesh(terrainGeometry(design?128:160,design?88:112),new T.MeshStandardMaterial({vertexColors:true,roughness:1}));globe.name=surface.stop.name+'_Planet';globe.position.copy(surface.center);globe.receiveShadow=true;root.add(globe);
-  const vegetationCount=worldKind==='research'?180:worldKind==='foundry'?210:worldKind==='skills'?250:300,trunkHeight=worldKind==='skills'?4.4:design?3.2:2.8;
-  const trunks=new T.InstancedMesh(new T.CylinderGeometry(.24,.4,trunkHeight,6),new T.MeshStandardMaterial({color:palette?.metal??design?.wood??'#a08868',roughness:palette?.55:1}),vegetationCount);
-  const growthGeometry=worldKind==='research'?new T.ConeGeometry(1.1,5.2,5):worldKind==='foundry'?new T.CylinderGeometry(3,.5,1.6,7):worldKind==='skills'?new T.SphereGeometry(2.8,12,8):style&&surface.stop.theme!=='copper'?new T.SphereGeometry(2.4,12,8):identity==='github'?new T.BoxGeometry(2.6,5.4,2.6):identity==='linkedin'?new T.BoxGeometry(1.1,5.8,1.1):surface.stop.theme==='garden'?new T.SphereGeometry(2.3,10,8):surface.stop.theme==='prism'?new T.OctahedronGeometry(2.1):new T.DodecahedronGeometry(2.4);
-  const growth=new T.InstancedMesh(growthGeometry,new T.MeshStandardMaterial({color:palette?.stone??style?.growth??(surface.stop.theme==='garden'?'#91c49a':surface.stop.theme==='copper'?'#e3bf87':'#b7d4e0'),roughness:palette?.4:.66,metalness:palette?.3:surface.stop.theme==='prism'?.16:0}),vegetationCount);
-  const dummy=new T.Object3D(),solids:{position:T.Vector3;radius:number}[]=[];
-  for(let index=0;index<vegetationCount;index++){
-    const latitude=1-2*(index+.5)/vegetationCount,longitude=index*2.3999632297,direction=new T.Vector3(Math.sqrt(1-latitude*latitude)*Math.cos(longitude),latitude,Math.sqrt(1-latitude*latitude)*Math.sin(longitude));
-    const point=planetPoint(surface,direction),up=planetUp(surface,point),size=.8+(index%4)*.23;
-    if(direction.y>.91||infrastructure.reserved(direction,point)||publicSpaces.reserved(direction,point)||civilizationLogoReserved(surface,direction)){dummy.scale.setScalar(0)}else{dummy.scale.setScalar(size);solids.push({position:point.clone(),radius:design?.7:surface.stop.theme==='garden'?.65:2.2*size})}
-    dummy.quaternion.setFromUnitVectors(vertical,up);dummy.position.copy(point).addScaledVector(up,trunkHeight/2*size);dummy.updateMatrix();trunks.setMatrixAt(index,dummy.matrix);
-    dummy.position.copy(point).addScaledVector(up,(worldKind==='research'?4.3:worldKind==='foundry'?3.8:worldKind==='skills'?5.2:surface.stop.theme==='garden'?4.6:2)*size);if(worldKind==='skills')dummy.scale.y*=.72;dummy.updateMatrix();growth.setMatrixAt(index,dummy.matrix);
-    if(palette)growth.setColorAt(index,new T.Color(index%4===0?palette.glass:palette.stone));
-    else if(design)growth.setColorAt(index,new T.Color(index%4===0?design.homes[1]:design.growth));
-  }
-  trunks.name='Planet_Trunks';growth.name=worldKind?`Realm_${worldKind}_Vegetation`:'Planet_Growth';trunks.computeBoundingSphere();growth.computeBoundingSphere();root.add(trunks,growth);
+  const solids:{position:T.Vector3;radius:number}[]=[];
   const outposts:{root:T.Group;position:T.Vector3;name:string;architecture:ReturnType<typeof createArchitectureNeighborhood>;inverse:T.Quaternion}[]=[];
   for(let index=0;index<5;index++){
     const angle=index*Math.PI*2/5,direction=index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(angle),-.1,Math.sin(angle)).normalize();
@@ -85,17 +72,18 @@ export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
     const signal=new T.Mesh(new T.OctahedronGeometry(.45),new T.MeshBasicMaterial({color:'#b1f6da'}));signal.position.set(2.8,4.5,0);group.add(signal);
     const name=index===4?'South pole observatory':'Horizon outpost '+(index+1);group.name=name;outposts.push({root:group,position,name,architecture,inverse:group.quaternion.clone().invert()});solids.push({position:position.clone(),radius:2.9});
   }
+  const vegetation=createPlanetCanopy(root,surface,infrastructure,publicSpaces.places,outposts);
   const population=createPlanetPopulation(root,surface,infrastructure.towns);
   const civilization=createCivilizationWorld(root,surface);
-  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root});
+  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root});
   const details=new T.Group();details.name='Planet_SurfaceDetails';details.add(...root.children);root.add(details);
   const distant=new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
   if(realm){root.add(realm.silhouette);details.visible=false;distant.visible=true}
   const rotation=createPlanetRotation(root,surface.center);
   const outpostObserver=new T.Vector3();
-  return {root,globe,outposts,infrastructure,publicSpaces,population,civilization,realm,rotation,details,distant,
-    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active)},
-    blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
+  return {root,globe,outposts,infrastructure,publicSpaces,vegetation,population,civilization,realm,rotation,details,distant,
+    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);vegetation.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active)},
+    blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||vegetation.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
     nearest:(position:T.Vector3)=>outposts.find(outpost=>position.distanceTo(outpost.position)<7),
   };
 }

@@ -74,9 +74,19 @@ Use foreground planting and street furniture, midground residents and active pub
 
 ## Remaining Limits
 
-- The complete world still exceeds the 1,100-draw / 650,000-triangle target in wide views. A representative Low-quality plaza capture is approximately 2,850 draws and 1.41 million triangles. Existing detailed characters and landmarks remain intact; a broader asset/LOD performance pass is still required.
+- The complete world still exceeds the 1,100-draw / 650,000-triangle target in wide views. A representative Low-quality plaza capture after the tree update is approximately 2,850 draws and 1.45 million triangles. Existing detailed characters and landmarks remain intact; a broader asset/LOD performance pass is still required.
 - Planetary mall galleries are modeled, but the spherical walking controller does not yet traverse their elevated floors. The motherboard mall, canal bridge, and observation terrace are traversable.
 - Civic buildings and storefronts are interactive scenes, not complete interior simulations or transactional shops. Generated buildings share an architectural vocabulary; they are not individually authored interior environments.
 - Location-specific audio, umbrellas and puddles, a larger waterfront, additional bridge/tunnel families, secret rooms, and longer resident stories remain follow-up work from the larger brief.
 - New plaza portfolio links use the current distributed resume. Older standalone resume/project pages and career data have not been reconciled in this pass.
 - Existing broader lint findings in the main page and legacy modules remain outside this change. No new deployment, commit, or push is included.
+
+## Layered Trees And Banyans
+
+- The original Astra reading tree supplies the tapered branches and individually shaped angular leaves used throughout planetary groves, city streets, civic parks, and district planting. The original workshop and Commons trees remain in place.
+- The six smaller satellites have 132 grove trees each; the three larger realm planets have 172 each. These totals include two banyans per planet, one in each hemisphere. Larger crowns are surveyed clear of roads, riverbanks, houses, public spaces, landmarks, and outposts.
+- Motherboard neighborhoods have 944 matching street trees and four larger banyans at local `(x,z)` coordinates `(-150,279)`, `(250,379)`, `(-250,-121)`, and `(350,779)`. The first is one block west of Willow Park. Planters in the landmark quarter and five district centers use smaller versions of the same leafy form.
+- Banyans have wide branching crowns, thicker trunks, ten prop-root columns, and hanging aerial roots. Terrain footings meet the actual curved ground. Only trunks and support columns block walking, leaving room beneath the canopy.
+- Shared instanced geometry and near/distant detail keep the same leaf silhouette without rendering every tree at maximum detail. Grove and street leaves move in the breeze; reduced motion freezes them. Compact, statically batched planter trees remain still.
+- [../scripts/check-canopy.cjs](../scripts/check-canopy.cjs) passed 30 desktop/mobile captures across the Motherboard and all nine planets, checking actual-geometry framing, visible leaf-motion pixels, reduced-motion freezing, shader errors, and original scene identity. Sampled planetary groves contributed 4-17 draws per view. This is not a full-world frame-rate certification.
+- Terrain, placement, city, and transit checks passed 67 tests, followed by 12 landmark planting and district regressions. The capital browser walkthrough also passed all five routes with 3,272 clear ground samples and retained mall/observation stair access.

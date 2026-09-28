@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {createReadableDisplay} from './readable-display';
+import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 
 export function createCivicKit(){
  const finish=(color:string,roughness=.7,metalness=.1)=>new T.MeshStandardMaterial({color,roughness,metalness});
@@ -10,20 +11,13 @@ export function createCivicKit(){
  function mesh(parent:T.Object3D,name:string,shape:T.BufferGeometry,material:T.Material,position:T.Vector3,solid=false){const object=new T.Mesh(shape,material);object.name=name;object.position.copy(position);object.castShadow=object.receiveShadow=true;parent.add(object);if(solid){shape.computeBoundingBox();solids.push(shape.boundingBox!.clone().translate(position));object.userData.cameraSolid=true}return object}
  function box(parent:T.Object3D,name:string,position:T.Vector3,size:[number,number,number],material:T.Material,solid=false){return mesh(parent,name,geometry('box/'+size.join('/'),()=>new T.BoxGeometry(...size)),material,position,solid)}
  function beam(parent:T.Object3D,name:string,from:T.Vector3,to:T.Vector3,material=materials.brass,radius=.06){const delta=to.clone().sub(from),object=mesh(parent,name,geometry('beam/'+radius,()=>new T.CylinderGeometry(radius,radius,1,8)),material,from.clone().add(to).multiplyScalar(.5));object.scale.y=delta.length();object.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return object}
- const leafGeometry=geometry('organic-crown',()=>{
-  const shape=new T.SphereGeometry(1,14,10),positions=shape.attributes.position;
-  for(let index=0;index<positions.count;index++){const point=new T.Vector3().fromBufferAttribute(positions,index),factor=1+.055*Math.sin(point.x*9+point.z*4)*Math.sin(point.y*7);positions.setXYZ(index,point.x*factor,point.y*factor,point.z*factor)}shape.computeVertexNormals();return shape;
- });
+ let canopy:{shape:ReturnType<typeof createCanopyAsset>;finishes:ReturnType<typeof createCanopyMaterials>}|null=null;
  function tree(parent:T.Object3D,x:number,z:number,kind:'shade'|'blossom'|'column'='shade',seed=0){
   const group=new T.Group();group.name='Civic_Tree_'+kind;group.position.set(x,0,z);parent.add(group);
-  const height=kind==='column'?5.6:4.4+(seed%4)*.32,branches=kind==='column'?3:5;
-  mesh(group,'Civic_BranchingTrunk',geometry('tree-trunk',()=>new T.CylinderGeometry(.13,.29,1,10)),materials.wood,new T.Vector3(0,height*.36,0)).scale.y=height*.72;
-  for(let branch=0;branch<branches;branch++){
-   const angle=branch*Math.PI*2/branches+seed*.17,reach=kind==='column'?.36:1.1+(branch%2)*.4,point=new T.Vector3(Math.cos(angle)*reach,height*.76+(branch%2)*.5,Math.sin(angle)*reach);
-   beam(group,'Civic_TreeBranch',new T.Vector3(0,height*.4,0),point,materials.wood,.065);
-   const crown=mesh(group,'Civic_OrganicCrown',leafGeometry,kind==='blossom'?(branch%2?materials.petal:materials.tip):branch%2?materials.leaf:materials.tip,point);
-   crown.scale.set(kind==='column'?.67:1.2,kind==='column'?1.55:.9,kind==='column'?.67:1.15);
-  }
+  const {shape,finishes}=canopy??={shape:createCanopyAsset('tree','distant'),finishes:createCanopyMaterials()},height=kind==='column'?5.6:4.4+(seed%4)*.32,width=kind==='column'?.2:.34;
+  group.userData.canopyStyle='astra-layered-leaf';
+  const trunk=mesh(group,'Civic_BranchingTrunk',shape.wood,finishes.wood,new T.Vector3()),crown=mesh(group,'Civic_OrganicCrown',shape.crown,finishes.leaf,new T.Vector3());
+  for(const object of [trunk,crown]){object.scale.set(width,height/shape.height,width);object.rotation.y=seed*.71}
   const rim=mesh(group,'Civic_TreeGrate',geometry('tree-grate',()=>new T.TorusGeometry(.69,.055,6,24)),materials.brass,new T.Vector3(0,.045,0));rim.rotation.x=Math.PI/2;
   solids.push(new T.Box3(new T.Vector3(x-.36,0,z-.36),new T.Vector3(x+.36,height*.7,z+.36)));return group;
  }
