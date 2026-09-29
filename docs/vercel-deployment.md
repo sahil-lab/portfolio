@@ -14,6 +14,27 @@ Vercel uses `vercel.json` and the separate `vite.vercel.config.ts`. The build co
 
 A dashboard 404 can also mean the wrong account/team or an unavailable project; code changes cannot repair account access. Check the deployed `.vercel.app` URL separately.
 
+## Linux PC assets
+
+`npm run build:vercel` automatically runs `prebuild:vercel`, which invokes
+`npm run friends:prepare` before the adapter builds. This creates the v86 WebAssembly,
+firmware, Linux image, license, and manifest under `public/assets/friends-pc`.
+These generated files are intentionally ignored by Git, so a fresh deployment
+must prepare them even when Linux already works on a developer's computer.
+The build needs HTTPS access to the firmware and kernel sources in the preparation
+script and fails if those required downloads fail. Do not replace the configured
+build command with a direct `vite build` command that skips the npm prebuild hook.
+
+After deploying this change, `/assets/friends-pc/manifest.json` must return JSON,
+and all boot files must return HTTP 200. `scripts/check-vercel-output.cjs` checks
+that the packaged Linux files match their manifest sizes and SHA-256 hashes.
+
+Leave **Internet** unchecked when testing Linux boot on Vercel. Guest internet
+access separately requires `NEXT_PUBLIC_GUEST_RELAY` pointing to a secured HTTPS
+relay; the Render multiplayer room service is not that relay. An unconfigured
+guest relay does not prevent offline Linux boot. This fix does not expose the
+local relay or provision a public proxy.
+
 ## Local verification
 
 ```sh
@@ -23,7 +44,16 @@ node scripts/check-vercel-output.cjs
 node node_modules/vite/bin/vite.js preview --config vite.vercel.config.ts --port 3001
 ```
 
-Visit http://localhost:3001/, `/resume` and `/projects`. The preview runs the generated Vercel output locally; it is not evidence of a successful hosted deployment.
+Visit <http://localhost:3001/>, `/resume` and `/projects`. The preview runs the generated Vercel output locally; it is not evidence of a successful hosted deployment.
+
+To verify Linux without a guest relay against a running local preview:
+
+```sh
+npm exec --yes --package=playwright -- node scripts/check-friends-pc.cjs --offline --url=http://127.0.0.1:3001/
+```
+
+The browser check uses a temporary local multiplayer room server, verifies the
+real Linux kernel and boot asset responses, and captures desktop/mobile layouts.
 
 Verified 19 September 2026 on Node 24: production adapter build; root, résumé, projects, GLB and PDF HTTP 200; actual game rendered and Packet Press responded with no browser console errors. All 26 gameplay tests passed. The installed Vercel context plugin requires a new agent session to load its tools. Authenticated Vercel deployment status still needs verification after sign-in.
 
