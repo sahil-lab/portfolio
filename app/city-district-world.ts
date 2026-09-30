@@ -4,6 +4,7 @@ import {createCityBuilding,cityBlock} from './city-architecture';
 import {createCraftMaterials} from './crafted-surfaces';
 import {createReadableDisplay} from './readable-display';
 import {batchScenery} from './static-batching';
+import {createResidentInstances} from './resident-instances';
 import {rampHeight,type Ramp} from './traversal';
 import {createCuteResident} from './cute-resident';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
@@ -211,11 +212,12 @@ export function createAuthoredDistricts(parent:T.Object3D){
       interact:()=>{cycles++;return messages[district.id as keyof typeof messages][cycles%2]},
     };
   });
+  const instances=createResidentInstances(root,districts.flatMap(site=>site.residents));
   return {root,districts,lowerLevelAt:inLowerWorks,
     blocked:(x:number,z:number,y:number)=>districts.some(site=>Math.abs(x-site.district.x)<50&&Math.abs(z-site.district.z)<50&&site.blocked(x,z,y)),
     height:(x:number,z:number,previous:number)=>{for(const site of districts){const value=site.height(x,z,previous);if(value!==null)return value}return null},
     prompt:(position:T.Vector3)=>{const site=districts.find(site=>site.near(position));return site?'E \u00b7 '+site.district.landmark:null},
     interact:(position:T.Vector3)=>districts.find(site=>site.near(position))?.interact()??null,
-    update:(dt:number,reduced:boolean,player:T.Group,active:boolean)=>districts.forEach(site=>site.update(dt,reduced,active&&Math.hypot(player.position.x-site.district.x,player.position.z-site.district.z)<340,player.position)),
+    update:(dt:number,reduced:boolean,player:T.Group,active:boolean)=>{districts.forEach(site=>site.update(dt,reduced,active&&Math.hypot(player.position.x-site.district.x,player.position.z-site.district.z)<340,player.position));instances.update()},
   };
 }

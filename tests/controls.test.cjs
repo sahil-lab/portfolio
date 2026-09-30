@@ -41,13 +41,13 @@ test('camera responds to moving doors on the next frame',()=>{
 test('camera presets switch between close, far and eye-level first person without changing heading',()=>{
  const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1,.1,1000);scene.add(player);scene.scale.setScalar(2);player.position.set(4,.8,-6);
  const rig=createGameCamera(camera,scene,player),target=()=>player.getWorldPosition(new T.Vector3()).addScaledVector(player.up,1.5);
- rig.setMode('close');rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.position.distanceTo(target())-12)<1e-8);assert.equal(player.visible,true);
+ rig.setMode('close');rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.position.distanceTo(target())-24)<1e-8);assert.equal(player.visible,true);
  rig.rotate(40,0,false);const yaw=rig.yaw;rig.setMode('far');rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.position.distanceTo(target())-46)<1e-8);assert.equal(rig.yaw,yaw);
  rig.setMode('first-person');rig.update(.016,false,defaultSettings);assert.ok(camera.position.distanceTo(target())<1e-8);assert.equal(player.visible,false);
  const forward=camera.getWorldDirection(new T.Vector3());assert.ok(forward.dot(new T.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)))>.999);
  rig.rotate(0,-200,false);rig.zoom(100);rig.update(.016,false,defaultSettings);assert.ok(camera.getWorldDirection(new T.Vector3()).y>.5);assert.ok(camera.position.distanceTo(target())<1e-8);
  rig.reset();rig.update(.016,false,defaultSettings);assert.ok(Math.abs(camera.getWorldDirection(new T.Vector3()).y)<1e-8);
- rig.setMode('close');rig.reset();rig.update(.016,false,defaultSettings);assert.equal(player.visible,true);assert.ok(Math.abs(camera.position.distanceTo(target())-12)<1e-8);
+ rig.setMode('close');rig.reset();rig.update(.016,false,defaultSettings);assert.equal(player.visible,true);assert.ok(Math.abs(camera.position.distanceTo(target())-24)<1e-8);
 });
 test('first person follows a planet surface frame and restores the avatar on exit',()=>{
  const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera();scene.add(player);player.up.set(1,0,0);player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),player.up);

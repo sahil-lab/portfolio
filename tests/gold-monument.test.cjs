@@ -1,14 +1,14 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),T=require('three');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {createGoldMonument,goldMonumentRatio,goldMonumentAsset}=require('../app/gold-monument.ts');
-const {bulletinSites}=require('../app/bulletin-world.ts');
+const {referenceModelHeight}=require('../app/world-config.ts');
 const {goldMonumentSite}=require('../app/gold-monument-site.ts'),{cityDistrictReserved,cityDistricts}=require('../app/city-districts.ts');
 const buffer=fs.readFileSync('public/assets/sah-suited-figure.glb'),gltf=JSON.parse(buffer.subarray(20,20+buffer.readUInt32LE(12)).toString());
 function fixture(){return new T.Mesh(new T.BoxGeometry(1.08,1.98,.8),new T.MeshStandardMaterial({color:'#dca83e',metalness:.82,roughness:.3}))}
 async function setup(asset=fixture()){
  const world=new T.Scene();world.scale.setScalar(2);world.fog=new T.FogExp2('#222222',1);
  const camera=new T.PerspectiveCamera(50,1.5,.1,18000);
- const monument=createGoldMonument(world,{bulletinHeight:bulletinSites.markets.height,load:async()=>asset});
+ const monument=createGoldMonument(world,{bulletinHeight:referenceModelHeight,load:async()=>asset});
  await monument.ready;return {world,camera,monument,asset};
 }
 test('GLB contains the suited figure and podium, no photos or source helpers, and a bounded display mesh',()=>{
@@ -20,11 +20,11 @@ test('GLB contains the suited figure and podium, no photos or source helpers, an
  const triangles=gltf.meshes.flatMap(mesh=>mesh.primitives).reduce((sum,primitive)=>sum+gltf.accessors[primitive.indices].count/3,0);
  assert.ok(triangles>50000&&triangles<180000);assert.ok(buffer.length<6000000);assert.equal(gltf.animations?.length??0,0);
 });
-test('figure and podium are three bulletin heights without changing proportions or ground contact',async()=>{
+test('figure and podium retain their authored reference scale, proportions and ground contact',async()=>{
  const model=fixture(),sourceSize=new T.Box3().setFromObject(model).getSize(new T.Vector3());
- const {monument,world}=await setup(model);assert.equal(monument.status,'ready');assert.equal(goldMonumentRatio,3);assert.equal(monument.height,bulletinSites.markets.height*3);
+ const {monument,world}=await setup(model);assert.equal(monument.status,'ready');assert.equal(goldMonumentRatio,3);assert.equal(referenceModelHeight,16.875);assert.equal(monument.height,referenceModelHeight*3);
  const bounds=new T.Box3().setFromObject(monument.visual);
- assert.ok(bounds.getSize(new T.Vector3()).distanceTo(sourceSize.multiplyScalar(bulletinSites.markets.height*goldMonumentRatio*world.scale.y/sourceSize.y))<1e-6);
+ assert.ok(bounds.getSize(new T.Vector3()).distanceTo(sourceSize.multiplyScalar(referenceModelHeight*goldMonumentRatio*world.scale.y/sourceSize.y))<1e-6);
  assert.equal(bounds.min.y,0);assert.equal(bounds.max.y,monument.height*world.scale.y);
  assert.equal(monument.root.parent,world);assert.deepEqual(monument.root.children,[monument.visual]);assert.deepEqual(monument.visual.children,[model]);
  assert.equal(monument.tower,undefined);assert.equal(monument.root.getObjectByName('Monument_CivicPlaza'),undefined);
@@ -62,4 +62,8 @@ test('late asset arrivals are disposed and cannot resurrect a closed world',asyn
  asset.geometry.addEventListener('dispose',()=>geometries++);asset.material.addEventListener('dispose',()=>materials++);
  const monument=createGoldMonument(world,{bulletinHeight:16.875,load:()=>new Promise(resolve=>{finish=resolve})});
  monument.dispose();finish(asset);await monument.ready;assert.equal(geometries,1);assert.equal(materials,1);assert.equal(monument.root.visible,false);assert.equal(monument.root.parent,null);assert.equal(world.children.length,0);
+});
+test('the monument becomes visible only after optional shader preparation completes',async()=>{
+ let finish,started;const preparing=new Promise(resolve=>{started=resolve}),world=new T.Scene(),monument=createGoldMonument(world,{bulletinHeight:referenceModelHeight,load:async()=>fixture(),prepare:root=>{assert.equal(root.visible,false);started();return new Promise(resolve=>{finish=resolve})}});
+ await preparing;assert.equal(monument.status,'loading');assert.equal(monument.root.visible,false);finish();await monument.ready;assert.equal(monument.root.visible,true);assert.equal(monument.status,'ready');monument.dispose();
 });

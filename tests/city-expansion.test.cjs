@@ -31,12 +31,22 @@ test('the expanded city has hundreds of bounded homes, three detail levels and c
   const {createCityExpansion}=require('../app/city-expansion.ts'),city=createCityExpansion(new T.Scene());
   assert.ok(city.lots.length>=900);assert.ok(city.neighborhoods.every(neighborhood=>neighborhood.levels.length===3));
   const recipes=city.architecture.flatMap(({town})=>town.records.map(record=>record.recipe));assert.equal(recipes.length,city.lots.length);assert.equal(new Set(recipes.map(recipe=>recipe.seed)).size,city.lots.length);assert.equal(new Set(city.lots.map(lot=>lot.address)).size,city.lots.length);
+  for(const region of city.farRegions.values()){
+    for(const block of region.blocks)for(const batch of city.roofscape.batches)for(const range of batch.ranges.filter(range=>range.state===block.state)){
+      const bounds=range.bounds,position=block.lod.position;
+      assert.ok(bounds.min.x>=position.x-60&&bounds.max.x<=position.x+60,'skyline retains its block x coordinates');
+      assert.ok(bounds.min.z>=position.z-60&&bounds.max.z<=position.z+60,'skyline retains its block z coordinates');
+    }
+  }
+  assert.ok(city.roofscape.batches.length<=12);assert.ok(city.architecture.every(({town})=>town.shells.children.length===0),'silhouette buffers have one renderer owner');
   assert.equal(city.root.getObjectByName('City_MidriseShells'),undefined);assert.equal(city.root.getObjectByName('City_DistantRoofscape'),undefined);
   for(const lot of city.lots){assert.ok(lot.x-lot.width/2>motherboardBounds.minX&&lot.x+lot.width/2<motherboardBounds.maxX);assert.ok(lot.z-lot.depth/2>motherboardBounds.minZ&&lot.z+lot.depth/2<motherboardBounds.maxZ);assert.equal(city.blocked(lot.x,lot.z,.8),true)}
   for(const [x,z] of [[0,240],[-100,79],[300,279],[0,-600],[500,1179],[0,19]])assert.equal(city.blocked(x,z,.8),false);
   const player=new T.Group();player.position.set(-115,.8,79);city.update(.1,false,player,true);assert.ok(city.root.visible);city.update(.1,false,player,false);assert.equal(city.root.visible,false);
   const camera=new T.PerspectiveCamera();camera.position.set(0,2000,9000);city.update(.1,true,player,true,camera);assert.ok([...city.farRegions.values()].every(region=>region.root.visible));assert.ok([...city.farRegions.values()].every(region=>region.root.children.length<=12));assert.ok([...city.farRegions.values()].every(region=>region.blocks.every(({far})=>far.children.every(mesh=>!mesh.visible))));
-  disposeScene(city.root);delete global.document;
+  assert.ok(city.neighborhoods.every(neighborhood=>!neighborhood.visible),'consolidated skyline skips per-block render traversal');
+  const nearest=city.neighborhoods[0];camera.position.copy(nearest.position);city.update(.1,true,player,true,camera);assert.ok(nearest.visible,'individual detail returns when approached');
+  city.dispose();disposeScene(city.root);delete global.document;
 });
 
 test('three distinct new planets join the original worlds outside the enlarged motherboard footprint',()=>{

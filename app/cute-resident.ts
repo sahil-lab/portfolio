@@ -19,8 +19,9 @@ export function createCuteResident(color:string,variant=0,occupation?:ResidentOc
   const metal=new T.MeshStandardMaterial({color:'#b9c1bd',roughness:.48,metalness:.65});
   skin.userData.surface='ceramic';coat.userData.surface='paint';metal.userData.surface='brushed-metal';
   const sphere=new T.SphereGeometry(1,12,9);
+  const instanceParts:T.Mesh[]=[];
   function orb(name:string,finish:T.Material,x:number,y:number,z:number,width:number,height:number,depth:number,parent:T.Object3D=root){
-    const mesh=new T.Mesh(sphere,finish);mesh.name=name;mesh.position.set(x,y,z);mesh.scale.set(width,height,depth);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
+    const mesh=new T.Mesh(sphere,finish);mesh.name=name;mesh.position.set(x,y,z);mesh.scale.set(width,height,depth);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);instanceParts.push(mesh);return mesh;
   }
   function block(name:string,finish:T.Material,x:number,y:number,z:number,width:number,height:number,depth:number,parent:T.Object3D=root){
     const mesh=new T.Mesh(cityBlock(width,height,depth,Math.min(width,height,depth)*.23),finish);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
@@ -81,7 +82,7 @@ export function createCuteResident(color:string,variant=0,occupation?:ResidentOc
   }
   const eyeHeights=eyes.map(eye=>eye.scale.y),phase=seed*.713,blinkPeriod=3.8+seed%5*.37;let time=0,reaction=0;
   root.userData.variant=seed;root.userData.occupation=profile.occupation;root.userData.temperament=profile.temperament;
-  return {root,feet,parts:{head,eyes,smile,arms},movingParts:[head,...arms,...feet],react:()=>{reaction=1.3},update:(dt:number,{moving=false,reduced=false,attentive=false,look=0}:ResidentMotion={})=>{
+  return {root,feet,instanceParts,parts:{head,eyes,smile,arms},movingParts:[head,...arms,...feet],react:()=>{reaction=1.3},update:(dt:number,{moving=false,reduced=false,attentive=false,look=0}:ResidentMotion={})=>{
     const delta=Number.isFinite(dt)?Math.max(0,dt):0;time+=reduced?0:delta;reaction=Math.max(0,reaction-delta);
     const engaged=attentive||reaction>0,gait=moving&&!reduced?Math.sin(time*7+phase):0;
     const blink=reduced?1:1-Math.max(0,1-Math.abs((time+phase)%blinkPeriod-(blinkPeriod-.12))/.11)*.88;

@@ -12,7 +12,124 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
-## Matched Local Measurements
+## Runtime Follow-up, 29 September 2026
+
+The follow-up targets rendering CPU cost after the visual refinement pass. The
+control is a snapshot of that working tree, not the older published tree:
+`outputs/performance-source/visual-control` contains 552 copied tracked files
+and their SHA-256 fingerprints. The parent revision is
+`168dc87fca0a640923c1eaf27846ab2ac844f13f`. The snapshot includes the pending
+visual refinements and excludes personal files and generated outputs.
+
+An initial diagnostic captured a long first-use shader stall, thousands of draw
+submissions, and repeated matrix traversal. A separate production probe found
+about 47.6 ms in rendering per frame, versus a 16.6 ms frame cadence with drawing
+temporarily disabled. Halving render resolution only reduced the frame interval
+from about 59.8 to 56.3 ms. That pointed to rendering CPU work rather than a need
+to reduce every model or the screen resolution.
+
+### Retained Changes
+
+- `app/static-transforms.ts` caches explicitly immutable branches. It skips
+  descendant matrix updates only while the parent/local transforms and child
+  identities are unchanged. Streamed replacements invalidate the cache.
+- `app/static-batching.ts` groups compatible static pieces within 40-unit
+  tiles. Original vertex positions, materials, camera bounds, and excluded
+  animated objects remain intact.
+- `app/visible-geometry.ts` holds city roofscape vertices once per material,
+  replacing duplicate per-block and regional silhouette buffers. It compacts
+  the index buffer to the visible block ranges for the current camera/shadow
+  pass and only uploads it when that selection changes. Nearby full building
+  envelopes and facades still replace the same silhouettes at their existing
+  distances. This is batching and culling, not geometric simplification.
+- `app/resident-instances.ts` draws repeated rounded resident parts through
+  shared instances, while the existing character objects retain their own
+  animation, colors, expressions, interactions, and collision positions.
+  Hidden stations and vehicle-parent transforms are respected.
+- `app/shader-preparation.ts` serializes Three.js asynchronous compilation
+  using the active presentation target. Initial visible shaders prepare before
+  the frame loop begins; new large models, city detail, and planet detail
+  prepare before activation. Cancellation cannot attach abandoned detail, and
+  final renderer teardown waits for active preparation. Shader error checking
+  remains enabled.
+
+Two experiments were removed: a `BatchedMesh` city variant increased render
+cost on this GPU, and a global position/rotation comparison wrapper added more
+overhead than it saved. Only the targeted static transform caches remain.
+
+### Fixed-quality Comparison
+
+Both builds use plain production Vinext, Chrome on the same Windows computer
+with Intel Arc Pro graphics through ANGLE, device scale factor 1, and explicit
+Balanced graphics. No CPU sampling is active during the comparison. Each
+location warms for 90 frames and then takes three 90-frame samples. The table
+shows the mean frame interval of the median run, with FPS derived from it.
+
+| View | Before ms / FPS | After ms / FPS |
+| --- | ---: | ---: |
+| Desktop plaza, 1440 x 960 | 69.07 / 14.48 | 62.96 / 15.88 |
+| Desktop mall | 70.00 / 14.29 | 61.48 / 16.27 |
+| Desktop Citadel | 33.15 / 30.17 | 30.18 / 33.13 |
+| Mobile viewport plaza, 390 x 844 | 35.74 / 27.98 | 30.37 / 32.93 |
+| Mobile viewport mall | 36.66 / 27.27 | 29.26 / 34.18 |
+| Mobile viewport Citadel | 25.93 / 38.57 | 20.92 / 47.79 |
+
+Desktop world-ready time was 20.68 s before and 13.01 s after; mobile-viewport
+time was 18.52 s before and 12.02 s after. The ready marker is not standardized
+TTI, and these startup samples are not a repeated cold-cache benchmark.
+
+At the desktop plaza, post-GC heap fell from 273.82 to 244.90 MiB, unique geometry
+buffers from 180.77 to 155.37 MiB, and scene object count from 21,209 to 12,537.
+Sampled draw submissions fell from 3,255 to 2,054 in the plaza and 3,275 to 2,222
+at the mall. Counters include shadow/postprocessing passes; individual snapshots
+are phase-dependent and some planet/mobile snapshots are higher, so this does
+not establish a draw-count reduction at every location.
+
+The improvement is not uniform: the selected desktop-plaza p95 was 83.7 ms
+before and 100 ms after; mall p95 stayed about 83.5 ms. Average frames improve,
+but worst-frame pacing is not solved. The wide desktop city remains around
+16 FPS on this machine, below the 30/60 FPS targets.
+
+The control runs before the candidate in one Chrome process. Shared browser or
+driver caches and machine load can affect results. Three timing windows are
+not three independent sessions, and touch emulation uses the desktop GPU, not
+a physical phone. The comparison is local evidence, not a field-performance
+guarantee or proof of the original deployed Chrome crash's cause.
+
+Results and screenshots are in
+`outputs/performance/runtime-comparison-{desktop,mobile}/metrics.json`.
+Earlier `runtime-production-candidate`, `runtime-production-after`, and
+`visual-runtime-*` reports are intermediate experiments, not the final comparison.
+
+### Verification and Reproduction
+
+All 438 Node regression tests passed, followed by focused callback-binding
+checks. TypeScript and the optimized runtime modules passed; the existing
+`app/world.ts` variable warning and page-level lint findings remain outside
+this task. The full production city walkthrough preserved all five promenades,
+public-place interactions, mall gallery, lookout, resume access, night lighting,
+and loaded planet arrivals.
+
+Chrome desktop/mobile camera cycles and forced WebGL loss/restoration passed
+with the same document, canvas, scene, and player position. Desktop rapid travel
+settled within the two-planet residency target and returned to zero detailed
+residents after retirement. No unexpected page error, renderer crash, or context
+loss occurred in those checks. This finite test is not a claim that all leaks or
+device-specific crashes are eliminated.
+
+```sh
+node scripts/build-performance.mjs
+npm exec --yes --package=playwright -- node scripts/compare-runtime.cjs --control=http://127.0.0.1:4310/ --candidate=http://127.0.0.1:4311/
+npm exec --yes --package=playwright -- node scripts/compare-runtime.cjs --mobile --control=http://127.0.0.1:4310/ --candidate=http://127.0.0.1:4311/
+npm exec --yes --package=playwright -- node scripts/profile-world.cjs --quick --runtime-cpu --label=runtime-diagnostic --url=http://127.0.0.1:4311/
+```
+
+Serve the preserved control and current candidate separately before comparison.
+The plain production builds succeeded. Vercel-specific Nitro packaging remains
+unverified following the previously observed Windows `EBUSY` copy issue; no
+hosting configuration or deployed resources were changed by this runtime pass.
+
+## Earlier Streaming Measurements
 
 The control is published commit `40fc5daf4c8a30673413b56e31861df14c7a7487`.
 Both versions used local production Vinext builds, installed Chrome, Intel Arc
@@ -137,12 +254,13 @@ included in Git.
 
 ## Remaining Limits
 
-Motherboard construction and shader initialization still contain expensive
-synchronous work. The scheduler yields between tasks but is not a frame-time
-budget scheduler. All lightweight city shells are still built initially, and
-regional skyline batches duplicate some geometry. Some Motherboard systems
-still simulate while off-world, and the camera periodically rescans visible
-bounds. Unloaded planet proxies do not include every detailed landmark.
+Motherboard construction still contains expensive synchronous work. Shader
+preparation reduces first-use waits but cannot remove driver compilation cost.
+The scheduler yields between tasks but is not a frame-time budget scheduler.
+Lightweight city geometry is still generated initially, now retained once in
+shared material buffers. Some Motherboard systems still simulate while
+off-world, and the camera periodically rescans visible bounds. Unloaded planet
+proxies do not include every detailed landmark.
 
 This pass does not add geometry/texture compression, workers, a BVH, offline
 caching, or CDN changes. Further work should target the measured city draw

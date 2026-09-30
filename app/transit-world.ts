@@ -2,7 +2,9 @@ import * as T from 'three';
 import {transitStops,resonatorOffset,TransitJourney,type TransitMode,type TransitStop} from './transit-config';
 import {createMetroPath,MetroRailCurve,metroDimensions,metroAxleSpan,metroDistance,placeMetro,rocketFlight,type MetroPath} from './transit-motion';
 import {createTransitModels} from './transit-models';
+import {createTransitCanopy} from './transit-canopy';
 import {batchScenery} from './static-batching';
+import {cacheStaticTransforms} from './static-transforms';
 import {moveCharacter} from './character-controller';
 import {createNeighborhood} from './neighborhood';
 import {visibleTransitStops} from './transit-visibility';
@@ -28,6 +30,8 @@ const bounds={
 export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  blocked:(x:number,z:number,y:number)=>boolean;ground:(x:number,z:number,y:number)=>number|null;
  change:(s:TransitStatus)=>void;open:()=>void;notice:(s:string)=>void;sound:()=>void;
+ arrive?:(destination:number)=>void;
+ prepare?:(root:T.Object3D)=>Promise<void>;
 }){
  const root=new T.Group();root.name='OrbitalTransit';scene.add(root);const fixed=new T.Group();root.add(fixed);
  const stations=transitStops.map(stop=>{
@@ -38,7 +42,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  let visited=['motherboard'];try{const raw=JSON.parse(localStorage.getItem('kingdom-transit-v1')??'null');if(raw?.version===1&&Array.isArray(raw.visited))visited=[...new Set<string>(['motherboard',...raw.visited.filter((id:unknown)=>typeof id==='string'&&transitStops.some(s=>s.id===id))])]}catch{/* Storage is optional. */}
  const obstacles:{x:number;z:number;y:number;r:number}[]=[],planetSignals:T.Mesh[]=[],rotating:T.Object3D[]=[];
  const surfaces=transitStops.map((stop,index)=>index?createPlanetSurface(stop,stop.radius):null);
- const streaming=createPlanetStreamer(fixed,surfaces),landscapes=streaming.landscapes;
+ const streaming=createPlanetStreamer(fixed,surfaces,{prepare:callbacks.prepare}),landscapes=streaming.landscapes;
  let driveX=0,driveZ=1;
  const cars=transitStops.map((stop,index)=>{const car=kit.rover(stop.color);car.root.position.set(stop.x-10,stop.y,stop.z+3);stations[index].actors.add(car.root);return car});
  const rockets=transitStops.map((stop,index)=>{const rocket=kit.rocket(stop.color);rocket.root.position.set(stop.x+10,stop.y,stop.z+2);stations[index].actors.add(rocket.root);return rocket});
@@ -91,12 +95,13 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   }
   kit.box(fixed,kit.cream,x-4,y-.18,z,5.2,.45,17.5);kit.box(fixed,kit.copper,x-1.5,y+.08,z,.12,.12,17.5);
   for(const dz of [-4.8,4.8]){kit.box(fixed,kit.copper,x-6,y+2.5,z+dz,.2,5,.2);obstacles.push({x:x-6,z:z+dz,y,r:.4})}
-  const roof=kit.box(fixed,kit.surface(stop.color),x-4,y+5.1,z,5.8,.25,12.6);roof.userData.cameraSolid=true;
+  const canopy=createTransitCanopy(fixed,stop);stations[index].root.userData.architectureStyle=canopy.style;
   sign(fixed,'NEIGHBOR METRO',x-6.8,index?y-.1:.45,z+6.6,3,1.35,'arrow');
   const pad=kit.mesh(fixed,new T.CylinderGeometry(3.3,3.5,.24,40),kit.navy,x+10,y-.07,z+2);pad.name='RocketLaunchPad';
   const padRing=kit.mesh(fixed,new T.TorusGeometry(2.7,.07,6,48),kit.glow,x+10,y+.07,z+2);padRing.rotation.x=Math.PI/2;
   sign(fixed,'ION ROCKET · E',x+10,index?y-.1:-.18,z-2.8,2.1,1.7,'arch');sign(fixed,'ROVER · E TO DRIVE',x-10,index?y-.1:-.18,z-.7,2.3,1.2,'arrow');
   batchScenery(fixed,{});fixed.traverse(object=>{if(object instanceof T.Mesh)object.castShadow=object.userData.realmShadowCaster===true});
+  cacheStaticTransforms(fixed);
  });
  fixed.traverse(o=>{if(o instanceof T.Mesh)o.castShadow=o.userData.realmShadowCaster===true});
 
@@ -160,7 +165,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   }
   metro.root.visible=true;updateStationDetails(dt,reduced);
   if(!visited.includes(s.id)){visited.push(s.id);try{localStorage.setItem('kingdom-transit-v1',JSON.stringify({version:1,visited}))}catch{/* Keep session progress. */}}
-  callbacks.sound();callbacks.notice('Arrived at '+s.name+'. E at the station returns you home; the rover is beside the platform.');publish(true);
+  callbacks.arrive?.(journey.current);callbacks.sound();callbacks.notice('Arrived at '+s.name+'. E at the station returns you home; the rover is beside the platform.');publish(true);
  }
  function start(destination:number,mode:TransitMode){
   if(carIndex!==null||journey.mode||!(mode==='metro'?nearMetro():nearRocket())){callbacks.notice('Walk to the '+(mode==='metro'?'metro platform':'rocket pad')+' to board.');return false}

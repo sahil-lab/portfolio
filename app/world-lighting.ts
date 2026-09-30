@@ -15,21 +15,22 @@ export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,sec
  const tint:Partial<SkyLook>={};
  if(mode!=='local'){
   const color=(day:string,sunset:string,night:string)=>'#'+new T.Color(day).lerp(new T.Color(sunset),light.sunset*.8).lerp(new T.Color(night),light.night).getHexString();
-  Object.assign(tint,{zenith:color('#93c8cb','#789aa4','#193d44'),horizon:color('#e3e9d8','#edbc94','#667b79'),background:color('#93c8cb','#789aa4','#193d44'),fogColor:color('#d9e2d7','#d2b6a1','#496e70'),sunColor:color('#fff0cb','#ffd099','#c5dcd7'),sunIntensity:2.3*(1-light.night)+.3*light.night-light.sunset*.4,ambient:1.05*(1-light.night)+.57*light.night,directional:1-light.night*.58,sunX:-60-light.sunset*85,sunY:65-light.sunset*40,sunZ:35,solarOpacity:(1-light.night)*(1-weather.cloudCover/140),moonOpacity:light.night,starsOpacity:light.night*(1-weather.cloudCover/130)});
+  Object.assign(tint,{zenith:color('#83b9ce','#789aa4','#101f2d'),horizon:color('#c2d6d2','#edbc94','#293e4b'),background:color('#83b9ce','#789aa4','#101f2d'),fogColor:color('#bed0cd','#c2a995','#243d48'),sunColor:color('#ffedcf','#ffd099','#a9c8e3'),sunIntensity:2.55*(1-light.night)+.18*light.night-light.sunset*.55,ambient:.62*(1-light.night)+.2*light.night,directional:.78-light.night*.6,sunX:-60-light.sunset*85,sunY:65-light.sunset*40,sunZ:35,solarOpacity:(1-light.night)*(1-weather.cloudCover/140),moonOpacity:light.night,starsOpacity:light.night*(1-weather.cloudCover/130)});
+  if(!['fog','storm','rain','drizzle','sleet','snow'].includes(weather.kind))tint.fogDensity=.00045;
  }
  return {...light,snapshot,tint};
 }
 export function createCityLightResponse(scene:T.Scene){
- const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;roughness:number;window:boolean;paving:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
+ const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;nightIntensity:number;roughness:number;window:boolean;paving:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
  const removed=(event:{target:unknown})=>{const material=event.target as T.MeshStandardMaterial;surfaces.delete(material);material.removeEventListener('dispose',removed)};
  return {
   update(delta:number,night:number,wet:number){
    elapsed+=Math.max(0,delta);if(elapsed>=1){elapsed=0;scene.traverse(object=>{if(!(object instanceof T.Mesh))return;for(const material of Array.isArray(object.material)?object.material:[object.material]){
     if(!(material instanceof T.MeshStandardMaterial)||surfaces.has(material))continue;
     const window=material.userData.surface==='glass',paving=material.userData.cityPaving===true;
-    if(window||paving){surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
+    if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,1.2):.42,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
    }})}
-    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,night);material.emissiveIntensity=base.intensity*(1-night)+.65*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
+    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,night);material.emissiveIntensity=base.intensity*(1-night)+base.nightIntensity*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
   },
   dispose(){for(const material of surfaces.keys())material.removeEventListener('dispose',removed);surfaces.clear()},
   get count(){return surfaces.size},

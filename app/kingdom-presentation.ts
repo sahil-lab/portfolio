@@ -4,6 +4,7 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import type {Settings} from './persistence';
+import {createShaderPreparation} from './shader-preparation';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
 export const presentationPixelBudget=1600000;
@@ -12,6 +13,7 @@ export function presentationPixelRatio(width:number,height:number,ratio:number){
 export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera){
   let composer:EffectComposer|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined;
   let width=1,height=1;
+  const shaders=createShaderPreparation(renderer,scene,camera,()=>composer?.readBuffer??null);
   const originalAutoReset=renderer.info.autoReset;renderer.info.autoReset=false;
   function release(){bloom?.materialHighPassFilter.dispose();bloom?.dispose();output?.dispose();composer?.dispose();composer=undefined;bloom=undefined;output=undefined}
   function resize(nextWidth:number,nextHeight:number){
@@ -40,7 +42,8 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
     resize(width,height);
   }
   return {
-    quality,resize,
+    quality,resize,prepare:shaders.prepare,finishPreparation:shaders.dispose,
+    get pending(){return shaders.pending},
     render:()=>{renderer.info.reset();if(composer)composer.render();else renderer.render(scene,camera)},
     dispose:()=>{release();renderer.info.autoReset=originalAutoReset},
   };

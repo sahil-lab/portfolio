@@ -5,19 +5,19 @@ import {disposeScene} from './scene-resources';
 
 export const goldMonumentRatio=3;
 export const goldMonumentAsset='/assets/sah-suited-figure.glb';
-type MonumentOptions={bulletinHeight:number;load?:(url:string)=>Promise<T.Object3D>};
+type MonumentOptions={bulletinHeight:number;load?:(url:string)=>Promise<T.Object3D>;prepare?:(root:T.Object3D)=>Promise<void>};
 
 export function createGoldMonument(world:T.Scene,options:MonumentOptions){
  const height=options.bulletinHeight*goldMonumentRatio;
  if(!Number.isFinite(height)||height<=0)throw new Error('The gold monument needs a positive bulletin height');
  const site=goldMonumentSite;
- const root=new T.Group();root.name='Sah_Gold_Monument';root.position.set(site.x,0,site.z);world.add(root);
+ const root=new T.Group();root.name='Sah_Gold_Monument';root.position.set(site.x,0,site.z);root.visible=false;world.add(root);
  const visual=new T.Group();visual.name='Suited_Figure_On_Podium';root.add(visual);
  const solids:T.Box3[]=[];
  const loader=new GLTFLoader(),load=options.load??(async(url:string)=>(await loader.loadAsync(url)).scene);
  const sourceSize=new T.Vector3();let disposed=false,status='loading';
  root.userData.asset=goldMonumentAsset;root.userData.height=height;root.userData.bulletinRatio=goldMonumentRatio;root.userData.worldAnchored=true;root.userData.headOnly=false;root.userData.suitedFigure=true;
- const ready=load(goldMonumentAsset).then(asset=>{
+ const ready=load(goldMonumentAsset).then(async asset=>{
   if(disposed){disposeScene(asset);return}
   const bounds=new T.Box3().setFromObject(asset),center=bounds.getCenter(new T.Vector3());bounds.getSize(sourceSize);
   if(!Number.isFinite(sourceSize.y)||sourceSize.y<=0){disposeScene(asset);throw new Error('The suited figure has empty geometry')}
@@ -33,7 +33,8 @@ export function createGoldMonument(world:T.Scene,options:MonumentOptions){
     const halfWidth=sourceSize.x/sourceSize.y*height/2,halfDepth=sourceSize.z/sourceSize.y*height/2;
     solids.push(new T.Box3(new T.Vector3(-halfWidth,0,-halfDepth),new T.Vector3(halfWidth,height,halfDepth)));
     asset.traverse(object=>{if(object instanceof T.Mesh)object.userData.cameraSolid=true});
-    status='ready';root.updateWorldMatrix(true,true);
+    if(options.prepare)await options.prepare(root);if(disposed)return;
+    status='ready';root.visible=true;root.updateWorldMatrix(true,true);
  }).catch(error=>{if(!disposed){status='failed';console.error('The suited figure monument could not load',error)}});
  return {root,visual,ready,height,get status(){return status},
     blocked:(x:number,z:number,y:number)=>!disposed&&solids.some(bounds=>x-site.x>bounds.min.x-.6&&x-site.x<bounds.max.x+.6&&z-site.z>bounds.min.z-.6&&z-site.z<bounds.max.z+.6&&y>bounds.min.y-1.8&&y<bounds.max.y),

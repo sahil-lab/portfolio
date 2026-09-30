@@ -110,7 +110,7 @@ test('weather repaints one shared live canvas outside both frame faces',()=>{
 });
 
 test('bulletin data and rear-side paging update shared faces without recreating display resources',()=>{
-  const {createBulletinWorld}=require('../app/bulletin-world.ts'),{emptyMarket,emptyNews,quoteFromYahoo}=require('../app/bulletin-data.ts');
+  const {createBulletinWorld,bulletinSites}=require('../app/bulletin-world.ts'),{emptyMarket,emptyNews,quoteFromYahoo}=require('../app/bulletin-data.ts');
   const scene=new T.Scene(),player=new T.Group(),notices=[],world=createBulletinWorld(scene,player,text=>notices.push(text));
   const displays=['Market_Display','News_Display'].map(name=>checkDisplay(world.root,name,[world.root])),counts=displays.map(pair=>disposalCounts(pair.front)),versions=displays.map(pair=>pair.texture.version);
   displays.forEach((pair,index)=>{assert.equal(pair.front,world.boards[index].display);assert.equal(pair.texture,world.boards[index].texture);assert.equal(pair.texture.image,world.boards[index].canvas);assert.equal(pair.texture.image.width,2048);assert.equal(pair.texture.image.height,1152)});
@@ -119,8 +119,9 @@ test('bulletin data and rear-side paging update shared faces without recreating 
   const market={...emptyMarket,quotes,stockCount:7,status:'partial',fetchedAt:'2026-09-21T12:00:00.000Z'},news={...emptyNews,headlines,sources:['BBC Business'],status:'available',fetchedAt:'2026-09-21T12:00:00.000Z'};
   world.setMarket(market);world.setNews(news);assert.equal(world.market,market);assert.equal(world.news,news);
   assert.ok(displays[0].texture.image.draws.includes('100.50 USD'));assert.ok(displays[1].texture.image.draws.includes(headlines[0].title));
-  player.position.set(-24,.8,131);assert.match(world.prompt(),/Next market page/);assert.equal(world.interact(),true);assert.equal(world.page,1);
-  player.position.set(18,.8,131);assert.match(world.prompt(),/Next business headlines/);assert.equal(world.interact(),true);assert.equal(world.headlineIndex,1);assert.equal(notices.length,2);
+  const rear=site=>player.position.set(site.x-Math.sin(site.yaw)*25,.8,site.z-Math.cos(site.yaw)*25);
+  rear(bulletinSites.markets);assert.match(world.prompt(),/Next market page/);assert.equal(world.interact(),true);assert.equal(world.page,1);
+  rear(bulletinSites.news);assert.match(world.prompt(),/Next business headlines/);assert.equal(world.interact(),true);assert.equal(world.headlineIndex,1);assert.equal(notices.length,2);
   world.update(.1,true,true);
   displays.forEach((pair,index)=>{assert.equal(pair.front.material.map,pair.texture);assert.equal(pair.back.material.map,pair.texture);assert.ok(pair.texture.version>versions[index]);assert.deepEqual(counts[index](),[0,0,0])});
   disposeScene(scene);for(const count of counts)assert.deepEqual(count(),[1,1,1]);

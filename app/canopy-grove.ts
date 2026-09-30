@@ -30,7 +30,7 @@ export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='fu
  return {wood,crown,trunks,radius:radius+.2,height,kind};
 }
 export function createCanopyMaterials(){
- const wood=new T.MeshStandardMaterial({vertexColors:true,roughness:.84,metalness:.14}),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.76,metalness:.02,side:T.DoubleSide});
+ const wood=new T.MeshStandardMaterial({vertexColors:true,roughness:.92,metalness:.035}),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:.01,side:T.DoubleSide});
  wood.userData.surface=leaf.userData.surface='natural';const time={value:0},wind={value:0};
  leaf.onBeforeCompile=shader=>{
   shader.uniforms.canopyTime=time;shader.uniforms.canopyWind=wind;

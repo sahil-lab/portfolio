@@ -17,10 +17,10 @@ export function finishKingdomMaterials(scene:T.Object3D){
       material.dithering=true;
       const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.vertexColors||material.userData.surface==='natural',ceramic=material.userData.surface==='ceramic';
       if(!polished&&!natural&&!ceramic&&!material.map){
-        material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.3:.38,material.metalness>.35?.48:.58);
-        if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,.32,.55);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.22,.34)}
+        material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.36:.55,material.metalness>.35?.58:.82);
+        if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,0,.24);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.38,.65)}
       }
-      material.envMapIntensity=polished?Math.min(material.envMapIntensity,1.05):natural?.45:T.MathUtils.clamp(material.envMapIntensity,.55,.95);
+      material.envMapIntensity=polished?Math.min(material.envMapIntensity,1.05):natural?.4:Math.min(material.envMapIntensity,material.metalness>.35?.85:.6);
       if(material.map)material.map.anisotropy=Math.max(material.map.anisotropy,4);
     }
   });

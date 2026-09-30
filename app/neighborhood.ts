@@ -6,6 +6,7 @@ import {visibleTransitStops} from './transit-visibility';
 import {createSpeechBubble,type SpeechBubbleStyle} from './speech-bubble';
 import {createDialogueDeck} from './resident-dialogue';
 import {createCuteResident,type ResidentOccupation} from './cute-resident';
+import {createResidentInstances} from './resident-instances';
 
 export type StreetBody={x:number;y:number;z:number;r:number};
 export function touchesBody(x:number,y:number,z:number,b:StreetBody,padding=.4){return Math.abs(y-b.y)<2.5&&Math.hypot(x-b.x,z-b.z)<b.r+padding}
@@ -23,9 +24,9 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
  const stalls:{x:number;y:number;z:number;name:string;dialogue:ReturnType<typeof createDialogueDeck>}[]=[];
  const stallBubbles:ReturnType<typeof createSpeechBubble>[]=[];
  const palette=['#829cbe','#92ac96','#d39b8e','#c9b993'];
- let residentIndex=0;
+ let residentIndex=0;const residentActors:ReturnType<typeof createCuteResident>[]=[];
  function resident(color:string,animated=false,occupation?:ResidentOccupation){
-  const actor=createCuteResident(color,residentIndex++,occupation);batchScenery(actor.root,{parts:animated?actor.movingParts:actor.feet});actor.root.scale.setScalar(.74);return actor;
+  const actor=createCuteResident(color,residentIndex++,occupation);batchScenery(actor.root,{parts:animated?actor.movingParts:actor.feet});actor.root.scale.setScalar(.74);residentActors.push(actor);return actor;
  }
  transitStops.forEach((s,index)=>{
   const station=new T.Group(),fixed=new T.Group(),actors=new T.Group();station.name='Neighborhood_'+s.id;fixed.name='NeighborhoodFixed_'+s.id;actors.name='NeighborhoodActors_'+s.id;
@@ -66,6 +67,7 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
  });
  function updateVisibility(visibleStops:ReadonlySet<number>=visibleTransitStops(player.position)){stations.forEach((station,index)=>station.visible=visibleStops.has(index))}
  updateVisibility();
+ const instances=createResidentInstances(root,residentActors);
  let clock=0;
  let activeSpeaker:typeof walkers[number]|undefined;
  let requestedSpeaker:typeof walkers[number]|undefined,requestUntil=0;
@@ -101,6 +103,7 @@ export function createNeighborhood(scene:T.Scene,player:T.Group,solid:(x:number,
    const bearing=Math.atan2(player.position.x-w.root.position.x,player.position.z-w.root.position.z)-w.root.rotation.y;
    w.update(dt,{moving,reduced,attentive:speaking,look:Math.atan2(Math.sin(bearing),Math.cos(bearing))});
   }
+  instances.update();
  }
  const nearest=()=>stalls.find(s=>Math.abs(player.position.y-s.y)<2&&Math.hypot(player.position.x-s.x,player.position.z-s.z)<3.5);
  const nearestWalker=()=>{let nearest:typeof walkers[number]|undefined,distance=12;for(const walker of walkers){const candidate=player.position.distanceToSquared(walker.root.position);if(candidate<distance){nearest=walker;distance=candidate}}return nearest};

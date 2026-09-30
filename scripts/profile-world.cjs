@@ -1,7 +1,18 @@
 const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib');
-const {values:options}=require('node:util').parseArgs({options:{label:{type:'string',default:'baseline'},url:{type:'string',default:'http://127.0.0.1:3001/'},mobile:{type:'boolean'},quick:{type:'boolean'},cpu:{type:'boolean'},production:{type:'boolean'}}});
+const {values:options}=require('node:util').parseArgs({options:{label:{type:'string',default:'baseline'},url:{type:'string',default:'http://127.0.0.1:3001/'},mobile:{type:'boolean'},quick:{type:'boolean'},cpu:{type:'boolean'},'runtime-cpu':{type:'boolean'},production:{type:'boolean'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve('outputs/performance/'+options.label+(options.mobile?'-mobile':'-desktop'));fs.mkdirSync(output,{recursive:true});
+function summarizeCpu(profile){
+ const nodes=new Map(profile.nodes.map(node=>[node.id,node])),parents=new Map(),self=new Map(),inclusive=new Map();
+ for(const node of profile.nodes)for(const child of node.children??[])parents.set(child,node.id);
+ const name=id=>{const frame=nodes.get(id).callFrame;return `${frame.functionName||'(anonymous)'} ${frame.url}:${frame.lineNumber+1}`};
+ profile.samples?.forEach((id,index)=>{
+  const elapsed=(profile.timeDeltas[index]??0)/1000,key=name(id);self.set(key,(self.get(key)??0)+elapsed);
+  const seen=new Set();for(let current=id;current!==undefined;current=parents.get(current)){const key=name(current);if(!seen.has(key)){inclusive.set(key,(inclusive.get(key)??0)+elapsed);seen.add(key)}}
+ });
+ const ranked=times=>[...times].sort((first,second)=>second[1]-first[1]).slice(0,35).map(([name,milliseconds])=>({name,milliseconds}));
+ return {durationMs:(profile.endTime-profile.startTime)/1000,self:ranked(self),inclusive:ranked(inclusive)};
+}
 async function main(){
  const channel=fs.existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe')?'chrome':'msedge',browser=await chromium.launch({channel,headless:true,args:['--enable-precise-memory-info']}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),client=await page.context().newCDPSession(page),events=[],requests=new Map(),samples=[];
  page.setDefaultTimeout(60000);page.on('pageerror',error=>events.push({event:'pageerror',message:error.message}));page.on('crash',()=>events.push({event:'crash'}));page.on('framenavigated',frame=>{if(frame===page.mainFrame())events.push({event:'navigation',url:frame.url()})});page.on('console',message=>{if(/context lost|out of memory|Shader Error|too many active webgl/i.test(message.text()))events.push({event:'console',message:message.text()})});
@@ -40,7 +51,10 @@ async function main(){
     await page.evaluate(()=>Promise.allSettled([globalThis.__profileWorld.dog.ready,globalThis.__profileWorld.angel.ready,globalThis.__profileWorld.goldMonument.ready,globalThis.__profileWorld.resumeBooks.ready]));
     await page.waitForFunction(()=>!globalThis.__profileWorld.city.streaming||globalThis.__profileWorld.city.streaming().loading===0,null,{timeout:120000});
     await page.evaluate(()=>new Promise(resolve=>{let frames=0;function next(){if(++frames>=30)resolve();else requestAnimationFrame(next)}requestAnimationFrame(next)}));
+  if(options['runtime-cpu']){await client.send('Profiler.enable');await client.send('Profiler.start')}
   const frameTimes=await page.evaluate(()=>new Promise(resolve=>{const times=[];let previous=performance.now();function next(now){times.push(now-previous);previous=now;if(times.length>=120)resolve(times);else requestAnimationFrame(next)}requestAnimationFrame(next)}));
+  let runtimeCpu=null;
+  if(options['runtime-cpu']){const {profile}=await client.send('Profiler.stop');fs.writeFileSync(path.join(output,'runtime.cpuprofile'),JSON.stringify(profile));runtimeCpu=summarizeCpu(profile);console.log('WORLD_RUNTIME_CPU '+JSON.stringify(runtimeCpu))}
   await snapshot('settled');
   await page.getByRole('button',{name:'View controls',exact:true}).click();for(const mode of ['Close camera','First person camera','Far camera'])await page.getByRole('button',{name:mode,exact:true}).click();await page.keyboard.press('Escape');
   const bounds=await page.locator('.world canvas').boundingBox();await page.mouse.move(bounds.width*.5,bounds.height*.5);await page.mouse.down();await page.mouse.move(bounds.width*.85,bounds.height*.65,{steps:16});await page.mouse.move(bounds.width*.15,bounds.height*.4,{steps:24});await page.mouse.up();await snapshot('camera-rotation');
@@ -51,7 +65,7 @@ async function main(){
   }
     if(!options.quick){await page.waitForFunction(()=>!globalThis.__profileWorld.transport.streaming||globalThis.__profileWorld.transport.streaming.snapshot().resident===0,null,{timeout:45000,polling:500});await snapshot('returned-and-unloaded')}
   await page.evaluate(()=>globalThis.__profileWorld.goCapital('plaza'));await page.screenshot({path:path.join(output,'plaza.png')});
-    const mean=frameTimes.reduce((sum,time)=>sum+time,0)/frameTimes.length,sorted=[...frameTimes].sort((first,second)=>first-second),report={label:options.label,channel,mobile:!!options.mobile,url:options.url,environment:options.production?'local production build, same browser and machine':'local development build',samples,frame:{count:frameTimes.length,mean,p95:sorted[Math.floor(sorted.length*.95)],fps:1000/mean},initialNetwork:{requests:initialRequests.length,encodedBytes:initialRequests.reduce((sum,request)=>sum+request.encoded,0),scriptBytes:initialRequests.filter(request=>request.type==='Script').reduce((sum,request)=>sum+request.encoded,0),models:initialRequests.filter(request=>/\.glb(?:\?|$)/.test(request.url)),largest:initialRequests.sort((first,second)=>second.encoded-first.encoded).slice(0,20)},cpu:hot,events};
+    const mean=frameTimes.reduce((sum,time)=>sum+time,0)/frameTimes.length,sorted=[...frameTimes].sort((first,second)=>first-second),report={label:options.label,channel,mobile:!!options.mobile,url:options.url,environment:options.production?'local production build, same browser and machine':'local development build',samples,frame:{count:frameTimes.length,mean,p95:sorted[Math.floor(sorted.length*.95)],fps:1000/mean},initialNetwork:{requests:initialRequests.length,encodedBytes:initialRequests.reduce((sum,request)=>sum+request.encoded,0),scriptBytes:initialRequests.filter(request=>request.type==='Script').reduce((sum,request)=>sum+request.encoded,0),models:initialRequests.filter(request=>/\.glb(?:\?|$)/.test(request.url)),largest:initialRequests.sort((first,second)=>second.encoded-first.encoded).slice(0,20)},cpu:hot,runtimeCpu,events};
   const assets=[];for(const directory of ['public/assets']){const walk=folder=>{for(const entry of fs.readdirSync(folder,{withFileTypes:true})){const name=path.join(folder,entry.name);if(entry.isDirectory()){if(!name.includes('friends-pc'))walk(name)}else if(/\.(glb|png|jpe?g|webp|avif|ktx2|mp3|ogg|wav)$/i.test(name)){const data=fs.readFileSync(name);assets.push({name,bytes:data.length,gzipBytes:zlib.gzipSync(data).length})}}};walk(directory)}report.assetInventory=assets.sort((first,second)=>second.bytes-first.bytes);
   fs.writeFileSync(path.join(output,'metrics.json'),JSON.stringify(report,null,2)+'\n');console.log('WORLD_PROFILE_DONE '+JSON.stringify({frame:report.frame,network:report.initialNetwork.encodedBytes,scriptBytes:report.initialNetwork.scriptBytes,events}));
  }finally{await browser.close()}

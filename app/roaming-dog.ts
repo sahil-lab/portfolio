@@ -6,7 +6,7 @@ import {disposeScene} from './scene-resources';
 
 export const dogRoamingBounds={minX:-86,maxX:86,minZ:-68,maxZ:211};
 export const dogArrival={x:0,z:60};
-type DogOptions={height:number;blocked:(x:number,z:number)=>boolean;ground:(x:number,z:number)=>number|null;bark:(distance:number,pan:number)=>void;notice:(text:string)=>void;random?:()=>number;load?:(url:string)=>Promise<T.Object3D>};
+type DogOptions={height:number;blocked:(x:number,z:number)=>boolean;ground:(x:number,z:number)=>number|null;bark:(distance:number,pan:number)=>void;notice:(text:string)=>void;random?:()=>number;load?:(url:string)=>Promise<T.Object3D>;prepare?:(root:T.Object3D)=>Promise<void>};
 export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions){
  const root=new T.Group();root.name='Motherboard_RoamingDog';root.visible=false;scene.add(root);
  const loader=new GLTFLoader(),load=options.load??(async(url:string)=>(await loader.loadAsync(url)).scene);
@@ -18,7 +18,7 @@ export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions
   if(distance>80)return;
   options.bark(distance,distance?T.MathUtils.clamp((dx*Math.cos(yaw)-dz*Math.sin(yaw))/distance,-1,1):0);lastBark++;
  }
- const ready=load('/assets/roaming-dog.glb').then(asset=>{
+ const ready=load('/assets/roaming-dog.glb').then(async asset=>{
   if(disposed){disposeScene(asset);return}
   rig=createDogRig(asset);scale=options.height/rig.size.y;
   const center=rig.bounds.getCenter(new T.Vector3());rig.root.position.set(-center.x,-rig.bounds.min.y,-center.z);rig.root.scale.setScalar(1);
@@ -31,6 +31,7 @@ export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions
   const configuration:DogWanderOptions={start,blocked:isBlocked,radius:clearance,bounds,random:options.random,speed:4.8,clearance:clearanceMap,destinations:area.destinations};
   wander=createDogWander(configuration);root.userData.roamingDestinations=area.destinations.length;
   root.position.set(start.x,options.ground(start.x,start.z)??.8,start.z);
+  if(options.prepare)await options.prepare(root);if(disposed)return;
   root.userData.dogHeight=options.height;root.userData.clearance=clearance;root.userData.asset='/assets/roaming-dog.glb';root.userData.loaded=true;
   status='ready';
  }).catch(error=>{if(!disposed){status='failed';console.error('The roaming dog model could not load',error)}});

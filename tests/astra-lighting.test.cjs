@@ -2,6 +2,11 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {astraLightStory}=require('../app/astra-lighting.ts'),{defaultWeather}=require('../app/weather-state.ts');
 const T=require('three'),{astraSkyTint,createAstraAtmosphere}=require('../app/astra-atmosphere.ts');
+test('clear daylight retains depth without bleaching the foreground foliage',()=>{
+ const {astraPalette}=require('../app/astra-lighting.ts'),look=astraLightStory({...defaultWeather,cloudCover:0,isDay:true,updatedAt:'2026-09-20T12:00'});
+ assert.ok(look.fog<.001);assert.ok(look.environment<=.35);
+ const leaf=new T.Color(astraPalette.leaf),tip=new T.Color(astraPalette.leafLight);assert.ok(leaf.g>leaf.r&&leaf.g>leaf.b);assert.ok(tip.g>leaf.g);assert.ok(tip.g<.4);
+});
 
 test('Astra lighting preserves readable moonlight but gives night substantially less fill',()=>{
   const noon=astraLightStory({...defaultWeather,cloudCover:0,updatedAt:'2026-09-20T12:00'}),night=astraLightStory({...defaultWeather,isDay:false});

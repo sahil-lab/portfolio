@@ -1,14 +1,16 @@
 import * as T from 'three';
 import {batchScenery} from './static-batching';
+import {cacheStaticTransforms} from './static-transforms';
 
 export type FountainKind='royal'|'circuit'|'garden';
 export function createCapitalFountain(kind:FountainKind='royal'){
  const root=new T.Group();root.name='Capital_Fountain_'+kind;root.userData.fountainKind=kind;
  const fixed=new T.Group();root.add(fixed);
  const stone=new T.MeshStandardMaterial({color:'#dce9df',roughness:.68,metalness:.08}),metal=new T.MeshStandardMaterial({color:'#c4ac72',roughness:.36,metalness:.68});
+ stone.userData.surface='ceramic';stone.emissive.set('#edc585');metal.emissive.set('#ac763c');
  const dark=new T.MeshStandardMaterial({color:'#315b61',roughness:.44,metalness:.22});
  const water=new T.MeshPhysicalMaterial({color:'#6dbac4',roughness:.14,metalness:.28,clearcoat:.95,transparent:true,opacity:.8,emissive:'#458b91',emissiveIntensity:.05,depthWrite:false});water.userData.surface='water';
- const glow=new T.MeshBasicMaterial({color:'#efcf8b',transparent:true,opacity:.1,depthWrite:false}),jetMaterial=new T.LineBasicMaterial({color:'#bee9ed',transparent:true,opacity:.67,depthWrite:false});
+ const glow=new T.MeshBasicMaterial({color:'#ffd7a0',transparent:true,opacity:.1,depthWrite:false,toneMapped:false}),jetMaterial=new T.LineBasicMaterial({color:'#bee9ed',transparent:true,opacity:.67,depthWrite:false});
  const radius=kind==='royal'?6.4:kind==='circuit'?4.2:3.1;
  function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,y=0,parent:T.Object3D=fixed){const object=new T.Mesh(geometry,material);object.name=name;object.position.y=y;object.castShadow=object.receiveShadow=true;parent.add(object);return object}
  function bowl(name:string,span:number,y:number){
@@ -31,6 +33,7 @@ export function createCapitalFountain(kind:FountainKind='royal'){
   if(kind==='royal'){
    mesh('Fountain_FlutedColumn',new T.LatheGeometry([[0,0],[1.1,0],[1.35,.22],[.7,.72],[.55,2.7],[1.05,3],[0,3]].map(([span,height])=>new T.Vector2(span,height)),32),metal,.8);
    bowl('Fountain_UpperBasin',2.55,3.5);
+  mesh('Fountain_FinialSupport',new T.CylinderGeometry(.13,.24,1.12,12),metal,4.62);
    mesh('Fountain_CeramicFinial',new T.OctahedronGeometry(.64,1),stone,5.7);
   }
  }
@@ -42,6 +45,7 @@ export function createCapitalFountain(kind:FountainKind='royal'){
  const mistGeometry=new T.BufferGeometry(),mistPositions=new Float32Array(64*3);mistGeometry.setAttribute('position',new T.BufferAttribute(mistPositions,3));
  const mist=new T.Points(mistGeometry,new T.PointsMaterial({color:'#e6f5ec',size:.22,transparent:true,opacity:.15,depthWrite:false}));mist.name='Fountain_Mist';mist.frustumCulled=false;root.add(mist);
  batchScenery(fixed,{});
+ cacheStaticTransforms(fixed);
  const dummy=new T.Object3D(),firstPoint=new T.Vector3(),secondPoint=new T.Vector3();let clock=0,lastPhase=-1;
  const forms=[
   {start:radius*.82,end:radius*.28,y:.76,arc:kind==='royal'?3.4:2.1,twist:0,pulse:.1},
@@ -59,7 +63,7 @@ export function createCapitalFountain(kind:FountainKind='royal'){
   const phase=Math.floor(clock/20)%3;
     const blend=T.MathUtils.smoothstep(clock%20,17,20);
     for(const property of formKeys)shape[property]=T.MathUtils.lerp(forms[phase][property],forms[(phase+1)%3][property],blend);
-  glow.opacity=.08+night*.48;water.emissiveIntensity=.05+night*.22;jetMaterial.opacity=.55+night*.18;
+  glow.opacity=.08+night*.76;water.emissiveIntensity=.05+night*.38;jetMaterial.opacity=.55+night*.27;stone.emissiveIntensity=night*.14;metal.emissiveIntensity=night*.07;
   for(let index=0;index<jetCount;index++)for(let segment=0;segment<segments;segment++){
      const first=trajectory(index,segment/segments,near,rain,wind,firstPoint),second=trajectory(index,(segment+1)/segments,near,rain,wind,secondPoint),offset=(index*segments+segment)*6;
      first.toArray(positions,offset);second.toArray(positions,offset+3);

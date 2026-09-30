@@ -52,6 +52,6 @@ test('atmospheric vault tracks weather without disappearing during orbital trave
 test('the sun and moon fit within the permitted upward view from the motherboard workshop',()=>{
   const {createGameCamera}=require('../app/game-camera.ts'),{defaultSettings}=require('../app/persistence.ts');
   const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1.5,.1,4000),sky=createWeatherSky(scene,new T.DirectionalLight());scene.add(player);scene.scale.setScalar(2);player.position.set(0,.8,24);scene.updateMatrixWorld(true);
-  const rig=createGameCamera(camera,scene,player);rig.rotate(0,-100,false);rig.update(.016,false,defaultSettings);camera.updateMatrixWorld(true);
+  const rig=createGameCamera(camera,scene,player);rig.rotate(0,-100,false);for(let frame=0;frame<60;frame++)rig.update(1/60,false,defaultSettings);camera.updateMatrixWorld(true);
   for(const object of [sky.solar,sky.moon]){const projected=object.getWorldPosition(new T.Vector3()).project(camera);assert.ok(Math.abs(projected.x)<.85&&Math.abs(projected.y)<.85)}disposeScene(scene);
 });

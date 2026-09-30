@@ -4,6 +4,7 @@ import {createCuteResident} from './cute-resident';
 import {createReadableDisplay} from './readable-display';
 import {createTransitModels} from './transit-models';
 import {batchScenery} from './static-batching';
+import {createResidentInstances} from './resident-instances';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 
 export const citySquare={x:150,z:79};
@@ -145,6 +146,7 @@ export function createCityLandmarks(parent:T.Object3D){
   root.updateMatrixWorld(true);root.userData.staticCameraBounds=solids.map(solid=>new T.Box3(new T.Vector3(solid.x-solid.width/2,0,solid.z-solid.depth/2),new T.Vector3(solid.x+solid.width/2,solid.height,solid.z+solid.depth/2)).translate(root.position));
   const displays:T.Object3D[]=[];root.traverse(object=>{if(object.userData.readableDisplay)displays.push(object)});
   batchScenery(root,{mirrorBall,rotor,actors:actors.map(actor=>actor.root),traffic:traffic.map(car=>car.root),displays});
+  const instances=createResidentInstances(root,actors);
   let clock=0;
   const blocked=(x:number,z:number,y:number)=>{
     const localX=x-citySquare.x,localZ=z-citySquare.z;
@@ -154,10 +156,11 @@ export function createCityLandmarks(parent:T.Object3D){
     if(Math.hypot(player.position.x-citySquare.x,player.position.z-citySquare.z)>220)return;
     const visitor=player.position.clone().sub(root.position);
     for(const actor of actors)actor.update(dt,{moving:!reduced&&actor.root.position.distanceTo(visitor)>=2.8,reduced,attentive:actor.root.position.distanceTo(visitor)<5});
-    if(reduced)return;
+    if(reduced){instances.update();return}
     clock+=dt;mirrorBall.rotation.y+=dt*.035;rotor.rotation.z-=dt*.55;
     for(const actor of actors){if(actor.root.position.distanceTo(visitor)<2.8){actor.root.rotation.y=Math.atan2(visitor.x-actor.root.position.x,visitor.z-actor.root.position.z);continue}actor.root.position.x=actor.home.x+Math.sin(clock*.25+actor.phase)*1.3;actor.root.position.z=actor.home.z+Math.cos(clock*.25+actor.phase)*.7;actor.root.rotation.y=Math.sin(clock*.25+actor.phase)*.6}
     for(const car of traffic){const next=(car.progress+dt*.011)%1,point=path.getPointAt(next);if(point.distanceTo(visitor)<5.5)continue;car.progress=next;car.root.position.copy(point);const forward=path.getTangentAt(next);car.root.rotation.y=Math.atan2(forward.x,forward.z);car.wheels.forEach(wheel=>wheel.rotation.x+=dt*4)}
+    instances.update();
   }
   return {root,blocked,update,solids,actors,traffic,mirrorBall,rotor,cafe,flowerShop};
 }

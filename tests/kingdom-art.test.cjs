@@ -1,11 +1,16 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{finishKingdomMaterials,createKingdomAccents}=require('../app/kingdom-art.ts'),{disposeScene}=require('../app/scene-resources.ts');
+test('the shared finish retains satin ceramic clearcoat and matte natural surfaces',()=>{
+ const {createCraftMaterials}=require('../app/crafted-surfaces.ts'),finish=createCraftMaterials(),ceramic=finish('#d8ded5'),wood=new T.MeshStandardMaterial({roughness:.91}),scene=new T.Scene();wood.userData.surface='natural';
+ scene.add(new T.Mesh(new T.BoxGeometry(),ceramic),new T.Mesh(new T.BoxGeometry(),wood));finishKingdomMaterials(scene);
+ assert.equal(ceramic.roughness,.62);assert.equal(ceramic.clearcoat,.22);assert.equal(wood.roughness,.91);disposeScene(scene);
+});
 
 test('world finish preserves authored colors, textured artwork, and interactive emission',()=>{
   const scene=new T.Scene(),paint=new T.MeshStandardMaterial({color:'#f59875',roughness:.9,emissive:'#44eecc',emissiveIntensity:.7}),art=new T.MeshStandardMaterial({map:new T.Texture(),roughness:.92});
   scene.add(new T.Mesh(new T.BoxGeometry(),paint),new T.Mesh(new T.BoxGeometry(),paint),new T.Mesh(new T.PlaneGeometry(),art));
-  assert.equal(finishKingdomMaterials(scene),2);assert.equal(paint.color.getHexString(),'f59875');assert.equal(paint.emissiveIntensity,.7);assert.equal(art.roughness,.92);assert.equal(art.map.anisotropy,4);assert.ok(paint.roughness<.7);
+  assert.equal(finishKingdomMaterials(scene),2);assert.equal(paint.color.getHexString(),'f59875');assert.equal(paint.emissiveIntensity,.7);assert.equal(art.roughness,.92);assert.equal(art.map.anisotropy,4);assert.ok(paint.roughness>=.7&&paint.roughness<=.82);
   const finish=paint.roughness;finishKingdomMaterials(scene);assert.equal(paint.roughness,finish);disposeScene(scene);
 });
 

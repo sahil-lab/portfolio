@@ -7,6 +7,14 @@ test('fountain families have bounded reusable animation geometry and water-safe 
 test('reduced motion freezes fountain time and choreography does not allocate new meshes',()=>{
  const fountain=createCapitalFountain(),count=fountain.root.children.length;for(let frame=0;frame<230;frame++)fountain.update(.1,false);assert.equal(fountain.root.userData.choreography,'conversation');const time=fountain.time;fountain.update(1,true);assert.equal(fountain.time,time);assert.equal(fountain.root.children.length,count);disposeScene(fountain.root);
 });
+test('the ceremonial finial is physically supported above the upper basin',()=>{
+ const T=require('three'),fountain=createCapitalFountain();fountain.root.updateMatrixWorld(true);
+ const ray=new T.Raycaster(new T.Vector3(2,4.65,0),new T.Vector3(-1,0,0),0,2);assert.ok(ray.intersectObject(fountain.root.children[0],true).length>0,'solid support bridges the former gap beneath the finial');disposeScene(fountain.root);
+});
+test('fountain underlights brighten at night without adding lights or changing daytime materials',()=>{
+ const fountain=createCapitalFountain(),underlight=fountain.root.getObjectByName('Fountain_LowerBasin_Underlight'),day=fountain.water.emissiveIntensity;let lights=0;fountain.root.traverse(object=>{if(object.isLight)lights++});
+ assert.equal(lights,0);assert.equal(underlight.material.toneMapped,false);fountain.update(0,true,0,1);assert.ok(underlight.material.opacity>.8);assert.ok(fountain.water.emissiveIntensity>day+.3);fountain.update(0,true);assert.equal(fountain.water.emissiveIntensity,day);disposeScene(fountain.root);
+});
 test('royal fountain phases change form continuously and cascade from the upper bowl into the lower basin',()=>{
  const fountain=createCapitalFountain(),positions=fountain.jets.geometry.attributes.position.array,crown=positions.slice();let previous=positions.slice(),greatestStep=0,conversation,cascade;
  for(let frame=0;frame<610;frame++){

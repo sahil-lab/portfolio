@@ -23,6 +23,12 @@ test('mall stairs reach the upper gallery and arcade sky bridge without blocked 
  assert.equal(height,3.8);for(let z=3;z>=-6.5;z-=.1){height=place.height(3,z,height);assert.ok(height!==null);assert.equal(place.blocked(new T.Vector3(3,height,z)),false)}
  for(let x=3;x>=-3;x-=.1){height=place.height(x,-6.65,height);assert.equal(height,3.8);assert.equal(place.blocked(new T.Vector3(x,height,-6.65)),false)}assert.equal(place.root.userData.shops.length,8);disposeScene(place.root);
 });
+test('all eight mall shops have distinct merchandise, framed displays and recognizable street frontage',()=>{
+ const place=createEverydayPlace({kind:'mall',style:'atelier',address:'motherboard/lantern-mall'});
+ for(const feature of ['Mall_CafeMug','Mall_WrappedGift','Mall_ToyHead','Mall_BookSpine','Mall_RepairTool','Mall_KeyboardKey','Mall_LabInstrument','Mall_BakeryLoaf'])assert.ok(place.features[feature]>0,feature);
+ assert.equal(place.features.Mall_StorefrontRecess,8);assert.equal(place.features.Mall_StreetWindow,2);assert.equal(place.features.Mall_CafeFrontCup,7);assert.equal(place.features.Mall_BookFrontDisplay,7);assert.equal(place.root.userData.shops.length,8);
+ let lights=0;place.root.traverse(object=>{if(object.isLight)lights++});assert.equal(lights,0);assert.equal(place.blocked(place.approach),false);disposeScene(place.root);
+});
 
 test('placed city venues have world-space camera bounds and clear, working destinations',()=>{
  const {createCityPublicSpaces}=require('../app/city-public-spaces.ts'),player=new T.Group(),messages=[],scene=new T.Scene(),world=createCityPublicSpaces(scene,player,message=>messages.push(message));

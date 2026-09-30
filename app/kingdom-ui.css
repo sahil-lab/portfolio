@@ -35,7 +35,7 @@
 
 .kingdom { background: #1d4148; }
 .kingdom .vignette {
-  background: linear-gradient(180deg, #0c222cc2 0, #0c222c3b 17%, transparent 35%, transparent 72%, #0b242965 100%);
+  background: linear-gradient(180deg, #12252e59 0, #12252e12 13%, transparent 26%, transparent 80%, #0b202b61 100%);
 }
 
 .kingdom[data-ready] .topbar {
@@ -288,7 +288,7 @@
   .kingdom .location .eyebrow { font-size: 8px; gap: 7px; }
   .kingdom .location-line { width: 16px; }
   .kingdom .district-tag { display: none; }
-  .kingdom .vignette { background: linear-gradient(180deg,#102b35cf, #102b3566 18%,transparent 38%,transparent 70%,#0e292b8c); }
+  .kingdom .vignette { background: linear-gradient(180deg,#10232e66, #10232e14 14%,transparent 28%,transparent 79%,#0b202b66); }
   .kingdom .interaction p { font-size: 11px; overflow-wrap: anywhere; }
   .kingdom .pause-banner { top: 185px; width: calc(100vw - 36px); gap: 8px; }
   .kingdom .journey-hud { top: 190px; border-radius: 5px; font-size: 11px; }

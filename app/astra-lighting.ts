@@ -4,7 +4,7 @@ import type {WeatherSnapshot} from './weather-state';
 export const astraPalette={
   substrate:'#183e3c',shadow:'#142b36',ceramic:'#d9e5d7',
   brass:'#b39760',window:'#ffd799',signal:'#9ce4d6',
-  leaf:'#538c70',leafLight:'#abc786',flower:'#deb097',
+  leaf:'#285e46',leafLight:'#6e985f',flower:'#ce918c',
   cpu:'#edc17c',memory:'#a8d1b4',graphics:'#c8989c',
   warning:'#d98462',rareEnergy:'#d4eff7',
 } as const;
@@ -23,12 +23,12 @@ export function astraLightStory(weather:WeatherSnapshot){
     nadir:night?'#233c47':'#8eafae',
     sunlight:night?.38:storm?.95:MathUtils.lerp(2.2,1.45,cover)*(1-golden*.1),
     sunColor:night?'#b9d3ef':cold?'#e3f3fb':golden>.45?'#ffd5a5':'#fff0d7',
-    skyLight:night?'#a2bbd3':rain?'#cfdee5':'#d8eafa',
-    groundLight:night?'#45525d':golden>.45?'#9c8878':'#657e72',
+    skyLight:night?'#a2bbd3':rain?'#c2d0d6':'#c5dbe8',
+    groundLight:night?'#35424b':golden>.45?'#877665':'#465e52',
     ambient:night?.24:storm?.66:MathUtils.lerp(.72,.65,cover)-golden*.16,
-    environment:night?.13:rain?.3:MathUtils.lerp(.44,.37,golden),
+    environment:night?.11:rain?.25:MathUtils.lerp(.34,.29,golden),
     rim:night?.4:rain?.47:.63,
-    fog:weather.kind==='fog'?.0105:storm?.0042:rain?.0028:night?.0017:golden>.45?.0021:.00135,
+    fog:weather.kind==='fog'?.0105:storm?.0042:rain?.0028:night?.001:golden>.45?.0011:.00065,
     pools:night?1:rain?.42:.1,
     water:night?'#183845':golden>.45?'#879c86':'#467c7e',
   };

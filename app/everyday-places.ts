@@ -7,6 +7,7 @@ import {createCivicKit} from './civic-kit';
 import {createCapitalFountain} from './capital-fountain';
 import {rampHeight,type Ramp} from './traversal';
 import {createSpatialIndex} from './spatial-index';
+import {cacheStaticTransforms} from './static-transforms';
 
 export {everydayKinds,everydayPlaceNames,cityEverydaySites,everydayFootprint,type EverydayKind,type CityEverydayId} from './everyday-config';
 import {everydayPlaceNames,everydayFootprint,type EverydayKind} from './everyday-config';
@@ -101,11 +102,36 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
     for(let step=0;step<stair.steps;step++){const elevation=T.MathUtils.lerp(stair.bottom,stair.top,(step+1)/stair.steps),z=T.MathUtils.lerp(stair.startZ,stair.endZ,(step+.5)/stair.steps);box('Mall_GalleryStair',stair.x,elevation-.13,z,stair.width,.17,(stair.startZ-stair.endZ)/stair.steps+.025,material.stone)}
     for(const edge of [-1,1])beam('Mall_StairHandrail',new T.Vector3(stair.x+edge*.82,1.8,stair.startZ),new T.Vector3(stair.x+edge*.82,4.8,stair.endZ),material.metal,.04);
     const shops=['Code Cafe','Git Gift Shop','Pixel Toy Store','Digital Bookstore','Robot Repair','Keyboard Shop','AI Lab','Byte Bakery'];
+    const shopFinishes=['#c98270','#b89b5e','#567d92','#799467'].map(color=>new T.MeshStandardMaterial({color,roughness:.82,metalness:.04}));
+    const interior=new T.MeshStandardMaterial({color:'#213b42',roughness:.6,emissive:'#ffcc91',emissiveIntensity:.025});interior.userData.surface='glass';
     shops.forEach((label,index)=>{const side=index%2?1:-1,upper=index>=4,z=-4.6+(Math.floor(index/2)%2)*4,elevation=upper?5.1:1.35;
      const sign=civic.plaque(fixed,label,upper?'UPPER GALLERY':'OPEN ARCADE',side*4.03,elevation+1,z,2.3);sign.rotation.y=-side*Math.PI/2;
+     box('Mall_StorefrontRecess',side*4.34,elevation,z,.08,1.75,2.7,interior);
+     for(const edge of [-1,1])box('Mall_StorefrontJamb',side*4.2,elevation,z+edge*1.4,.19,1.9,.12,material.stone);
+     box('Mall_StorefrontHeader',side*4.16,elevation+.92,z,.26,.12,2.92,material.stone);
+     for(let stripe=0;stripe<8;stripe++){const awning=box('Mall_ShopAwning',side*3.95,elevation+1.8,z-1.4+(stripe+.5)*.35,.9,.08,.35,stripe%2?material.stone:shopFinishes[index%4]);awning.rotation.z=side*.16}
      box('Mall_DisplayShelf',side*4.2,elevation-.65,z,.4,.08,2.5,material.wood);
-     for(let item=0;item<4;item++)box('Mall_ShopDisplay',side*4.03,elevation-.42,z-.87+item*.58,.2,.32+item%2*.15,.36,index%3?material.wall:material.stone);
+     for(let item=0;item<4;item++){
+      const across=z-.87+item*.58,finish=shopFinishes[(index+item)%4],shelf=elevation-.58;
+      box('Mall_ShopDisplay',side*4.03,shelf,across,.35,.08,.46,material.stone);
+      if(index===0){mesh('Mall_CafeMug',new T.CylinderGeometry(.12,.095,.23,10),material.stone,side*4.03,shelf+.16,across);const handle=mesh('Mall_CafeMugHandle',new T.TorusGeometry(.065,.02,5,10),material.metal,side*3.88,shelf+.17,across);handle.rotation.y=Math.PI/2}
+      else if(index===1){box('Mall_WrappedGift',side*4.03,shelf+.2,across,.28,.3,.33,finish);box('Mall_GiftRibbon',side*3.87,shelf+.2,across,.025,.31,.055,material.metal)}
+      else if(index===2){box('Mall_ToyBody',side*4.03,shelf+.18,across,.2,.24,.24,finish);mesh('Mall_ToyHead',new T.SphereGeometry(.13,8,6),material.stone,side*4.03,shelf+.43,across);box('Mall_ToyVisor',side*3.91,shelf+.43,across,.035,.065,.15,material.rail)}
+      else if(index===3){for(let book=0;book<3;book++)box('Mall_BookSpine',side*4.03,shelf+.25,across-.15+book*.15,.3,.36+(book%2)*.12,.105,shopFinishes[(item+book)%4])}
+      else if(index===4){beam('Mall_RepairTool',new T.Vector3(side*4.03,shelf+.08,across),new T.Vector3(side*4.03,shelf+.46,across),material.metal,.04);box('Mall_RepairToolHead',side*4.03,shelf+.44,across,.13,.09,.24,finish)}
+      else if(index===5){box('Mall_KeyboardCase',side*4.03,shelf+.1,across,.3,.09,.46,material.rail);for(let row=0;row<3;row++)for(let key=0;key<4;key++)box('Mall_KeyboardKey',side*4.03+(row-1)*.08,shelf+.16,across-.15+key*.1,.055,.025,.065,key===3?finish:material.stone)}
+      else if(index===6){box('Mall_LabInstrument',side*4.03,shelf+.24,across,.25,.4,.34,material.rail);box('Mall_LabDisplay',side*3.89,shelf+.28,across,.025,.2,.24,finish);for(let dial=0;dial<2;dial++)mesh('Mall_LabDial',new T.SphereGeometry(.035,6,4),material.metal,side*3.87,shelf+.12,across-.08+dial*.16)}
+      else{const loaf=mesh('Mall_BakeryLoaf',new T.SphereGeometry(.15,10,6),shopFinishes[1],side*4.03,shelf+.14,across);loaf.scale.set(1.25,.6,1);for(let score=0;score<3;score++)box('Mall_BreadScore',side*4.03+(score-1)*.065,shelf+.23,across,.018,.01,.15,material.stone)}
+     }
     });root.userData.shops=shops;
+    for(const side of [-1,1]){
+     box('Mall_StreetWindow',side*8,1.45,1.58,5.3,1.85,.08,interior);
+     for(const edge of [-1,1])box('Mall_StreetWindowFrame',side*8+edge*2.7,1.45,1.68,.14,2,.18,material.stone);
+     civic.plaque(fixed,side<0?shops[0]:shops[3],side<0?'COFFEE / PASTRIES':'BOOKS / FIELD NOTES',side*8,3,1.8,5.3);
+     for(let stripe=0;stripe<12;stripe++){const awning=box('Mall_StreetAwning',side*8-2.8+(stripe+.5)*5.6/12,3.9,2.15,5.6/12,.1,1.2,stripe%2?material.stone:shopFinishes[side<0?0:2]);awning.rotation.x=.15}
+     box('Mall_StreetDisplayShelf',side*8,.76,1.78,5.1,.1,.38,material.wood);
+     for(let item=0;item<7;item++){const horizontal=side*8-2.1+item*.7;if(side<0)mesh('Mall_CafeFrontCup',new T.CylinderGeometry(.16,.12,.29,10),item%2?material.stone:shopFinishes[0],horizontal,.95,1.82);else box('Mall_BookFrontDisplay',horizontal,1.08,1.82,.43,.5+(item%3)*.1,.25,shopFinishes[item%4])}
+    }
     for(const side of [-1,1]){
      bench(side*10,5.2,side<0?Math.PI/2:-Math.PI/2);tree(side*11,8.5,3.9);civic.flowers(fixed,side*5.7,4.3,1.6,1.6,side);
      const tableX=side*6.7;mesh('Mall_CafeTable',new T.CylinderGeometry(.85,.85,.1,20),material.wood,tableX,1.12,7.8,fixed,true);mesh('Mall_CafeTablePedestal',new T.CylinderGeometry(.075,.18,1.05,8),material.metal,tableX,.54,7.8);
@@ -153,6 +179,7 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
   }
  }
  solids.push(...civic.solids);fixed.userData.staticCameraBounds=solids.map(solid=>solid.clone());batchScenery(fixed,{});root.userData.features=features;
+ cacheStaticTransforms(fixed);
  const collisionIndex=createSpatialIndex(solids,solid=>({minX:solid.min.x,maxX:solid.max.x,minZ:solid.min.z,maxZ:solid.max.z}),8),collisionCandidates=new Set<T.Box3>(),collisionBounds=new T.Box3();for(const solid of solids)collisionBounds.union(solid);
  const approach=new T.Vector3(0,.8,depth/2-2.6),point=new T.Vector3();
  const actions:Record<EverydayKind,string[]>={park:['Fountain on.','A quiet seat by the fountain.'],playground:['Swings and seesaw moving.','Another turn at the playground.'],mall:['Shops open: Books / Fashion / Groceries / Cafe.','The arcade is open.'],market:['Today: fresh produce, flowers, and handmade goods.'],cinema:['Tonight at the Picture House: A Journey Around the Planets.'],clinic:['Reception is open.'],school:['The school bell rings.'],library:['On the open shelf: Planet Atlas / Field Notes / Stories of the City.'],sports:['Court ready. The ball is in play.']};

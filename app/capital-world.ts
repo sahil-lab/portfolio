@@ -1,14 +1,16 @@
 import * as T from 'three';
 import {createCivicKit} from './civic-kit';
 import {createCapitalFountain} from './capital-fountain';
+import {createCapitalPavilion} from './capital-pavilion';
 import {batchScenery} from './static-batching';
+import {cacheStaticTransforms} from './static-transforms';
 import {planWalkingRoute} from './walking-route';
 import {rampHeight,type Ramp} from './traversal';
 import {cityEverydaySites,everydayFootprint} from './everyday-places';
 
 export const capitalSite={x:52,z:180,radius:27};
 export const capitalArrival={x:52,y:.8,z:201};
-export const capitalCameraView=(aspect:number)=>({yaw:0,pitch:.22,zoom:Math.max(66,Math.min(110,32/aspect)),focusHeight:12.5});
+export const capitalCameraView=(aspect:number)=>({yaw:aspect<.85?-.035:-.12,pitch:.24,zoom:Math.max(60,Math.min(135,32/aspect)),focusHeight:12.5});
 export const capitalLookout={x:75,z:178,width:12,depth:14,level:6.2};
 export const capitalStair:Ramp={id:'capital-lookout',x:75,width:2.2,startZ:207,endZ:185,bottom:.8,top:6.2,steps:30};
 export const capitalProjects=['MultiAgentOPENAI','Multi-Agent Iterative AI System','Replico AI','NearNest','3DCodePad','Data Lineage Catalog'];
@@ -18,11 +20,15 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
  const root=new T.Group();root.name='Sahil_DigitalCapital';scene.add(root);const fixed=new T.Group();fixed.name='Capital_StaticStreetscape';root.add(fixed);
  const kit=createCivicKit(),materials=kit.materials;
  const plaza=new T.Group();plaza.name='Sahil_CentralPlaza';plaza.position.set(capitalSite.x,0,capitalSite.z);fixed.add(plaza);
+ materials.paving.color.set('#657575');materials.stone.color.set('#cbd2cb');
  const base=new T.Mesh(new T.CylinderGeometry(27,27,.16,96),materials.paving);base.name='Capital_RadialPaving';base.position.y=-.04;plaza.add(base);
- const tiles=new T.InstancedMesh(new T.BoxGeometry(.7,.022,2.2),materials.stone,180),dummy=new T.Object3D();tiles.name='Capital_PavingInlay';
- for(let index=0;index<180;index++){const ring=Math.floor(index/60),angle=index%60*Math.PI/30;dummy.position.set(Math.sin(angle)*(12+ring*5),.055,Math.cos(angle)*(12+ring*5));dummy.rotation.set(0,angle+.5,0);dummy.updateMatrix();tiles.setMatrixAt(index,dummy.matrix)}tiles.computeBoundingSphere();plaza.add(tiles);
+ const tileMaterial=new T.MeshStandardMaterial({color:'#ffffff',roughness:.95,metalness:.025});tileMaterial.userData.surface='natural';
+ const tiles=new T.InstancedMesh(new T.BoxGeometry(1,.022,3.5),tileMaterial,180),dummy=new T.Object3D(),tileColors=['#83918c','#919b92','#a0a89e','#7b8987'].map(color=>new T.Color(color));tiles.name='Capital_PavingInlay';
+ for(let index=0;index<180;index++){const ring=Math.floor(index/60),angle=(index%60+(ring%2)*.5)*Math.PI/30;dummy.position.set(Math.sin(angle)*(12+ring*5),.055,Math.cos(angle)*(12+ring*5));dummy.rotation.set(0,angle,0);dummy.scale.set(1.1+ring*.48,1,1);dummy.updateMatrix();tiles.setMatrixAt(index,dummy.matrix);tiles.setColorAt(index,tileColors[(index*7+ring)%tileColors.length])}tiles.computeBoundingSphere();plaza.add(tiles);
  for(const radius of [8.8,16.8,24.5]){const inlay=new T.Mesh(new T.TorusGeometry(radius,.035,5,96),materials.brass);inlay.name='Capital_CircuitPavingRing';inlay.rotation.x=Math.PI/2;inlay.position.y=.075;plaza.add(inlay)}
  const fountain=createCapitalFountain('royal');fountain.root.position.set(capitalSite.x,0,capitalSite.z);root.add(fountain.root);
+ kit.contact(fixed,capitalSite.x,capitalSite.z,18,18);
+ const pavilion=createCapitalPavilion(root,materials);kit.solids.push(...pavilion.solids);
  kit.plaque(fixed,'SAHIL UPADHYAY','Senior Engineering Lead / Full-Stack & AI',52,6.8,163,16);
  for(const side of [-1,1]){
   kit.box(fixed,'Capital_NamePylon',new T.Vector3(52+side*7.8,3.05,163),[.5,6.1,.65],materials.stone,true);
@@ -99,6 +105,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   for(const side of [-1,1]){const signal=kit.box(fixed,'Capital_TrafficSignal',new T.Vector3(x+side*5.8,2.8,z+3.5),[.28,.9,.25],materials.ink);kit.box(fixed,'Capital_TrafficSignalLamp',signal.position.clone().add(new T.Vector3(0,-.2,.14)),[.16,.16,.03],materials.leaf)}
  }
  batchScenery(fixed,{});
+ cacheStaticTransforms(fixed);
  root.userData.staticCameraBounds=kit.solids.map(bound=>bound.clone());
  let clock=0,night=0,wet=0;
  function height(x:number,z:number,previous:number){
@@ -115,7 +122,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   return null;
  }
  return {
-  root,fountain,routes,plaquePositions,lookout,stair,
+  root,fountain,pavilion,routes,plaquePositions,lookout,stair,
   destination:(kind:CapitalDestination)=>kind==='lookout'?{x:75,y:.8,z:208}:kind==='project-garden'?{x:41,y:.8,z:159}:kind==='waterfront'?{x:24,y:.8,z:185}:capitalArrival,
   height,
   blocked,

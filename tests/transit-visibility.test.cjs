@@ -29,7 +29,9 @@ test('neighborhood batches each stop separately and hides distant fixtures and v
  const scene=new T.Scene(),player=new T.Group(),stop=transitStops[9];player.position.set(stop.x,stop.y,stop.z);
  const neighborhood=createNeighborhood(scene,player,()=>false,()=>{});context.after(()=>disposeScene(scene));
  assert.equal(neighborhood.root.visible,true);
- assert.equal(neighborhood.root.children.filter(station=>station.visible).length,1);
+ assert.equal(neighborhood.root.children.filter(station=>station.name.startsWith('Neighborhood_')&&station.visible).length,1);
+ const instances=neighborhood.root.getObjectByName('Resident_InstancedParts'),matrix=new T.Matrix4();assert.ok(instances);
+ for(const mesh of instances.children)for(let index=0;index<mesh.count;index++){mesh.getMatrixAt(index,matrix);assert.ok(Math.abs(matrix.elements[13]-stop.y)<4,'render batch must exclude distant station residents')}
  transitStops.forEach((stationStop,index)=>{
   const station=neighborhood.root.getObjectByName('Neighborhood_'+stationStop.id),fixed=station.getObjectByName('NeighborhoodFixed_'+stationStop.id),actors=station.getObjectByName('NeighborhoodActors_'+stationStop.id);
   assert.deepEqual(station.position.toArray(),[0,0,0]);assert.deepEqual(fixed.position.toArray(),[0,0,0]);assert.deepEqual(actors.position.toArray(),[0,0,0]);
@@ -59,6 +61,7 @@ test('hidden neighborhood residents and traffic sleep and resume without recreat
  const traffic=neighborhood.traffic.map(car=>({car,angle:car.angle,id:car.root.uuid}));
  const walkers=neighborhood.walkers.map(walker=>({walker,position:walker.root.position.clone(),id:walker.root.uuid}));
  for(let step=0;step<90;step++)neighborhood.update(.1,true,new Set());
+ assert.ok(neighborhood.root.getObjectByName('Resident_InstancedParts').children.every(mesh=>mesh.count===0),'hidden stations leave no rendered resident instances');
  for(const {car,angle,id} of traffic){assert.equal(car.angle,angle);assert.equal(car.root.uuid,id);assert.equal(renderVisible(car.root),false)}
  for(const {walker,position,id} of walkers){assert.deepEqual(walker.root.position,position);assert.equal(walker.root.uuid,id);assert.equal(renderVisible(walker.root),false)}
  neighborhood.update(0,true,new Set([2]));

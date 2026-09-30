@@ -11,6 +11,12 @@ test('planets start as lightweight proxies, deduplicate builds, and unload inact
 test('cancelled planet construction disposes partial resources and never attaches to a dead world',async()=>{
  const stats={builds:0,disposed:0,updates:0},scene=new T.Scene(),streamer=createPlanetStreamer(scene,[null,createPlanetSurface(transitStops[1],78)],{factory:factory(stats)});const pending=streamer.load(1);streamer.dispose();assert.equal(await pending,false);assert.equal(scene.children.length,0);assert.equal(streamer.snapshot().resident,0);
 });
+test('streamed geometry remains detached until shaders are ready and cancelled preparation cannot attach it',async()=>{
+ const stats={builds:0,disposed:0,updates:0},scene=new T.Scene();let finish,started;
+ const preparing=new Promise(resolve=>{started=resolve}),streamer=createPlanetStreamer(scene,[null,createPlanetSurface(transitStops[1],78)],{factory:factory(stats),prepare:root=>{assert.notEqual(root.parent,streamer.landscapes[1].root);started();return new Promise(resolve=>{finish=resolve})}});
+ const pending=streamer.load(1);await preparing;assert.equal(streamer.ready(1),false);assert.equal(streamer.landscapes[1].proxy.visible,true);
+ streamer.landscapes[1].unload();finish();assert.equal(await pending,false);assert.equal(streamer.ready(1),false);assert.equal(stats.disposed,1);streamer.dispose();
+});
 test('abandoned background builds are cancelled when the visitor changes destination',async()=>{
  let time=0,resolveFactory;const stats={builds:0,disposed:0,updates:0},scene=new T.Scene(),builder=factory(stats),streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,4).map(stop=>createPlanetSurface(stop,stop.radius))],{now:()=>time,factory:()=>new Promise(resolve=>{resolveFactory=resolve})});
  const pending=streamer.load(1);time=2000;streamer.trim([2]);resolveFactory(await builder());assert.equal(await pending,false);assert.equal(stats.builds,0);assert.equal(streamer.snapshot().resident,0);assert.equal(streamer.landscapes[1].state,'unloaded');streamer.dispose();

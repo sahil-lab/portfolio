@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {createCuteResident,type ResidentOccupation} from './cute-resident';
 import {batchScenery} from './static-batching';
+import {createResidentInstances} from './resident-instances';
 
 type RoutineKind='talk'|'read'|'garden'|'work'|'serve'|'play'|'walk'|'maintain';
 const routines:{name:string;kind:RoutineKind;occupation:ResidentOccupation;position:[number,number,number];yaw:number;path?:[number,number,number][]}[]=[
@@ -34,6 +35,7 @@ export function createCapitalLife(scene:T.Scene,player:T.Group,blocked:(x:number
   const path=routine.path?new T.CatmullRomCurve3(routine.path.map(point=>new T.Vector3(...point)),true,'centripetal'):null;
   return {actor,routine,path,progress:index*.071%1,phase:index*.53};
  });
+ const instances=createResidentInstances(root,actors.map(entry=>entry.actor));
  let elapsed=0,time=0;
  function update(delta:number,reduced:boolean,active:boolean){
   root.visible=active;if(!active)return;elapsed+=Math.max(0,delta);if(elapsed<.075)return;const step=Math.min(.18,elapsed);elapsed=0;if(!reduced)time+=step;
@@ -46,9 +48,10 @@ export function createCapitalLife(scene:T.Scene,player:T.Group,blocked:(x:number
    if((routine.kind==='garden'||routine.kind==='maintain')&&!reduced){actor.parts.arms[0].rotation.x=-.7-Math.sin(time*1.7+entry.phase)*.25;actor.parts.head.rotation.x=.1}
    if(routine.kind==='serve'&&!reduced)actor.parts.arms[1].rotation.x=-.5-Math.max(0,Math.sin(time+entry.phase))*.3;
   }
+    instances.update();
  }
  const nearest=()=>actors.find(({actor})=>actor.root.visible&&actor.root.position.distanceTo(player.position)<2.7);
- return {root,actors,update,
+ return {root,actors,instances,update,
   blocked:(x:number,z:number,y:number)=>root.visible&&actors.some(({actor,routine})=>routine.kind!=='read'&&actor.root.visible&&Math.abs(actor.root.position.y-y)<1.8&&Math.hypot(actor.root.position.x-x,actor.root.position.z-z)<.55),
   prompt:()=>nearest()?'E \u00b7 Say hello':null,
   interact:()=>{const person=nearest();if(!person)return null;person.actor.react();return ({talk:'A good place to trade ideas.',read:'One more chapter before heading home.',garden:'The garden grows a little differently every day.',work:'A quiet table, a fresh build.',serve:'Fresh things from the neighborhood.',play:'There is time for one more turn.',walk:'The long way goes past the water.',maintain:'Keeping the small lights on.'})[person.routine.kind]},

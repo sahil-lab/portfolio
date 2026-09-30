@@ -8,7 +8,7 @@ import type {AngelGroundEnvironment} from './angel-ground';
 import type {Settings} from './persistence';
 
 export const angelAsset='/assets/anime-angel.glb';
-export function createFlyingAngel(scene:T.Scene,camera:T.PerspectiveCamera,options:AngelGroundEnvironment&{dogHeight:number;change?:(status:AngelFlightStatus)=>void;load?:(url:string)=>Promise<T.Object3D>}){
+export function createFlyingAngel(scene:T.Scene,camera:T.PerspectiveCamera,options:AngelGroundEnvironment&{dogHeight:number;change?:(status:AngelFlightStatus)=>void;load?:(url:string)=>Promise<T.Object3D>;prepare?:(root:T.Object3D)=>Promise<void>}){
  const height=options.dogHeight*angelDogHeightRatio,locomotion=createAngelLocomotion({...options,height}),flight=locomotion.flight;
  const root=new T.Group();root.name='Sky_Angel';root.position.copy(flight.state.position);root.visible=false;scene.add(root);
  const visual=new T.Group();visual.name='Angel_Flight_Visual';root.add(visual);
@@ -24,7 +24,7 @@ export function createFlyingAngel(scene:T.Scene,camera:T.PerspectiveCamera,optio
  function snapshot():AngelFlightStatus{return {ready:loaded&&!disposed,controlled:flight.state.controlled,roaming:flight.state.roaming,current:flight.state.current,destination:flight.state.destination,progress:Math.round(flight.state.progress*100),speed:Math.round(flight.state.speed),boosting:flight.state.boosting,error:failed,locomotion:locomotion.state.phase,groundMode:locomotion.state.groundMode,pace:locomotion.ground.state.pace,canLand:loaded&&locomotion.canLand()}}
  function publish(force=false){const status=snapshot(),key=JSON.stringify(status);if(force||key!==lastStatus){lastStatus=key;options.change?.(status)}}
  const loader=new GLTFLoader(),load=options.load??(async(url:string)=>(await loader.loadAsync(url)).scene);
- const ready=load(angelAsset).then(asset=>{
+ const ready=load(angelAsset).then(async asset=>{
   if(disposed){disposeScene(asset);return}
   const body=asset.getObjectByName('ANGEL_Body'),left=asset.getObjectByName('ANGEL_Wing_L'),right=asset.getObjectByName('ANGEL_Wing_R');
   if(!body||!left||!right){disposeScene(asset);throw new Error('Angel asset is missing body or wing hinges')}
@@ -35,6 +35,7 @@ export function createFlyingAngel(scene:T.Scene,camera:T.PerspectiveCamera,optio
   wings.push({object:left,rest:left.quaternion.clone(),side:1},{object:right,rest:right.quaternion.clone(),side:-1});
   rig.root.traverse(object=>{if((object as T.Mesh).isMesh){const mesh=object as T.Mesh;mesh.castShadow=false;mesh.receiveShadow=false;for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){const standard=material as T.MeshStandardMaterial;if(standard.isMeshStandardMaterial){standard.fog=false;standard.envMapIntensity=.8}}}});
   root.userData.asset=angelAsset;root.userData.bodyHeight=height;root.userData.dogHeightRatio=angelDogHeightRatio;root.userData.wingspan=span;root.userData.airborne=true;
+  if(options.prepare)await options.prepare(root);if(disposed)return;
   loaded=true;root.visible=true;root.updateWorldMatrix(true,true);publish(true);
  }).catch(error=>{if(!disposed){failed=true;publish(true);console.error('The flying angel could not load',error)}});
  function control(enabled:boolean){

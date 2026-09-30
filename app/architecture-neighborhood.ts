@@ -2,10 +2,11 @@ import * as T from 'three';
 import {architectureMaterials,bakeArchitecture,createCraftedBuilding,type BuildingCraftOptions,type ArchitectureMaterials} from './building-craft';
 import {architectureRecipe,type ArchitectureStyle} from './architecture-profiles';
 import type {WorkScheduler} from './work-scheduler';
+import {cacheStaticTransforms} from './static-transforms';
 
 export type BuildingPlacement={address:string;position:T.Vector3;rotation:T.Quaternion;width:number;height:number;depth:number;accent?:string;scale?:number};
 export function releaseArchitectureGeometry(root:T.Object3D){const geometries=new Set<T.BufferGeometry>();root.traverse(object=>{if(object instanceof T.Mesh)geometries.add(object.geometry)});geometries.forEach(geometry=>geometry.dispose());root.clear()}
-export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler}){
+export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler;prepare?:(root:T.Object3D)=>Promise<void>}){
  const root=new T.Group();root.name='Architecture_Neighborhood_'+style;root.userData.architectureStyle=style;parent.add(root);
  const shells=new T.Group(),details=new T.Group(),nearShells=new T.Group();shells.name='Architecture_UniqueSilhouettes';details.name='Architecture_NearbyFacades';nearShells.name='Architecture_NearbyEnvelopes';root.add(shells,nearShells,details);
  const shared=sharedFinishes?.materials??architectureMaterials(style),paints=sharedFinishes?.paints??new Map<string,T.MeshStandardMaterial>();
@@ -18,6 +19,7 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
  function batch(target:T.Group){
   const skins=bakeArchitecture(target);
   for(const skin of skins){const mesh=new T.Mesh(skin.geometry,skin.material);mesh.name='Architecture_MaterialBatch';mesh.castShadow=mesh.receiveShadow=true;target.add(mesh)}
+  cacheStaticTransforms(target);
  }
  const bounds:T.Box3[]=[];
  for(const record of records){
@@ -41,7 +43,11 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
     if(disposed||token!==generation||!wanted)return;
     const building=createCraftedBuilding(record.options);for(const [target,part] of [[stagedShells,building.envelope],[stagedDetails,building.details]]){part.position.copy(record.position);part.quaternion.copy(record.rotation);part.scale.setScalar(record.scale??1);target.add(part)}
    });if(disposed||token!==generation||!wanted)return}
-   await stream.scheduler.run(()=>{if(disposed||token!==generation||!wanted)return;batch(stagedShells);batch(stagedDetails);nearShells.add(...stagedShells.children);details.add(...stagedDetails.children);ready=true;shells.visible=false;nearShells.visible=details.visible=true});
+  await stream.scheduler.run(()=>{if(disposed||token!==generation||!wanted)return;batch(stagedShells);batch(stagedDetails)});
+  if(disposed||token!==generation||!wanted)return;
+  if(stream.prepare)await stream.prepare(staging);
+  if(disposed||token!==generation||!wanted)return;
+  nearShells.add(...stagedShells.children);details.add(...stagedDetails.children);cacheStaticTransforms(nearShells);cacheStaticTransforms(details);ready=true;shells.visible=false;nearShells.visible=details.visible=true;
   }catch{}finally{releaseArchitectureGeometry(staging);pending=false}
  }
  function release(){generation++;wanted=false;releaseArchitectureGeometry(details);releaseArchitectureGeometry(nearShells);ready=false;shells.visible=true}

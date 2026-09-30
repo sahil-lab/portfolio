@@ -16,7 +16,7 @@ function createOrbitalProxy(surface:PlanetSurface){
  for(let index=0;index<position.count;index++){normal.fromBufferAttribute(position,index).normalize();planetPoint(surface,normal,point).sub(surface.center);position.setXYZ(index,point.x,point.y,point.z);color.copy(land).lerp(patch,(Math.sin(normal.x*9+normal.z*3)*Math.cos(normal.y*12-normal.x*4)+1)*.22).toArray(colors,index*3)}
  geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));mesh.name='Planet_StreamingSilhouette';mesh.position.copy(surface.center);return mesh;
 }
-export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number}={}){
+export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>}={}){
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null;
  function unload(){
@@ -32,6 +32,7 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
     do{if(disposed||token!==generation){builder.return(undefined as never);return false}result=await scheduler.run(()=>builder.next(),priority)}while(!result.done);
     if(disposed||token!==generation)return false;
     const landscape=result.value;finishKingdomMaterials(landscape.root);
+    if(options.prepare)await options.prepare(landscape.root);if(disposed||token!==generation)return false;
     let world:T.Object3D=root;while(world.parent)world=world.parent;world.updateMatrix();
     landscape.root.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(world.matrix)});
     root.add(landscape.root);landscape.root.name='Planet_LoadedDetail_'+surface.stop.id;value=landscape;proxy.visible=false;lastUse=now();state='loaded';root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;
@@ -54,7 +55,7 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
   dispose(){if(disposed)return;disposed=true;unload();disposeScene(proxy);root.removeFromParent()},
  };
 }
-export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>}={}){
+export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>}={}){
  const scheduler=createWorkScheduler(),now=options.now??(()=>performance.now()),landscapes=surfaces.map(surface=>surface?createStreamedPlanet(parent,surface,scheduler,options):null);let lastSweep=-Infinity;
  const maxResident=options.maxResident??2,retireAfter=options.retireAfterMs??15000;
  function trim(keep:Set<number>){

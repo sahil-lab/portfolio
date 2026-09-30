@@ -4,9 +4,10 @@ import {createWoodenSign} from './wooden-sign';
 import {createReadableDisplay} from './readable-display';
 import {cityBlock} from './city-architecture';
 
-export const bulletinSites={markets:{x:-24,z:156,width:30,height:16.875},news:{x:18,z:156,width:30,height:16.875}};
-export const bulletinView={x:-24,y:.8,z:181};
-export const bulletinCameraView=(aspect:number)=>({yaw:0,pitch:.2,zoom:Math.max(48,Math.min(160,50/aspect)),focusHeight:14});
+export const bulletinSites={markets:{x:-77,z:152,width:18,height:10.125,yaw:-Math.PI/2},news:{x:-77,z:194,width:18,height:10.125,yaw:-Math.PI/2}};
+export function bulletinArrival(kind:keyof typeof bulletinSites){const site=bulletinSites[kind];return {x:site.x+Math.sin(site.yaw)*25,y:.8,z:site.z+Math.cos(site.yaw)*25}}
+export const bulletinView=bulletinArrival('markets');
+export const bulletinCameraView=(aspect:number,kind:keyof typeof bulletinSites='markets')=>({yaw:bulletinSites[kind].yaw,pitch:.18,zoom:Math.max(38,Math.min(140,36/aspect)),focusHeight:10});
 const stamp=(value:string|null)=>value?new Date(value).toISOString().slice(5,16).replace('T',' ')+' UTC':'Not received';
 const compact=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 function price(quote:MarketQuote){return new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:Math.abs(quote.price)<1?4:2}).format(quote.price)}
@@ -17,22 +18,28 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
   const root=new T.Group();root.name='MarketNewsSquare';scene.add(root);
   let market={...emptyMarket},news={...emptyNews},stocks:MarketQuote[]=[],commodities:MarketQuote[]=[],page=0,newsIndex=0,commodityIndex=0,scroll=0,tickerWidth=2000,marketClock=0,newsClock=0,paintClock=0,dirty=true,lastMinute=-1;
   let previousReduced=false;
-  const metal=new T.MeshPhysicalMaterial({color:'#edf1e7',metalness:.12,roughness:.38,clearcoat:.4}),trim=new T.MeshStandardMaterial({color:'#e5bb81',metalness:.35,roughness:.4});
-  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material=metal){const mesh=new T.Mesh(cityBlock(width,height,depth,.4),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh}
+  const metal=new T.MeshPhysicalMaterial({color:'#d8ded7',metalness:.12,roughness:.62,clearcoat:.18}),trim=new T.MeshStandardMaterial({color:'#b9955e',metalness:.45,roughness:.46});
+  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material=metal,parent:T.Object3D=root){const mesh=new T.Mesh(cityBlock(width,height,depth,.4),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
   const boards=Object.entries(bulletinSites).map(([kind,site])=>{
-    const frame=box(kind+'_BoardFrame',site.x,12,site.z,site.width+1.4,site.height+1.4,1);frame.userData.cameraSolid=true;
-    for(const side of [-1,1]){box(kind+'_BoardPost',site.x+side*12.5,1.85,site.z,.8,3.7,1.1).userData.cameraSolid=true;box(kind+'_BoardFoot',site.x+side*12.5,.16,site.z,2.8,.32,3.4,trim)}
+    const group=new T.Group();group.name='Bulletin_ReadingBay_'+kind;group.position.set(site.x,0,site.z);group.rotation.y=site.yaw;root.add(group);
+    const centerY=3.65+site.height/2,postOffset=site.width*.4;
+    const frame=box(kind+'_BoardFrame',0,centerY,0,site.width+1.4,site.height+1.4,1,metal,group);frame.userData.cameraSolid=true;
+    for(const side of [-1,1]){box(kind+'_BoardPost',side*postOffset,1.85,0,.8,3.7,1.1,metal,group).userData.cameraSolid=true;box(kind+'_BoardFoot',side*postOffset,.16,0,2.8,.32,3.4,trim,group)}
     const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1152;const context=canvas.getContext('2d')!;
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
-    const {front:display}=createReadableDisplay(root,kind==='markets'?'Market_Display':'News_Display',texture,site.width,site.height,1,new T.Vector3(site.x,12,site.z));
-    box(kind+'_StatusTrim',site.x,12+site.height/2+.5,site.z+.25,site.width,.13,.3,new T.MeshBasicMaterial({color:kind==='markets'?'#9ce1c6':'#e9bc83'}));
+    const {front:display}=createReadableDisplay(group,kind==='markets'?'Market_Display':'News_Display',texture,site.width,site.height,1,new T.Vector3(0,centerY,0));
+    box(kind+'_StatusTrim',0,centerY+site.height/2+.5,.25,site.width,.13,.3,new T.MeshBasicMaterial({color:kind==='markets'?'#9ce1c6':'#e9bc83'}),group);
+    box(kind+'_ReadingCanopy',0,centerY+site.height/2+1,1.8,site.width+2,.2,4.6,metal,group);
+    for(const side of [-1,1])box(kind+'_CanopyFascia',side*(site.width/2+.8),centerY+site.height/2+.76,1.8,.1,.3,4.6,trim,group);
     return {kind,site,canvas,context,texture,display};
   });
-  const pathMaterial=new T.MeshStandardMaterial({color:'#c4cebb',roughness:.96});
-  box('Bulletin_Boulevard',0,.025,171,7,.12,75,pathMaterial);box('Bulletin_ReadingWalk',-3,.03,181,82,.13,4,pathMaterial);
-  const sign=createWoodenSign('MARKETS & NEWS',{width:4,height:1.5,shape:'arrow'});sign.position.set(7,.12,141);root.add(sign);
+  const pathMaterial=new T.MeshStandardMaterial({color:'#8f9c98',roughness:.96});pathMaterial.userData.surface='natural';
+  box('Bulletin_ReadingCourt',-86,.025,173,20,.12,70,pathMaterial);box('Bulletin_ReadingWalk',-96,.03,173,3,.13,74,pathMaterial);
+  for(const site of Object.values(bulletinSites))box('Bulletin_StreetApproach',-92,.04,site.z,24,.04,3.6,metal);
+  const sign=createWoodenSign('MARKETS & NEWS',{width:4,height:1.5,shape:'arrow'});sign.position.set(-94,.12,133);root.add(sign);
   const accessible=()=>player.position.y<3&&player.position.y>=0;
-  const near=(site:typeof bulletinSites.markets)=>accessible()&&Math.abs(player.position.x-site.x)<13&&Math.abs(player.position.z-site.z)>1&&Math.abs(player.position.z-site.z)<29;
+  const coordinates=(site:typeof bulletinSites.markets,horizontal:number,forward:number)=>{const offsetX=horizontal-site.x,offsetZ=forward-site.z;return {across:offsetX*Math.cos(site.yaw)-offsetZ*Math.sin(site.yaw),ahead:offsetX*Math.sin(site.yaw)+offsetZ*Math.cos(site.yaw)}};
+  const near=(site:typeof bulletinSites.markets)=>{const local=coordinates(site,player.position.x,player.position.z);return accessible()&&Math.abs(local.across)<13&&Math.abs(local.ahead)>1&&Math.abs(local.ahead)<29};
   function base(context:CanvasRenderingContext2D,title:string,kicker:string,color:string){
     context.fillStyle='#0c252c';context.fillRect(0,0,2048,1152);context.fillStyle='#25444a';
     for(let x=0;x<2048;x+=32)for(let y=0;y<1152;y+=32)context.fillRect(x,y,2,2);
@@ -89,7 +96,7 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
   function update(dt:number,reduced:boolean,active:boolean){
     const step=Number.isFinite(dt)?Math.max(0,Math.min(dt,.1)):0;
     if(previousReduced!==reduced){previousReduced=reduced;dirty=true}
-    const nearby=active&&accessible()&&player.position.z>110&&player.position.z<225;
+    const nearby=active&&Object.values(bulletinSites).some(near);
     if(nearby&&!reduced){marketClock+=step;newsClock+=step;scroll+=step*75;if(marketClock>=12){marketClock%=12;page++;commodityIndex=commodities.length?(commodityIndex+2)%commodities.length:0;dirty=true}if(newsClock>=Math.max(24,tickerWidth/75)){newsClock=0;newsIndex++;scroll=0;dirty=true}}
     paintClock+=step;
     const minute=Math.floor(Date.now()/60000);
@@ -99,7 +106,7 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
     setMarket:(value:MarketBulletin)=>{market=value;stocks=value.quotes.filter(quote=>quote.kind==='stock');commodities=value.quotes.filter(quote=>quote.kind==='commodity');page=0;commodityIndex=0;dirty=true;paint(previousReduced)},
     setNews:(value:NewsBulletin)=>{news=value;newsIndex=0;scroll=0;dirty=true;paint(previousReduced)},
     get market(){return market},get news(){return news},get page(){return page},get headlineIndex(){return newsIndex},
-    blocked:(x:number,z:number,y:number)=>Object.values(bulletinSites).some(site=>Math.abs(z-site.z)<1.1&&(y>3&&y<22&&Math.abs(x-site.x)<site.width/2+1||[-12.5,12.5].some(post=>Math.abs(x-site.x-post)<1.8))),
+    blocked:(x:number,z:number,y:number)=>Object.values(bulletinSites).some(site=>{const local=coordinates(site,x,z);return Math.abs(local.ahead)<1.1&&(y>3&&y<site.height+4.4&&Math.abs(local.across)<site.width/2+1||y>=0&&y<4&&[-1,1].some(side=>Math.abs(local.across-side*site.width*.4)<1.8))}),
     prompt:()=>near(bulletinSites.markets)?'E \u00b7 Next market page':near(bulletinSites.news)?'E \u00b7 Next business headlines':null,
     interact:()=>{if(near(bulletinSites.markets)){page++;marketClock=0;commodityIndex=commodities.length?(commodityIndex+2)%commodities.length:0;paint(previousReduced);notice(market.coverage+' '+market.warning);return true}if(near(bulletinSites.news)){newsIndex=(newsIndex+1)%Math.max(1,news.headlines.length);scroll=0;newsClock=0;paint(previousReduced);const headline=news.headlines[newsIndex];notice(headline?headline.source+': '+headline.title+' / '+stamp(headline.publishedAt):news.warning);return true}return false},
   };

@@ -49,12 +49,22 @@ async function main(){
    await page.screenshot({path:path.join(output,name+'.png')});captures.push({name,...report});console.log('HUD_CAPTURE '+JSON.stringify({name,viewport:report.viewport,visibleButtons:report.visibleButtons,colors:report.colors,panel:report.panel,scrollable:report.scrollable}));return report;
   }
   await capture('desktop-scene',true);
-  const expected={World:['City','Travel','Commons','Pixel','Projects','District atlas'],Character:['Enter Angel mode','Main character mode','Angel mode','Walk','Skate'],View:['First person camera','Close camera','Far camera','Fullscreen'],Activity:['Courier journal','Interact'],System:['System info','Settings','Enable sound','Pause']};
+  const expected={World:['Visit Mall','City','Travel','Commons','Pixel','Projects','Read resume','Visit Sahil Plaza','Visit Project Garden','District atlas'],Character:['Enter Angel mode','Main character mode','Angel mode','Walk','Skate'],View:['First person camera','Close camera','Far camera','Fullscreen'],Activity:['Courier journal','Interact'],System:['System info','Settings','Enable sound','Pause']};
   for(const category of categories){
-   const panel=await open(category);for(const name of expected[category])assert.equal(await panel.getByRole('button',{name,exact:true}).count(),1,category+' missing '+name);
+   const panel=await open(category);for(const name of expected[category]){const button=panel.getByRole('button',{name,exact:true,includeHidden:true});assert.equal(await button.count(),1,category+' missing '+name);const group=button.locator('xpath=ancestor::details');if(await group.count()&&!await group.evaluate(element=>element.open))await group.locator('summary').click();await button.waitFor({state:'visible'})}
    inventory[category]=await panel.getByRole('button').allTextContents();
    if(category==='World'){await panel.getByRole('button',{name:'District atlas',exact:true}).click();assert.equal(await panel.locator('.hud-districts button').count(),8)}
    await capture('desktop-'+category.toLowerCase());
+  }
+  if(process.argv.includes('--world-only')){
+   await close();
+   for(const viewport of [{width:390,height:844},{width:320,height:740},{width:844,height:390}]){
+    await page.setViewportSize(viewport);const panel=await open('World');await capture('world-compact-'+viewport.width);
+    for(const group of await panel.locator('.hud-destination-group').all()){await group.locator('summary').click();assert.equal(await panel.locator('.hud-destination-group[open]').count(),1);await capture('world-expanded-'+viewport.width+'-'+await group.locator('summary span').textContent())}
+    await close();
+   }
+   const panel=await open('World');await panel.getByRole('button',{name:'Read resume',exact:true}).click();await page.getByRole('dialog',{name:'Sahil Upadhyay',exact:true}).waitFor();await page.getByRole('button',{name:'Close resume',exact:true}).click();
+   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'world-checks.json'),JSON.stringify({inventory,captures,errors},null,2)+'\n');console.log('HUD_WORLD_OK');return;
   }
   let panel=await open('System');await panel.getByRole('button',{name:'Pause',exact:true}).click();await panel.getByRole('button',{name:'Resume exploration',exact:true}).waitFor();assert.equal(await panel.getByRole('button',{name:'Return to workshop',exact:true}).count(),1);await panel.getByRole('button',{name:'Resume',exact:true}).click();
   await panel.getByRole('button',{name:'Settings',exact:true}).click();await page.locator('.portfolio-sheet').waitFor({state:'visible'});assert.equal(await page.locator('.hud-category-panel:visible').count(),0);assert.ok(await page.locator('.screen-movement .touch-joystick').evaluate(element=>element.disabled));for(const button of await page.locator('.screen-movement button').all())assert.ok(await button.isDisabled());await page.locator('.portfolio-sheet').getByRole('button',{name:'Close',exact:true}).click();

@@ -27,7 +27,7 @@ export function createAstraCanopy(name:string,scale=1,kind:CanopyKind='tree',det
   const banyan=kind==='banyan',segments=detail==='full'?18:6,sides=detail==='full'?7:5,leavesPerBranch=detail==='full'?42:12;
   const tips=banyan?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
   const trunks=[{x:0,z:0,radius:banyan?.8:.42,height:7}];
-  const bark=new T.MeshStandardMaterial({color:'#605c48',roughness:.8,metalness:.18});
+  const bark=new T.MeshStandardMaterial({color:'#544d40',roughness:.92,metalness:.035});
   bark.userData.surface='natural';
   const brass=new T.MeshStandardMaterial({color:astraPalette.brass,roughness:.43,metalness:.65});
   const trunk=new T.Mesh(taperedBranch([new T.Vector3(0,-.2,0),new T.Vector3(.35,2.2,.15),new T.Vector3(-.25,4.5,0),new T.Vector3(.2,7,.2)],banyan?.74:.39,segments,sides),bark);
