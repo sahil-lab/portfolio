@@ -13,7 +13,7 @@ The original mural, models, signs, portfolio content, and gameplay remain in use
 | District engraving, boulevard signals, edge contacts, common material finishing | `app/kingdom-art.ts` |
 | Open atrium ribs and large district silhouettes | `app/awe-world.ts` |
 | Weather-driven sky vault, light, instanced clouds, sun and moon | `app/weather-sky.ts` |
-| Bounded highlight bloom, quality switching, render-target cleanup | `app/kingdom-presentation.ts` |
+| Bounded highlight bloom, output antialiasing, quality switching, render-target cleanup | `app/kingdom-presentation.ts` |
 | Storefront hardware, glazing, planting, responsive arrival camera | `app/creative-plaza.ts` |
 | Instanced home trim, entrance lights, roof panels, waterways | `app/planet-infrastructure.ts` |
 | Matching vehicle finishes, window surrounds, running lights | `app/transit-models.ts` |
@@ -45,6 +45,153 @@ longer imposes the previous solid ceiling on orbital camera movement.
   world or changing player progress.
 - Far-away discovery labels fade; full labels return on approach. Existing
   artwork and machine emissions are not recolored by the finishing pass.
+
+## Workshop Reference Pass, 1 October 2026
+
+The workshop retains its mural, imported machinery, routes and controls. This pass
+addresses the flat lighting and stepped edges visible even at High quality:
+
+- Local daylight now comes from the front-left, with a warmer, stronger key and
+  less uniform fill. Moonlight and the existing weather transitions are retained.
+  The Day preset uses a 3.1 warm key at (-40, 65, 70), 0.44 hemisphere fill and reduced rim light;
+  Local sky retains its cloud-cover response and the original night values.
+- PBR Neutral tone mapping replaces ACES after same-camera comparison, preserving
+  more of the warm paint and teal material colors. The self-hosted 1K studio HDR
+  supplies reflections without replacing the stylized sky. Its energy is scaled
+  to 55% of the existing environment levels, with the old room environment kept
+  as a loading fallback.
+- A separate matte jade deck finish contrasts with the darker cabinet enamel;
+  paving colors are quieter and slightly warmer.
+- Oiled timber, brushed brass and copper, limewashed plaster, painted masonry
+  and smoother ceramic use distinct finishes. Three shared relief maps add
+  96 KiB of base texture data; the broad walls no longer inherit cabinet gloss.
+- The fitted repair cabinet has ten genuinely recessed drawer panels, raised
+  frames, label holders, a set-back plinth, adjustable feet and a shaped timber
+  counter with edge inlay. Its original physical collision boundary is retained;
+  the complete unbatched object stays below 10,000 triangles.
+- Three hollow reels have actual bores, cut-out flanges and wound copper cable.
+  A hinged task lamp adds a weighted base, linked arms and a spun shade. Each
+  reel and the lamp stay below 3,000 triangles and introduce no real-time lights.
+- Workshop windows reuse the existing 32 KiB room atlas with normalized shaped
+  pane UVs, varied interiors and reversible night illumination. The painted shop
+  signs now receive scene lighting and have fitted metal edging; mural and
+  screen artwork remain unchanged.
+- Three 512-square, offline-baked occlusion maps shade the two floor levels and
+  shelf wall. They replace the procedural 256-square fallbacks after loading.
+  A 64-square contact map follows the courier only on the workshop floors and
+  fades at their edges. All four work in Low, add no collision geometry and
+  require no accumulation during gameplay. The loaded base texture data totals
+  3,088 KiB, before mipmaps; replaced fallback textures are released.
+- Balanced and High apply FXAA after tone mapping and output conversion. Its
+  texel size follows the existing 1.6-million-pixel postprocessing budget, and
+  its resources are released on Low and disposal.
+- Depth-reusing GTAO now shades nearby surfaces and recesses before bloom and
+  tone mapping. It reconstructs normals from the existing scene depth instead
+  of rendering another geometry pass. AO and denoising are capped at 600,000
+  pixels with eight samples each; Low releases these resources and keeps the
+  baked contacts. Depth-buffer references follow the composer's swaps.
+- Auto can try Balanced after two measurement windows below 18 ms, allowing
+  stable 60 Hz devices out of Low. High still requires windows below 12 ms;
+  the existing slow-frame fallback and no-retry ceiling remain in place.
+- The supported PCF filter uses radius 3 at Balanced and 6 at High, preserving
+  the same shadow softness as map resolution doubles without another render pass.
+- High permits native 2x rendering when it fits the existing device pixel budget.
+- Return to workshop uses the standard 50-degree lens, arrival (-2, 0.8, 24),
+  yaw 0.6, pitch 0.26, focus height 6.5 and distance
+  `max(36, min(84, 27.75/aspect))`. The view refits on resize
+  until a manual camera adjustment, retaining the existing camera modes.
+- On phones, the interaction remains a labeled 44px hand button above the
+  joystick rather than a wide banner; the smaller location title leaves the
+  scene visible. Desktop interaction controls are retained.
+
+### Reference Research And Assets
+
+The reference was evaluated with estimated screen-space landmarks for the
+courier, workbench sign, press, and the red building's roof and base. Trials with
+longer and near-orthographic lenses did not improve the complete composition and
+were removed. The selected standard-lens view is covered by projection tests and
+an actual browser camera-distance assertion, not only a fixed screenshot zoom.
+
+Research references:
+
+- [Drei AccumulativeShadows](https://drei.docs.pmnd.rs/staging/accumulative-shadows):
+  accumulate static soft shading, retaining cheap rendering after completion.
+- [Drei Environment](https://drei.docs.pmnd.rs/staging/environment): use HDR
+  environment lighting independently of the visible background, and self-host
+  production assets instead of depending on preset CDNs.
+- [Model-viewer tone mapping comparison](https://modelviewer.dev/examples/lightingandenv/):
+  PBR Neutral preserves material colors differently from ACES and AgX.
+
+`public/assets/studio_small_03_1k.hdr` is **Studio Small 03** by Greg Zaal,
+downloaded from [Poly Haven](https://polyhaven.com/a/studio_small_03) under its
+[CC0 asset license](https://polyhaven.com/license). It is 1024x512 and 1,686,299 bytes.
+
+`app/workshop-lighting.ts` uses Three.js `ProgressiveLightMap` in an isolated
+browser bake: 48 deterministic hemisphere-light samples on cloned static
+geometry, normalized by an unobstructed-light control. The three PNGs are
+generated from the existing workshop and press, not downloaded artwork. Opacity
+variation is asserted; opaque diagnostic previews are written under
+`outputs/playtest/bake-preview-*`. This bakes soft occlusion, not full indirect
+color-bounce transport. Regenerate after changing the static workshop geometry:
+
+```sh
+npm exec --yes --package=playwright -- node scripts/check-kingdom-visuals.cjs --bake-workshop --url=http://127.0.0.1:4332
+```
+
+The Blender MCP addon was unavailable. A Store installation was found, but direct
+background execution was denied and no command alias was available. No Blender
+scene, system permissions or running user work was changed.
+
+Use `--match-reference` to capture the actual 353x600 touch viewport at DPR 2,
+without the manual zoom used by older close-up checks. Optional `--tone=aces`,
+`--tone=agx` and `--tone=neutral` switches are isolated comparison controls.
+
+### Workshop Verification
+
+All 484 Node regression tests passed, as did the full TypeScript check. The
+invalid-position recovery test now checks the configured workshop spawn rather
+than hardcoding its old coordinates. The isolated Chrome check completed 11 captures
+at 946x764 and 390x844: Low/Balanced/High in matched daylight, Local sky, night,
+and movement. It asserts visible contact shading, retained camera framing,
+nonblank canvas pixels, asset loading, control bounds and 44px toolbar targets.
+It also asserts the cabinet, three reels, task lamp, room-shaded glazing and
+consistent shadow radius are present at every quality level.
+No page or Three.js rendering errors were captured. Results and screenshots are
+under `outputs/playtest/reference-complete-*`. The reference-sized High capture
+and portrait/landscape interaction checks are under `outputs/playtest/reference-final-*`.
+The full touch HUD workflow also passed 28 captures, including menus, joystick
+release, rotation and character controls, under `outputs/playtest/hud-dropdowns/touch`.
+
+```sh
+npm exec --yes --package=playwright -- node scripts/check-kingdom-visuals.cjs --workshop --url=http://127.0.0.1:4332 --prefix=reference-complete
+npm exec --yes --package=playwright -- node scripts/check-kingdom-visuals.cjs --workshop --match-reference --url=http://127.0.0.1:4332 --prefix=reference-final
+```
+
+The `--reference` option captures closer, matched Balanced views, warms up for
+90 frames and records three 90-frame samples. `--ao-control` disables only GTAO in the isolated browser's intercepted
+module, asserting that the active module was actually intercepted; app source is
+unchanged by that control. The earlier AO-only captures are in `workshop-depth-close-*` and
+`workshop-depth-control-*`. Their indicative single 90-frame samples on local Chrome/Intel
+Arc were 20.56 ms without AO versus 20.18 ms with AO on desktop, and 17.59 versus
+18.15 ms at phone viewport size. These short, non-randomized runs do not establish
+a speedup or certify physical-phone performance.
+
+The earlier craft close-ups are in `workshop-crafted-close-*` at 860x768 and
+390x844. The median-run means after warm-up were 28.15 ms desktop and 22.78 ms
+at phone viewport size, with substantial variation between runs. These are
+current local measurements, not a matched before/after speed comparison. The
+earlier `workshop-craft-probe-*` capture used a shorter single-window sample.
+
+The final High mobile camera-lifecycle check passed Close/First person/Far
+changes and deliberate WebGL context loss/restoration with the same document,
+canvas, scene and player position. Its report is
+`outputs/playtest/camera-lifecycle/high-mobile.json`.
+
+The new bake module and changed atmosphere, lighting and quality-profile modules lint clean. Broader
+lint still includes the pre-existing `module` loop variable in
+`workshop-details.ts` and `activities` prefer-const finding in `world.ts`.
+This is a local development-browser verification, not a real-phone performance
+benchmark, production build, or hosted deployment verification.
 
 ## Vaulted Gallery, 1 October 2026
 

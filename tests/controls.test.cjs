@@ -1,9 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,f);
 const T=require('three');const {moveCharacter,movementSpeed}=require('../app/character-controller.ts');const {createTraversal}=require('../app/traversal.ts');const {parseSave,validateDelivery,defaultSettings}=require('../app/persistence.ts');const {DeliveryRound}=require('../app/delivery-state.ts');const {createGameCamera}=require('../app/game-camera.ts');
+const {workshopSpawn}=require('../app/world-config.ts');
 test('movement remains consistent across frame rates, slides against walls, and recovers invalid positions',()=>{
  const travel=hz=>{const p=new T.Group();p.position.set(0,.8,0);for(let i=0;i<hz;i++)moveCharacter(p,1,0,5.5/hz,()=>false,()=>.8);return p.position.x};assert.ok(Math.abs(travel(30)-travel(144))<1e-8);
- const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[0,.8,24]);
+ const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[workshopSpawn.x,workshopSpawn.y,workshopSpawn.z]);
 });
 test('skating is faster than walking and remains frame-rate independent without tunneling through walls',()=>{
  assert.equal(movementSpeed('walk'),4);assert.equal(movementSpeed('skate'),9);assert.equal(movementSpeed('skate',true),14);assert.ok(movementSpeed('walk',true)>movementSpeed('walk'));

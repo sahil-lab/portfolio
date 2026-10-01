@@ -1,9 +1,13 @@
 import * as T from 'three';
 import {craftedBox} from './crafted-surfaces';
-import {createCeramicPlanter,createWorkLight,addCabinetPull} from './workshop-objects';
+import {createCeramicPlanter,createWorkLight,createRepairCabinet,createCableReel,createBenchLamp} from './workshop-objects';
+import {createGroundOcclusion,type GroundOccluder} from './ground-occlusion';
+import {mapWindowRoom,windowRoom} from './window-interiors';
+import {loadWorkshopLighting} from './workshop-lighting';
 
 export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhysicalMaterial>){
   const solids:{x:number;y:number;z:number;w:number;h:number;d:number}[]=[];
+  const contacts:GroundOccluder[]=[];
   function mesh(parent:T.Object3D,name:string,geometry:T.BufferGeometry,material:T.Material,x=0,y=0,z=0){
     const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;parent.add(object);return object;
   }
@@ -26,7 +30,9 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     const frame=socketShape(width,height),aperture=socketShape(width-.25,height-.25);
     frame.holes.push(new T.Path(aperture.getPoints().map(point=>point.add(new T.Vector2(0,.125)))));
     mesh(group,'Atelier_CeramicSocket',new T.ExtrudeGeometry(frame,{depth:.16,bevelEnabled:true,bevelSize:.025,bevelThickness:.018,bevelSegments:2}),finishes.chalk);
-    mesh(group,'Atelier_RecessedGlazing',new T.ShapeGeometry(socketShape(width-.22,height-.22)),finishes.glass,0,.11,.095);
+    const paneWidth=width-.22,paneHeight=height-.22,pane=new T.ShapeGeometry(socketShape(paneWidth,paneHeight)).translate(0,-paneHeight/2,0);
+    mapWindowRoom(pane,paneWidth,paneHeight,windowRoom('workshop',Math.floor(y/4),Math.round(angle/(Math.PI/2)),Math.round(x)));
+    mesh(group,'Atelier_RecessedGlazing',pane,finishes.glass,0,.11+paneHeight/2,.095);
     mesh(group,'Atelier_WindowGasket',new T.ExtrudeGeometry(frame,{depth:.028,bevelEnabled:false}),finishes.rail,0,0,-.018);
     mesh(group,'Atelier_WindowBus',new T.BoxGeometry(.045,height*.61,.023),finishes.brass,-width*.2,height*.47,.119);
     for(const level of [.28,.48,.68]){
@@ -42,11 +48,17 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     context.textAlign='center';context.fillStyle=light?'#29463f':'#eee8cd';context.font='600 74px "Trebuchet MS", sans-serif';context.fillText(text,512,subline?113:157,920);
     if(subline){context.fillStyle=light?'#6c7664':'#c1c7ab';context.font='500 32px "Trebuchet MS", sans-serif';context.fillText(subline,512,190,920)}
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
-    mesh(root,'Atelier_PaintedShopSign',new T.PlaneGeometry(width,height),new T.MeshBasicMaterial({map:texture,toneMapped:false}),x,y,z);
+    const paint=new T.MeshStandardMaterial({map:texture,roughness:.82,metalness:0,emissive:'#ffffff',emissiveMap:texture,emissiveIntensity:.065});
+    mesh(root,'Atelier_PaintedShopSign',new T.PlaneGeometry(width,height),paint,x,y,z);
+    for(const side of [-1,1]){
+      box('Atelier_SignEdge',x,y+side*height/2,z+.008,width+.045,.035,.035,finishes.brass);
+      box('Atelier_SignStile',x+side*width/2,y,z+.008,.035,height+.045,.035,finishes.brass);
+    }
   }
   const planting:Placement[]=[],flowers:Placement[]=[];
   function planter(x:number,y:number,z:number,width=1.8){
     const vessel=createCeramicPlanter(width,finishes);vessel.position.set(x,y,z);root.add(vessel);
+    if(y<1)contacts.push({x,z,width,depth:.68,strength:.4});
     for(let index=0;index<7;index++){
       const offset=-width*.38+index/6*width*.76;
       planting.push({x:x+offset,y:y+.69+(index%2)*.12,z:z+Math.sin(index*2)*.16,sx:.35,sy:.29,sz:.3,color:index%3?'#488967':'#9dc47e'});
@@ -56,6 +68,7 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
   function lantern(x:number,y:number,z:number,wall=false){
     if(!wall){box('Atelier_LampPost',x,y+1.7,z,.095,3.3,.095,finishes.rail);box('Atelier_LampSocket',x,y+.12,z,.4,.24,.4,finishes.rail)}
     else box('Atelier_LampBracket',x,y+3.15,z-.25,.075,.075,.55,finishes.rail);
+    if(!wall&&y<1)contacts.push({x,z,width:.4,depth:.4,strength:.38});
     const light=createWorkLight(finishes);light.position.set(x,y+3.5,z);root.add(light);
   }
   function rail(x:number,y:number,z:number,length:number,alongX=true){
@@ -71,13 +84,13 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     for(const side of [-1,1]){box('Atelier_PorticoBracket',x+side*(width/2-.25),y-.43,z-.1,.12,.85,1.1,finishes.rail);box('Atelier_PorticoContact',x+side*(width/2-.14),y+.16,z,.1,.09,.9,finishes.brass)}
   }
   const pavers:Placement[]=[];
-  for(let row=0;row<6;row++)for(let column=0;column<20;column++)pavers.push({x:-12+column*1.22,y:.74,z:21.85+row*.88,color:['#dce6e8','#cbdbe1','#e8edeb','#c6d9dc'][(column*7+row*3)%4]});
+  for(let row=0;row<6;row++)for(let column=0;column<20;column++)pavers.push({x:-12+column*1.22,y:.74,z:21.85+row*.88,color:['#dddcd3','#d4d9d3','#e4e5da','#cdd5cf'][(column*7+row*3)%4]});
   instances('Atelier_CeramicCircuitPavers',new T.BoxGeometry(1.15,.07,.81),new T.MeshStandardMaterial({color:'#ffffff',roughness:.84}),pavers);
   for(const side of [-1,1])for(let run=0;run<3;run++){
     box('Atelier_ForecourtCircuit',side*(2.4+run*.22),.79,24,.037,.016,5.4,finishes.brass);
     mesh(root,'Atelier_ForecourtVia',new T.TorusGeometry(.13,.023,5,20).rotateX(Math.PI/2),finishes.brass,side*(2.4+run*.22),.799,21.2);
   }
-  instances('Atelier_ServiceDeckPanels',new T.BoxGeometry(1.07,.065,2.64),finishes.sage,Array.from({length:42},(_,index)=>({x:-8.14+(index%14)*1.12,y:.775,z:14.87+Math.floor(index/14)*2.74,color:index%5?'#e4eeeb':'#bccdcb'})));
+  instances('Atelier_ServiceDeckPanels',new T.BoxGeometry(1.07,.065,2.64),finishes.deck,Array.from({length:42},(_,index)=>({x:-8.14+(index%14)*1.12,y:.775,z:14.87+Math.floor(index/14)*2.74,color:index%5?'#e4eeeb':'#bccdcb'})));
   for(const side of [-1,1])box('Atelier_BrassThresholdRail',side*7.75-.8,.824,17.6,.045,.015,8.2,finishes.brass);
   for(const [index,wing] of [{x:-16,height:12},{x:17,height:14}].entries()){
     for(const level of [1.1,5,9.2]){
@@ -110,15 +123,10 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
   for(let index=0;index<16;index++)box('Atelier_CanopyRib',-9.12+index*.575,6.91,12.7,.045,.04,2.35,finishes.brass);
   box('Atelier_WorkshopFascia',-4.8,6.13,13.86,9.08,1.02,.14,finishes.chalk);
   plaque('BOOTLOADER WORKSHOP','PACKET PRESS / SYSTEM DISPATCH',-4.8,6.13,13.944,8.4,.98,true);
-  box('Atelier_RepairCabinet',-5.2,1.71,14.7,5.5,1.8,1.2,finishes.sage,true);
-  box('Atelier_RepairCounter',-5.2,2.68,14.8,5.85,.15,1.55,finishes.timber);
-  for(let drawer=0;drawer<5;drawer++)for(let row=0;row<2;row++){
-    const x=-7.37+drawer*1.08,y=1.22+row*.73;
-    box('Atelier_DrawerGasket',x,y,15.31,1,.65,.07,finishes.rail);
-    box('Atelier_DrawerFront',x,y,15.358,.93,.58,.08,finishes.sage);box('Atelier_DrawerLabel',x,y+.16,15.41,.31,.11,.014,finishes.chalk);
-    const pull=addCabinetPull(root,finishes);pull.position.set(x,y-.055,15.421);
-  }
-  for(const y of [3.2,4.07,4.93]){
+  const cabinet=createRepairCabinet(finishes);cabinet.position.set(-5.2,.8,14.7);root.add(cabinet);
+  solids.push({x:-5.2,y:1.71,z:14.7,w:5.5,h:1.8,d:1.2});
+  const shelfLevels=[3.2,4.07,4.93];
+  for(const y of shelfLevels){
     box('Atelier_PartsShelf',-5.3,y,12.9,5.45,.09,.55,finishes.timber);
     for(let part=0;part<9;part++){
       const x=-7.63+part*.58,height=.32+(part%3)*.1;
@@ -128,9 +136,9 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     }
   }
   for(let reel=0;reel<3;reel++){
-    const x=-7+reel*.72;mesh(root,'Atelier_CableReel',new T.CylinderGeometry(.27,.27,.36,16),finishes.rail,x,3,14.66).rotation.x=Math.PI/2;
-    for(const side of [-1,1])mesh(root,'Atelier_ReelFlange',new T.CylinderGeometry(.34,.34,.055,16),finishes.brass,x,3,14.66+side*.22).rotation.x=Math.PI/2;
+    const spool=createCableReel(finishes);spool.position.set(-7+reel*.72,3.1,14.66);spool.rotation.z=reel*.24;root.add(spool);
   }
+  const taskLamp=createBenchLamp(finishes);taskLamp.position.set(-2.8,2.756,14.63);root.add(taskLamp);
   box('Atelier_InspectionMat',-3.8,2.776,14.8,1.7,.025,.98,finishes.rail);
   for(let part=0;part<5;part++)box('Atelier_InspectionChip',-4.4+part*.27,2.87,14.8,.18,.15,.32,part%2?finishes.oxide:finishes.brass);
   box('Atelier_PressBacking',3.7,3.15,14.4,1.9,4.8,.27,finishes.sage,true);plaque('OUTGOING','04 / DAILY ROUTE',3.7,4.48,14.56,1.66,1.1);
@@ -152,5 +160,11 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
   instances('Atelier_CourtyardCanopies',new T.SphereGeometry(1,14,10),treeMaterial,treeLeaves);
   instances('Atelier_WindowboxFoliage',new T.SphereGeometry(1,10,8),treeMaterial,planting);
   instances('Atelier_WindowboxFlowers',new T.SphereGeometry(1,6,4),new T.MeshStandardMaterial({color:'#ffffff',roughness:.9}),flowers);
+  for(const solid of solids)if(solid.y-solid.h/2<.95)contacts.push({x:solid.x,z:solid.z,width:solid.w,depth:solid.d,strength:.42});
+  contacts.push({x:1,z:17.8,width:4.6,depth:4.5,strength:.34});
+  root.add(createGroundOcclusion('Atelier_DeckContact',{x:-.8,z:17.6,width:15.8,depth:8.1,y:.812},contacts,.72));
+  root.add(createGroundOcclusion('Atelier_ForecourtContact',{x:0,z:24.35,width:26,depth:5.3,y:.78},contacts,.85));
+  const shelfContact=createGroundOcclusion('Atelier_ShelfContact',{x:0,z:0,width:8.35,depth:5.75,y:0},shelfLevels.map(height=>({x:-.5,z:3.4-height,width:5.45,depth:.09,strength:.3})),.32);
+  shelfContact.rotation.x=Math.PI/2;shelfContact.position.set(-4.8,3.4,12.515);root.add(shelfContact);loadWorkshopLighting(root);
   return solids;
 }

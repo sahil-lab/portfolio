@@ -1,30 +1,40 @@
 import * as T from 'three';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
+import {FXAAShader} from 'three/addons/shaders/FXAAShader.js';
 import type {Settings} from './persistence';
 import {createShaderPreparation} from './shader-preparation';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
+export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.85};
 export const presentationPixelBudget=1600000;
 export function presentationPixelRatio(width:number,height:number,ratio:number){return Math.min(ratio,Math.sqrt(presentationPixelBudget/Math.max(1,width*height)))}
 
 export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera){
-  let composer:EffectComposer|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined;
+  let composer:EffectComposer|undefined,occlusion:GTAOPass|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined,antialias:ShaderPass|undefined;
   let width=1,height=1;
   const shaders=createShaderPreparation(renderer,scene,camera,()=>composer?.readBuffer??null);
   const originalAutoReset=renderer.info.autoReset;renderer.info.autoReset=false;
-  function release(){bloom?.materialHighPassFilter.dispose();bloom?.dispose();output?.dispose();composer?.dispose();composer=undefined;bloom=undefined;output=undefined}
+  function release(){occlusion?.gtaoMaterial.dispose();occlusion?.blendMaterial.dispose();occlusion?.dispose();bloom?.materialHighPassFilter.dispose();bloom?.dispose();output?.dispose();antialias?.dispose();composer?.dispose();composer=undefined;occlusion=undefined;bloom=undefined;output=undefined;antialias=undefined}
   function resize(nextWidth:number,nextHeight:number){
     width=Math.max(1,nextWidth);height=Math.max(1,nextHeight);
-    if(composer){composer.setPixelRatio(presentationPixelRatio(width,height,renderer.getPixelRatio()));composer.setSize(width,height)}
+    if(composer){const ratio=presentationPixelRatio(width,height,renderer.getPixelRatio());composer.setPixelRatio(ratio);composer.setSize(width,height);antialias?.uniforms.resolution.value.set(1/(width*ratio),1/(height*ratio))}
   }
   function quality(value:Settings['quality']){
     if(value==='low'){release();return}
     if(composer)return;
-    const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,samples:0});
+    const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,samples:0,depthTexture:new T.DepthTexture(1,1,T.UnsignedIntType)});
     composer=new EffectComposer(renderer,target);
+    occlusion=new GTAOPass(scene,camera,1,1);occlusion.setGBuffer(composer.readBuffer.depthTexture!);
+    occlusion.blendIntensity=kingdomOcclusion.strength;
+    occlusion.updateGtaoMaterial({radius:kingdomOcclusion.radius,thickness:kingdomOcclusion.thickness,distanceExponent:1,distanceFallOff:1,scale:1.3,samples:8});
+    occlusion.updatePdMaterial({radius:4,samples:8,rings:2,lumaPhi:10,depthPhi:1,normalPhi:3});
+    const resizeOcclusion=occlusion.setSize.bind(occlusion);
+    occlusion.setSize=(nextWidth,nextHeight)=>{const ratio=Math.min(1,Math.sqrt(kingdomOcclusion.pixelBudget/Math.max(1,nextWidth*nextHeight)));resizeOcclusion(Math.max(1,Math.floor(nextWidth*ratio)),Math.max(1,Math.floor(nextHeight*ratio)))};
     bloom=new UnrealBloomPass(new T.Vector2(1,1),kingdomBloom.strength,kingdomBloom.radius,kingdomBloom.threshold);
     bloom.materialHighPassFilter.fragmentShader=`
       uniform sampler2D tDiffuse;
@@ -38,13 +48,13 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
         gl_FragColor=vec4(min(radiance,vec3(2.0))*highlight,1.0);
       }
     `;
-    output=new OutputPass();composer.addPass(new RenderPass(scene,camera));composer.addPass(bloom);composer.addPass(output);
+    output=new OutputPass();antialias=new ShaderPass(FXAAShader);composer.addPass(new RenderPass(scene,camera));composer.addPass(occlusion);composer.addPass(bloom);composer.addPass(output);composer.addPass(antialias);
     resize(width,height);
   }
   return {
     quality,resize,prepare:shaders.prepare,finishPreparation:shaders.dispose,
     get pending(){return shaders.pending},
-    render:()=>{renderer.info.reset();if(composer)composer.render();else renderer.render(scene,camera)},
+    render:()=>{renderer.info.reset();if(composer){occlusion?.setGBuffer(composer.readBuffer.depthTexture!);composer.render()}else renderer.render(scene,camera)},
     dispose:()=>{release();renderer.info.autoReset=originalAutoReset},
   };
 }

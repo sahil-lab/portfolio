@@ -161,14 +161,12 @@
  .kingdom[data-ready] .topbar nav { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); width: 100%; gap: 3px; margin: 0; }
  .kingdom[data-ready] .topbar nav .hud-category-trigger { flex-direction: column; gap: 4px; width: 100%; min-width: 0; height: 44px; padding: 4px 0; font-size: 10px; }
  .kingdom[data-ready] .location { left: 17px; bottom: 55px; top: auto; max-width: calc(100vw - 34px); }
- .kingdom[data-ready] .location h1 { font-size: 22px; }
+ .kingdom[data-ready] .location h1 { font-size: 18px; line-height: 1.2; }
  .kingdom[data-ready] .controls.hud-status { left: 18px; right: auto; bottom: calc(20px + env(safe-area-inset-bottom)); height: auto; }
  .kingdom .world-notice, .kingdom .delivery-complete { top: 124px; }
  .hud-category-panel { width: min(340px,calc(100vw - 24px)); max-height: min(720px,calc(100dvh - 124px),calc(var(--available-height,80dvh) - 12px)); }
  .hud-category-panel[data-category="World"] { max-height: min(65dvh,calc(var(--available-height,80dvh) - 12px)); }
  .hud-category-body { padding: 12px; }
- .kingdom .scene-action { left: 16px; right: 16px; bottom: calc(152px + env(safe-area-inset-bottom)); transform: none; width: auto; max-width: none; }
- .kingdom .scene-action kbd { display: none; }
 }
 @media(max-height:560px) and (min-width:701px) {
  .kingdom[data-ready] .topbar { height: 62px; }
@@ -178,6 +176,8 @@
  .kingdom .scene-action { bottom: 20px; max-width: min(360px,calc(100vw - 390px)); }
 }
 @media(max-width:700px), (pointer:coarse) {
+ .kingdom .scene-action { left: auto; right: 16px; bottom: calc(149px + env(safe-area-inset-bottom)); transform: none; width: 44px; height: 44px; min-height: 44px; max-width: none; padding: 0; justify-content: center; border-radius: 50%; background: #172d3288; }
+ .kingdom .scene-action>span, .kingdom .scene-action kbd { display: none; }
  .kingdom .screen-movement { right: max(16px,env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom)); width: 116px; height: 116px; }
  .kingdom[data-ready] .screen-movement .walk-pad { display: none; }
  .kingdom[data-ready] .screen-movement .touch-joystick { display: block; }

@@ -2,8 +2,8 @@ import * as T from 'three';
 
 export type GroundOccluder={x:number;z:number;width:number;depth:number;strength?:number;round?:boolean};
 
-export function createGroundOcclusion(name:string,area:{x:number;z:number;width:number;depth:number;y:number},occluders:GroundOccluder[],feather=1.2){
- const size=256,data=new Uint8Array(size*size*4),falloff=Math.max(.05,feather);
+export function createGroundOcclusion(name:string,area:{x:number;z:number;width:number;depth:number;y:number},occluders:GroundOccluder[],feather=1.2,size=256){
+ const data=new Uint8Array(size*size*4),falloff=Math.max(.05,feather);
  for(let row=0;row<size;row++)for(let column=0;column<size;column++){
   const horizontal=area.x+((column+.5)/size-.5)*area.width,forward=area.z+((row+.5)/size-.5)*area.depth;let shade=0;
   for(const occluder of occluders){

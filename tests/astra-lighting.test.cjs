@@ -8,9 +8,16 @@ test('clear daylight retains depth without bleaching the foreground foliage',()=
  const leaf=new T.Color(astraPalette.leaf),tip=new T.Color(astraPalette.leafLight);assert.ok(leaf.g>leaf.r&&leaf.g>leaf.b);assert.ok(tip.g>leaf.g);assert.ok(tip.g<.4);
 });
 
-test('Astra lighting preserves readable moonlight but gives night substantially less fill',()=>{
+test('local daylight lights the workshop fronts with a stronger key than fill',()=>{
+ const weather={...defaultWeather,cloudCover:0,isDay:true,updatedAt:'2026-09-20T12:00'},day=astraSkyTint(weather),night=astraSkyTint({...weather,isDay:false});
+ assert.ok(day.sunX<0);assert.ok(day.sunZ>0);assert.ok(day.sunY>45);assert.ok(day.sunIntensity/day.ambient>6.5);
+ const sun=new T.Color(day.sunColor);assert.ok(sun.r>sun.g&&sun.g>sun.b);
+ assert.equal(night.sunX,-40);assert.equal(night.sunZ,-44);assert.equal(night.sunY,36);
+});
+
+test('Astra preserves its moonlight values while daylight uses less fill',()=>{
   const noon=astraLightStory({...defaultWeather,cloudCover:0,updatedAt:'2026-09-20T12:00'}),night=astraLightStory({...defaultWeather,isDay:false});
-  assert.ok(night.environment<noon.environment*.35);assert.ok(night.ambient<noon.ambient*.4);assert.ok(night.sunlight>0);assert.ok(night.pools>noon.pools*5);
+  assert.ok(night.environment<noon.environment*.35);assert.ok(night.ambient<noon.ambient);assert.equal(night.ambient,.24);assert.equal(night.sunlight,.38);assert.equal(night.rim,.4);assert.ok(night.pools>noon.pools*5);
 });
 
 test('golden light follows reported wall time without turning rain or night into sunset',()=>{

@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{createShadowFollow}=require('../app/lighting-rig.ts');
-const {createQualityGovernor,qualityTiers,qualityThresholds,tierOrder,isQualityChoice}=require('../app/quality-tiers.ts');
+const {createQualityGovernor,qualityTiers,qualityThresholds,tierOrder,isQualityChoice,renderPixelRatio}=require('../app/quality-tiers.ts');
 const {createAtmosphereBlend}=require('../app/atmosphere-blend.ts');
 
 function lightSpace(sun,scene,point){
@@ -45,8 +45,21 @@ test('quality governor demotes at once, promotes only after calm windows and nev
   assert.equal(governor.sample(NaN),null);assert.equal(governor.sample(0),null);
   assert.deepEqual(tierOrder,['low','balanced','high']);
   for(const tier of tierOrder)assert.ok(qualityTiers[tier].pixelRatio>=1&&Number.isFinite(qualityTiers[tier].shadowMapSize));
+  for(const tier of tierOrder)assert.equal(qualityTiers[tier].shadowRadius/qualityTiers[tier].shadowMapSize,3/2048,'shadow softness stays stable as resolution changes');
   assert.ok(qualityTiers.high.shadowInterval<qualityTiers.balanced.shadowInterval);
   assert.equal(isQualityChoice('auto'),true);assert.equal(isQualityChoice('ultra'),false);
+});
+
+test('stable 60 Hz frames can try balanced once without forcing high or bypassing fallback',()=>{
+  const governor=createQualityGovernor('low');
+  assert.equal(governor.sample(1000/60),null);assert.equal(governor.sample(22),null);
+  assert.equal(governor.sample(1000/60),null);assert.equal(governor.sample(1000/60),'balanced');
+  for(let window=0;window<4;window++)assert.equal(governor.sample(1000/60),null);
+  assert.equal(governor.tier,'balanced');assert.equal(governor.sample(40),'low');
+  for(let window=0;window<6;window++)assert.equal(governor.sample(1000/60),null);
+  assert.equal(governor.ceiling,'low');governor.reset('low');
+  for(let window=0;window<4;window++)assert.equal(governor.sample(1000/30),null);
+  assert.equal(governor.tier,'low');
 });
 
 test('saved settings accept every tier and fall back to auto for unknown values',()=>{
@@ -56,6 +69,12 @@ test('saved settings accept every tier and fall back to auto for unknown values'
   assert.equal(parseSave(JSON.stringify({version:1,settings:{quality:'balanced'}})).settings.quality,'balanced');
   assert.equal(parseSave(JSON.stringify({version:1,settings:{quality:'ultra'}})).settings.quality,'auto');
   assert.equal(parseSave(null).settings.quality,'auto');
+});
+
+test('high graphics can resolve a native phone screenshot without exceeding pixel budgets',()=>{
+  assert.equal(renderPixelRatio(353,600,2,'high',true),2);assert.equal(renderPixelRatio(353,600,2,'balanced',true),1.25);
+  const mobile=renderPixelRatio(430,932,3,'high',true),desktop=renderPixelRatio(3840,2160,2,'high');
+  assert.ok(430*932*mobile*mobile<=1200000.01);assert.ok(3840*2160*desktop*desktop<=3600000.01);
 });
 
 test('atmosphere blend damps numbers and colours independently and settles exactly',()=>{

@@ -12,8 +12,10 @@ test('the visual cycle progresses smoothly through daylight, sunset and night',(
 });
 test('clear daylight has directional contrast and distant haze while night leaves room for local illumination',()=>{
  const day=visualWeather(defaultWeather,'day',0).tint,night=visualWeather(defaultWeather,'night',0).tint;
- assert.ok(day.sunIntensity/day.ambient>3);assert.ok(day.ambient<.8);assert.ok(day.fogDensity<.0007);
+ assert.ok(day.sunIntensity/day.ambient>6.5);assert.ok(day.ambient<.5);assert.ok(day.directional<=.5);assert.ok(day.fogDensity<.0007);
+ assert.ok(day.sunZ>Math.abs(day.sunX));assert.equal(night.sunX,-60);assert.equal(night.sunZ,35);
  assert.ok(night.ambient<.3);assert.ok(night.sunIntensity<.3);assert.ok(night.directional<day.directional);
+ assert.equal(night.ambient,.2);assert.equal(night.sunIntensity,.18);assert.equal(night.directional,.18);
  for(const kind of ['fog','storm','rain','snow'])assert.equal(visualWeather({...defaultWeather,kind},'day',0).tint.fogDensity,undefined,'weather visibility stays under the atmosphere controller');
 });
 test('window glow and wet pavement reuse existing materials and restore daylight finishes',()=>{

@@ -5,12 +5,12 @@
  */
 export type QualityTier='high'|'balanced'|'low';
 export type QualityChoice=QualityTier|'auto';
-export type QualityProfile={label:string;pixelRatio:number;shadows:boolean;shadowMapSize:number;shadowInterval:number;bloom:boolean};
+export type QualityProfile={label:string;pixelRatio:number;shadows:boolean;shadowMapSize:number;shadowRadius:number;shadowInterval:number;bloom:boolean};
 
 export const qualityTiers:Record<QualityTier,QualityProfile>={
-  high:{label:'High · sharp per-frame shadows',pixelRatio:1.5,shadows:true,shadowMapSize:4096,shadowInterval:0,bloom:true},
-  balanced:{label:'Balanced · soft shadows',pixelRatio:1.25,shadows:true,shadowMapSize:2048,shadowInterval:.125,bloom:true},
-  low:{label:'Low · lower pixel density, no shadows',pixelRatio:1,shadows:false,shadowMapSize:1024,shadowInterval:Infinity,bloom:false},
+  high:{label:'High · detailed per-frame shadows',pixelRatio:2,shadows:true,shadowMapSize:4096,shadowRadius:6,shadowInterval:0,bloom:true},
+  balanced:{label:'Balanced · soft shadows',pixelRatio:1.25,shadows:true,shadowMapSize:2048,shadowRadius:3,shadowInterval:.125,bloom:true},
+  low:{label:'Low · lower pixel density, no shadows',pixelRatio:1,shadows:false,shadowMapSize:1024,shadowRadius:1.5,shadowInterval:Infinity,bloom:false},
 };
 export const qualityChoices:QualityChoice[]=['auto','high','balanced','low'];
 export const tierOrder:QualityTier[]=['low','balanced','high'];
@@ -21,7 +21,7 @@ export function renderPixelRatio(width:number,height:number,deviceRatio:number,t
  return Math.max(.5,Math.min(deviceRatio,qualityTiers[tier].pixelRatio,Math.sqrt(budget/Math.max(1,width*height))));
 }
 
-export const qualityThresholds={demoteP95Ms:30,promoteP95Ms:12,promoteWindows:2};
+export const qualityThresholds={demoteP95Ms:30,promoteP95Ms:12,promoteLowP95Ms:18,promoteWindows:2};
 
 /**
  * Chooses a tier from measured frame-time windows. Demotion is immediate; promotion needs
@@ -38,7 +38,8 @@ export function createQualityGovernor(initial:QualityTier='balanced'){
     sample(p95Ms:number):QualityTier|null{
       if(!Number.isFinite(p95Ms)||p95Ms<=0)return null;
       if(p95Ms>qualityThresholds.demoteP95Ms){calmWindows=0;if(rank(tier)===0)return null;ceiling=tierOrder[rank(tier)-1];tier=ceiling;return tier}
-      if(p95Ms<qualityThresholds.promoteP95Ms){calmWindows++;if(calmWindows>=qualityThresholds.promoteWindows&&rank(tier)<rank(ceiling)){calmWindows=0;tier=tierOrder[rank(tier)+1];return tier}}
+      const promotionLimit=tier==='low'?qualityThresholds.promoteLowP95Ms:qualityThresholds.promoteP95Ms;
+      if(p95Ms<promotionLimit){calmWindows++;if(calmWindows>=qualityThresholds.promoteWindows&&rank(tier)<rank(ceiling)){calmWindows=0;tier=tierOrder[rank(tier)+1];return tier}}
       else calmWindows=0;
       return null;
     },

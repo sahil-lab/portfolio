@@ -16,7 +16,7 @@ export const districts:District[]=[
  {name:'Kafka Conveyor Railway',subtitle:'The world keeps moving. The log remembers.',x:31,z:-30,color:'#e89878'},
 ];
 
-export const workshopSpawn={x:0,y:.8,z:24};
+export const workshopSpawn={x:-2,y:.8,z:24};
 export const routes=districts.slice(1).map(d=>({id:'workshop-'+d.name,from:{x:0,z:19},to:{x:d.x,z:d.z},width:3}));
 
 export type Destination={id:string;label:string;kind:'district'|'project';x:number;y:number;z:number};
