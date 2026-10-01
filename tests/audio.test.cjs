@@ -1,6 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,f);
 const {scoreBeat,cueNotes}=require('../app/audio-score.ts');
+test('nine planetary phrases stay distinct, quiet, deterministic and within the existing two-voice budget',()=>{
+ const {planetScoreBeat}=require('../app/audio-score.ts'),ids=['copper','garden','prism','petal','solstice','cloud','ai-research','project-foundry','skills-technology'],phrases=[];
+ for(const id of ids){const phrase=Array.from({length:8},(_,beat)=>planetScoreBeat(id,beat));assert.deepEqual(phrase,Array.from({length:8},(_,beat)=>planetScoreBeat(id,beat+8)));for(const notes of phrase){assert.ok(notes.length<=2);for(const note of notes){assert.ok(note.midi>=36&&note.midi<=84);assert.ok(note.gain>0&&note.gain<=.022);assert.ok(note.duration>0&&note.duration<3)}}phrases.push(JSON.stringify(phrase))}
+ assert.equal(new Set(phrases).size,9);assert.deepEqual(planetScoreBeat('unknown',0),scoreBeat(0,0));
+});
 test('original district score is deterministic, distinct, bounded and finite',()=>{
  const phrases=[];for(let d=0;d<8;d++){const notes=Array.from({length:8},(_,b)=>scoreBeat(d,b));assert.deepEqual(notes,Array.from({length:8},(_,b)=>scoreBeat(d,b)));notes.flat().forEach(n=>{assert.ok(n.midi>=24&&n.midi<=100);assert.ok(n.duration>0&&n.duration<3);assert.ok(n.gain>0&&n.gain<.1)});phrases.push(JSON.stringify(notes))}assert.equal(new Set(phrases).size,8);assert.equal(Object.keys(cueNotes).length,6);
 });

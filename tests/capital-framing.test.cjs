@@ -7,7 +7,7 @@ test('new visitors see the full pavilion, portfolio sign, fountain and courier o
   const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,aspect,.1,18000);scene.add(player);scene.scale.setScalar(2);player.position.set(capitalArrival.x,capitalArrival.y,capitalArrival.z);scene.updateMatrixWorld(true);
   const rig=createGameCamera(camera,scene,player);rig.setMode(defaultSettings.cameraMode);rig.reset(capitalCameraView(aspect));
   for(let frame=0;frame<60;frame++)rig.update(1/60,false,defaultSettings,false,12.5);camera.updateMatrixWorld(true);
-    for(const [horizontal,vertical,depth] of [[40.4,10.55,154.8],[63.6,10.55,154.8],[40.4,8.65,163.6],[63.6,8.65,163.6],[44,5.6,163],[60,8,163],[45.6,.3,180],[58.4,8.5,180],[52,.8,201]]){
+    for(const [horizontal,vertical,depth] of [[52,14.1,163.6],[40.4,10.55,154.8],[63.6,10.55,154.8],[40.4,8.65,163.6],[63.6,8.65,163.6],[43.4,8.3,155.6],[60.6,12.6,155.6],[45.6,.3,180],[58.4,8.5,180],[52,.8,201]]){
    const projected=new T.Vector3(horizontal,vertical,depth).multiplyScalar(2).project(camera);assert.ok(Math.abs(projected.x)<.92&&Math.abs(projected.y)<.78&&projected.z<1,JSON.stringify({aspect,projected}));
   }
  }

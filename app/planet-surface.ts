@@ -6,13 +6,13 @@ import {civilizationFor,civilizations} from './civilization-config';
 import {createCivilizationWorld} from './civilization-world';
 import {batchScenery} from './static-batching';
 import {createPlanetRotation} from './planet-rotation';
-import {planetStyles} from './transit-config';
 import {realmDesign} from './realm-layout';
 import {createRealmWorld} from './realm-world';
 import {planetArchitectureFor} from './architecture-profiles';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createPlanetPublicSpaces} from './planet-public-spaces';
 import {createPlanetCanopy} from './planet-canopy';
+import {createPlanetColorizer,planetBiome} from './planet-biomes';
 export {createPlanetSurface,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
 export {moveOnPlanet,resetSurfaceFrame} from './planet-movement';
 
@@ -26,17 +26,14 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   yield 'public-spaces';
   const realm=createRealmWorld(root,surface),design=realmDesign(surface.stop);
   yield 'realm';
-  const style=planetStyles[surface.stop.id]??design;
+  const colorize=createPlanetColorizer(surface.stop);root.userData.biome=planetBiome(surface.stop).name;
   function terrainGeometry(width:number,height:number){
   const geometry=new T.SphereGeometry(1,width,height),positions=geometry.getAttribute('position'),colors=new Float32Array(positions.count*3);
-  const land=new T.Color(palette?.ground??style?.land??surface.stop.color),patch=new T.Color(palette?.terrain??style?.terrain??(surface.stop.theme==='garden'?'#689b7e':surface.stop.theme==='copper'?'#b67b52':'#7997ae'));
+  const color=new T.Color();
   for(let index=0;index<positions.count;index++){
     const direction=new T.Vector3().fromBufferAttribute(positions,index).normalize();
     const point=planetPoint(surface,direction).sub(surface.center).addScaledVector(direction,-.08);positions.setXYZ(index,point.x,point.y,point.z);
-    const pattern=Math.sin(direction.x*9+direction.z*3)*Math.cos(direction.y*12-direction.x*4);
-    const geography=planetGeography(surface,direction),color=land.clone().lerp(patch,T.MathUtils.smoothstep(pattern,-.3,.5)*.65);
-    color.lerp(new T.Color(design?.rock??(identity==='github'?'#636a74':identity==='linkedin'?'#779eba':surface.stop.theme==='copper'?'#835d48':'#737d88')),T.MathUtils.smoothstep(geography.height,3,design?28:11));
-    if(!design&&surface.stop.theme!=='copper')color.lerp(new T.Color('#eaf3f6'),T.MathUtils.smoothstep(geography.height,12,19));color.toArray(colors,index*3);
+    colorize(direction,planetGeography(surface,direction),color).toArray(colors,index*3);
   }
   geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();
   return geometry;

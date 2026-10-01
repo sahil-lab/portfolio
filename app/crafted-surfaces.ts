@@ -9,6 +9,19 @@ export function craftedBox(w:number,h:number,d:number){
     :new RoundedBoxGeometry(w,h,d,1,Math.min(shortest*.14,.12));
 }
 
+export function createSurfaceRelief(kind:'stone'|'timber'|'brushed'){
+ const size=kind==='timber'?128:64,data=new Uint8Array(size*size*4);
+ const noise=(horizontal:number,vertical:number)=>{let value=Math.imul(horizontal+31,374761393)^Math.imul(vertical+17,668265263);value=Math.imul(value^(value>>>13),1274126177);return ((value^(value>>>16))>>>0)/4294967295};
+ for(let row=0;row<size;row++)for(let column=0;column<size;column++){
+  const grain=noise(column,row),broad=noise(Math.floor(column/8),Math.floor(row/8));
+  const rings=Math.sin(column*.6+Math.sin(row*.075)*.6+Math.sin(column*.11)*2),fibers=Math.sin(column*2.9+Math.sin(row*.035)*.4);
+  const height=kind==='timber'?128+rings*25+fibers*6+(grain-.5)*7:kind==='brushed'?128+(noise(0,row)-.5)*20+(grain-.5)*4:128+(grain-.5)*42+(broad-.5)*16;
+  const roughness=kind==='timber'?218+rings*17:kind==='brushed'?198+(noise(0,row)-.5)*28:236+(grain-.5)*20;
+  const offset=(row*size+column)*4;data[offset]=Math.round(height);data[offset+1]=Math.round(roughness);data[offset+2]=128;data[offset+3]=255;
+ }
+ const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='SurfaceRelief_'+kind;texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.anisotropy=4;texture.needsUpdate=true;return texture;
+}
+
 /** One small, deterministic surface texture per owning scene, shared by its materials. */
 export function createCraftMaterials(){
   const size=64,data=new Uint8Array(size*size*4);let seed=7319;

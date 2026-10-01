@@ -3,11 +3,14 @@ import {TessellateModifier} from 'three/addons/modifiers/TessellateModifier.js';
 import {createCraftMaterials} from './crafted-surfaces';
 import {civilizationFor,civilizations} from './civilization-config';
 import {civilizationLogoReserved} from './civilization-world';
-import {planetArchitectureFor} from './architecture-profiles';
+import {planetArchitectureFor,architectureRecipe} from './architecture-profiles';
+import {architectureStoreys} from './building-craft';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createArtificialTurf,createPoolCourt} from './city-gardens';
 import {planetStyles} from './transit-config';
 import {realmDesign,realmSiteDistance} from './realm-layout';
+import {createRoadMarking,planetBiome} from './planet-biomes';
+import {planetTownComposition} from './planet-composition';
 import {globeDirection,planetPoint,planetUp,planetGeography,riverLatitude,roadLatitudes,roadLongitudes,type PlanetSurface} from './planet-geography';
 
 export type PlanetTown={name:string;direction:T.Vector3;position:T.Vector3;east:T.Vector3;north:T.Vector3};
@@ -28,16 +31,16 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
   const identity=civilizationFor(surface.stop),style=identity?civilizations[identity]:null;
   const realm=realmDesign(surface.stop),worldKind=surface.stop.worldKind;
   const finish=createCraftMaterials();
-  const roadMaterial=finish(identity==='github'?'#343a42':identity==='linkedin'?'#9fb6c9':worldKind==='research'?'#77928e':worldKind==='skills'?'#788976':'#41585b',0,.18);roadMaterial.roughness=.78;
+  const biome=planetBiome(surface.stop),roadMaterial=finish(biome.road,0,.08);roadMaterial.roughness=.88;
   const curbMaterial=finish(style?.stone??realm?.stone??'#d9e5db');
-  const stripeMaterial=new T.MeshBasicMaterial({color:style?.light??'#edce78'});
+  const stripeMaterial=new T.MeshBasicMaterial({color:biome.line,map:createRoadMarking(surface.stop),transparent:true,depthWrite:false});
   const waterData=new Uint8Array(64*8*4);
   for(let row=0;row<8;row++)for(let column=0;column<64;column++){
     const offset=(row*64+column)*4,ripple=Math.sin(column*.39+row*.7)>.82?34:0;
     waterData.set([57+ripple,151+ripple,182+ripple,255],offset);
   }
   const waterTexture=new T.DataTexture(waterData,64,8,T.RGBAFormat);waterTexture.colorSpace=T.SRGBColorSpace;waterTexture.wrapS=waterTexture.wrapT=T.RepeatWrapping;waterTexture.repeat.set(55,1);waterTexture.needsUpdate=true;
-  const waterMaterial=new T.MeshPhysicalMaterial({map:identity?null:waterTexture,roughness:.22,metalness:.24,clearcoat:.7,clearcoatRoughness:.14,color:style?.water??realm?.water??(surface.stop.theme==='copper'?'#96daca':'#c1ecff'),emissive:style?.glass??realm?.glass??'#206978',emissiveIntensity:.12});
+  const waterMaterial=new T.MeshPhysicalMaterial({map:identity?null:waterTexture,roughness:.22,metalness:.24,clearcoat:.7,clearcoatRoughness:.14,color:biome.water,emissive:style?.glass??realm?.glass??'#206978',emissiveIntensity:.08});
   if(identity)waterTexture.dispose();
   function ribbon(name:string,directions:T.Vector3[],width:number,offset:number,material:T.Material,water=false,lateral=0){
     const positions:number[]=[],uvs:number[]=[],indices:number[]=[];
@@ -80,7 +83,7 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
   });rails.name='River_Bridge_Railings';rails.computeBoundingSphere();root.add(rails);
   const towns=planetTowns(surface),buildings:{position:T.Vector3;radius:number;town:string}[]=[];
   const palette=planetStyles[surface.stop.id]?.homes??realm?.homes??(identity==='github'?['#e1e6ec','#414851','#bbc5d0','#f1f4f7']:identity==='linkedin'?['#f4f9ff','#c4d8e9','#0a66c2','#e7f0fa']:surface.stop.theme==='garden'?['#c9dfcf','#88bcad','#e3b196','#a3c9d2']:surface.stop.theme==='copper'?['#d4b785','#e3e3cd','#70a7a7','#cd9987']:['#b2d7e0','#c6b8d9','#8dcab9','#e3cf9f']);
-  const records:{address:string;position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;width:number;depth:number;height:number;accent:string;town:number}[]=[];
+  const records:{address:string;position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;width:number;depth:number;height:number;baseHeight:number;accent:string;town:number;along:number;side:number}[]=[];
   towns.forEach((town,townIndex)=>{
     for(const side of [-1,1])for(const along of [-16,-8,0,8,16]){
       const direction=town.direction.clone().addScaledVector(town.east,along/surface.radius).addScaledVector(town.north,side*11/surface.radius).normalize();
@@ -88,9 +91,18 @@ export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurfa
       const up=planetUp(surface,position),forward=town.position.clone().sub(position).projectOnPlane(up).normalize(),right=new T.Vector3().crossVectors(up,forward).normalize();
       const rotation=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
       const height=(worldKind==='foundry'?4.8:worldKind==='research'?7:6)+((townIndex+Math.abs(along))%3)*.8;
-      records.push({address:`${surface.stop.id}/town-${townIndex}/lot-${side}-${along}`,position,up,rotation,width:4.8,depth:4.8,height,accent:palette[(records.length+townIndex)%palette.length],town:townIndex});buildings.push({position,radius:3.7,town:town.name});
+      records.push({address:`${surface.stop.id}/town-${townIndex}/lot-${side}-${along}`,position,up,rotation,width:4.8,depth:4.8,height,baseHeight:height,accent:palette[(records.length+townIndex)%palette.length],town:townIndex,along,side});buildings.push({position,radius:3.7,town:town.name});
     }
   });
+  let relocated=0;
+  records.forEach((record,index)=>{
+   const town=towns[record.town],layout=planetTownComposition(surface.stop,record.along,record.side),direction=town.direction.clone().addScaledVector(town.east,layout.east/surface.radius).addScaledVector(town.north,layout.north/surface.radius).normalize(),position=planetPoint(surface,direction),terrain=planetGeography(surface,direction),up=planetUp(surface,position);
+   const recipe=architectureRecipe(planetArchitectureFor(surface.stop),record.address),proposedHeight=record.height*layout.height;
+   if(architectureStoreys(proposedHeight*recipe.height,recipe.rhythm)===architectureStoreys(record.height*recipe.height,recipe.rhythm))record.height=proposedHeight;
+   if(terrain.river<5||terrain.road<5.8||realmSiteDistance(surface.stop,surface.radius,direction)<6||civilizationLogoReserved(surface,direction)||up.dot(direction)<.98||buildings.some((building,other)=>other!==index&&position.distanceTo(building.position)<6.8))return;
+   const forward=town.position.clone().sub(position).projectOnPlane(up).normalize(),right=new T.Vector3().crossVectors(up,forward).normalize();record.position.copy(position);record.up.copy(up);record.rotation.setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));relocated++;
+  });
+  root.userData.composition={name:planetTownComposition(surface.stop,0,1).name,buildings:records.length,relocated};
   const architectureStyle=planetArchitectureFor(surface.stop);
   const architecture=towns.map((_,index)=>createArchitectureNeighborhood(root,architectureStyle,records.filter(record=>record.town===index)));
   root.userData.architectureStyle=architectureStyle;root.userData.staticCameraBounds=architecture.flatMap(town=>town.bounds);

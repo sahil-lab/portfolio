@@ -1,11 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {createCapitalFountain}=require('../app/capital-fountain.ts'),{disposeScene}=require('../app/scene-resources.ts');
+test('sculpted fountain stays inside its established envelope and static geometry budget',()=>{
+ const T=require('three'),fountain=createCapitalFountain(),fixed=fountain.root.children[0],bounds=new T.Box3().setFromObject(fixed);let triangles=0;
+ fixed.traverse(object=>{if(!object.isMesh)return;triangles+=(object.geometry.index?.count??object.geometry.attributes.position.count)/3*(object.isInstancedMesh?object.count:1);assert.ok(Array.from(object.geometry.attributes.position.array).every(Number.isFinite))});
+ assert.ok(bounds.min.x>=-7.36&&bounds.max.x<=7.36);assert.ok(bounds.max.y<6.5);assert.ok(triangles<7000);assert.equal(fountain.radius,6.4);disposeScene(fountain.root);
+});
 test('fountain families have bounded reusable animation geometry and water-safe collision',()=>{
  for(const kind of ['royal','circuit','garden']){const fountain=createCapitalFountain(kind),jetGeometry=fountain.jets.geometry,position=fountain.jets.geometry.attributes.position.array;assert.ok(position.every(Number.isFinite));assert.equal(fountain.droplets.count,96);assert.equal(fountain.blocked(0,0,.8),true);assert.equal(fountain.blocked(15,15,.8),false);fountain.update(.1,false,1,1,.4,15);assert.equal(fountain.jets.geometry,jetGeometry);assert.equal(fountain.jets.geometry.attributes.position.array,position);assert.ok(fountain.water.emissiveIntensity>.2);assert.ok(position.every(Number.isFinite));disposeScene(fountain.root)}
 });
 test('reduced motion freezes fountain time and choreography does not allocate new meshes',()=>{
  const fountain=createCapitalFountain(),count=fountain.root.children.length;for(let frame=0;frame<230;frame++)fountain.update(.1,false);assert.equal(fountain.root.userData.choreography,'conversation');const time=fountain.time;fountain.update(1,true);assert.equal(fountain.time,time);assert.equal(fountain.root.children.length,count);disposeScene(fountain.root);
+});
+test('water ribbons follow the existing jets with bounded reusable geometry',()=>{
+ const fountain=createCapitalFountain(),ribbons=fountain.root.getObjectByName('Fountain_WaterRibbons'),geometry=ribbons.geometry,positions=geometry.attributes.position.array;assert.ok(positions.every(Number.isFinite));assert.ok(geometry.index.count/3<=1152);const before=positions.slice();fountain.update(.1,false);assert.notDeepEqual(positions,before);assert.equal(ribbons.geometry,geometry);assert.equal(geometry.attributes.position.array,positions);const paused=positions.slice();fountain.update(.1,true);assert.deepEqual(positions,paused);assert.equal(ribbons.material.map.image.data.byteLength,64);disposeScene(fountain.root);
 });
 test('the ceremonial finial is physically supported above the upper basin',()=>{
  const T=require('three'),fountain=createCapitalFountain();fountain.root.updateMatrixWorld(true);

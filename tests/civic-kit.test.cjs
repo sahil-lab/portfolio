@@ -1,6 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{createCivicKit}=require('../app/civic-kit.ts'),{disposeScene}=require('../app/scene-resources.ts');
+test('civic finishes share low-cost relief without color maps that break static batching',()=>{
+ const kit=createCivicKit(),materials=kit.materials;assert.equal(materials.stone.bumpMap,materials.paving.bumpMap);
+ for(const material of [materials.stone,materials.paving,materials.wood,materials.brass]){assert.equal(material.map,null);assert.equal(material.bumpMap,material.roughnessMap);assert.ok(material.bumpScale>0&&material.bumpScale<.05)}
+ const root=new T.Group();for(const material of Object.values(materials))root.add(new T.Mesh(new T.BoxGeometry(),material));disposeScene(root);
+});
 test('civic lamp families use different silhouettes without adding real-time lights',()=>{
  const kit=createCivicKit(),root=new T.Group();for(const [index,style] of ['plaza','park','street'].entries())kit.lamp(root,index*7,0,style);
  assert.ok(root.getObjectByName('Civic_CurvedLampMast'));assert.ok(root.getObjectByName('Civic_ProcessorLampFin'));let lights=0;root.traverse(object=>{if(object.isLight)lights++});assert.equal(lights,0);kit.lighting(1,1);assert.ok(kit.materials.warm.emissiveIntensity>1);assert.ok(kit.materials.paving.roughness<.6);disposeScene(root);

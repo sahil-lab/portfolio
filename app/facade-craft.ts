@@ -1,9 +1,10 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {mapWindowRoom,windowRoom} from './window-interiors';
 
 export type FacadeFloor={bottom:number;top:number;width:number;depth:number;x?:number;z?:number};
 export type FacadeFinishes={stone:T.Material;rail:T.Material;metal:T.Material;glass:T.Material;planter:T.Material;leaf:T.Material};
-export type FacadeCraftOptions={floors:FacadeFloor[];finishes:FacadeFinishes;windows?:boolean;planting?:boolean;frontBalcony?:boolean;roof?:boolean;profile?:'chamfer'|'arch'|'square';balconies?:boolean;bays?:number;bayOffset?:number;balconyFaces?:number[];entry?:{x:number;width:number}};
+export type FacadeCraftOptions={floors:FacadeFloor[];finishes:FacadeFinishes;windows?:boolean;windowSeed?:string;planting?:boolean;frontBalcony?:boolean;roof?:boolean;profile?:'chamfer'|'arch'|'square';balconies?:boolean;bays?:number;bayOffset?:number;balconyFaces?:number[];entry?:{x:number;width:number}};
 
 function windowShape(width:number,height:number,profile:FacadeCraftOptions['profile']='chamfer',inset=0){
  const halfWidth=width/2-inset,halfHeight=height/2-inset,corner=Math.min(.18,width*.17,height*.1),shape=new T.Shape();
@@ -50,7 +51,8 @@ export function addFacadeCraft(parent:T.Object3D,options:FacadeCraftOptions){
     const point=facePoint(floor,face,horizontal,elevation,.055),shape=windowShape(bayWidth,bayHeight,options.profile);
      shape.holes.push(windowShape(bayWidth,bayHeight,options.profile,.085));
      piece('windowReveal',new T.ExtrudeGeometry(shape,{depth:.12,steps:1,bevelEnabled:false,curveSegments:5}),finishes.stone,point.position,point.rotation);
-     piece('windowPane',new T.ShapeGeometry(windowShape(bayWidth-.14,bayHeight-.14,options.profile),5),finishes.glass,point.position.clone().add(new T.Vector3(0,0,.02).applyQuaternion(point.rotation)),point.rotation);
+    const pane=new T.ShapeGeometry(windowShape(bayWidth-.14,bayHeight-.14,options.profile),5);if(options.windowSeed)mapWindowRoom(pane,bayWidth-.14,bayHeight-.14,windowRoom(options.windowSeed,index,face,bay));
+    piece('windowPane',pane,finishes.glass,point.position.clone().add(new T.Vector3(0,0,.02).applyQuaternion(point.rotation)),point.rotation);
      detail(floor,face,'windowMullion',horizontal,elevation,.108,[.028,bayHeight-.22,.026],finishes.metal);
      detail(floor,face,'windowTransom',horizontal,elevation-bayHeight*.1,.11,[bayWidth-.18,.028,.028],finishes.metal);
      detail(floor,face,'windowSill',horizontal,elevation-bayHeight/2-.055,.12,[bayWidth+.13,.09,.25],finishes.stone);

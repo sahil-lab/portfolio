@@ -1,12 +1,15 @@
 import * as T from 'three';
 import {createReadableDisplay} from './readable-display';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
+import {createSurfaceRelief} from './crafted-surfaces';
 
 export function createCivicKit(){
  const finish=(color:string,roughness=.7,metalness=.1)=>new T.MeshStandardMaterial({color,roughness,metalness});
  const materials={stone:finish('#ccd5ce'),ink:finish('#263e46'),brass:finish('#b1935c',.46,.65),wood:finish('#9c785c',.91),leaf:finish('#477e60',.96),tip:finish('#8aac76',.96),petal:finish('#dca4af',.88),warm:finish('#f6e5bd',.35),paving:finish('#899d99',.96)};
  materials.warm.emissive.set('#ffe0a3');materials.warm.emissiveIntensity=.12;materials.leaf.userData.surface=materials.tip.userData.surface=materials.wood.userData.surface='natural';
  materials.stone.userData.surface='ceramic';materials.paving.userData.surface='natural';
+ const stoneRelief=createSurfaceRelief('stone'),woodRelief=createSurfaceRelief('timber'),metalRelief=createSurfaceRelief('brushed');
+ for(const [material,texture,depth] of [[materials.stone,stoneRelief,.035],[materials.paving,stoneRelief,.018],[materials.wood,woodRelief,.045],[materials.brass,metalRelief,.008]] as const){material.bumpMap=material.roughnessMap=texture;material.bumpScale=depth}
  const geometries=new Map<string,T.BufferGeometry>(),solids:T.Box3[]=[],glows:T.Mesh[]=[];
  function geometry(key:string,create:()=>T.BufferGeometry){let value=geometries.get(key);if(!value){value=create();geometries.set(key,value)}return value}
  function mesh(parent:T.Object3D,name:string,shape:T.BufferGeometry,material:T.Material,position:T.Vector3,solid=false){const object=new T.Mesh(shape,material);object.name=name;object.position.copy(position);object.castShadow=object.receiveShadow=true;parent.add(object);if(solid){shape.computeBoundingBox();solids.push(shape.boundingBox!.clone().translate(position));object.userData.cameraSolid=true}return object}
@@ -65,10 +68,10 @@ export function createCivicKit(){
   for(const side of [-1,1]){box(group,side<0?'Civic_RecyclingBin':'Civic_WasteBin',new T.Vector3(side*.5,.65,0),[.65,1.2,.62],side<0?materials.leaf:materials.ink);box(group,'Civic_BinLid',new T.Vector3(side*.5,1.29,0),[.72,.12,.68],materials.brass);box(group,'Civic_BinSlot',new T.Vector3(side*.5,1,.32),[.4,.13,.025],materials.stone)}
   solids.push(new T.Box3(new T.Vector3(x-.87,0,z-.38),new T.Vector3(x+.87,1.4,z+.38)));return group;
  }
- function plaque(parent:T.Object3D,title:string,subtitle:string,x:number,y:number,z:number,width=6){
+ function plaque(parent:T.Object3D,title:string,subtitle:string,x:number,y:number,z:number,width=6,facade=false){
     const canvas=document.createElement('canvas');canvas.width=width>=8?1536:width>=5?1024:768;canvas.height=canvas.width/4;const context=canvas.getContext('2d')!;context.scale(canvas.width/1536,canvas.width/1536);
-  context.fillStyle='#18333d';context.fillRect(0,0,1536,384);context.strokeStyle='#b79558';context.lineWidth=6;context.strokeRect(13,13,1510,358);context.textAlign='center';context.textBaseline='middle';context.fillStyle='#f3f4eb';context.font='700 118px "Space Grotesk", sans-serif';context.fillText(title,768,143,1410);context.fillStyle='#d0ddd9';context.font='500 54px "Space Grotesk", sans-serif';context.fillText(subtitle,768,277,1390);
-  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;const group=new T.Group();group.name='Civic_Plaque_'+title;group.position.set(x,y,z);parent.add(group);box(group,'Civic_PlaqueBacking',new T.Vector3(),[width+.16,width/4+.16,.22],materials.ink);createReadableDisplay(group,'Civic_PlaqueText',texture,width,width/4,.25,new T.Vector3());return group;
+  if(!facade){context.fillStyle='#18333d';context.fillRect(0,0,1536,384);context.strokeStyle='#b79558';context.lineWidth=6;context.strokeRect(13,13,1510,358)}context.textAlign='center';context.textBaseline='middle';context.fillStyle='#f3f4eb';context.font=(facade?'500 108px':'700 118px')+' "Space Grotesk", sans-serif';context.fillText(title,768,143,1410);context.fillStyle='#d0ddd9';context.font='500 54px "Space Grotesk", sans-serif';context.fillText(subtitle,768,277,1390);
+  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;const group=new T.Group();group.name='Civic_Plaque_'+title;group.position.set(x,y,z);parent.add(group);if(!facade)box(group,'Civic_PlaqueBacking',new T.Vector3(),[width+.16,width/4+.16,.22],materials.ink);const display=createReadableDisplay(group,'Civic_PlaqueText',texture,width,width/4,.25,new T.Vector3());if(facade){display.front.material.alphaTest=.3;display.front.material.transparent=true;display.front.material.depthWrite=false;group.userData.architecturalLettering=true}return group;
  }
  return {materials,solids,box,beam,tree,bench,lamp,flowers,utilities,plaque,contact,
   lighting(night:number,wet:number){materials.warm.emissiveIntensity=.12+night*1.6;glowMaterial.opacity=night;materials.paving.roughness=.96-wet*.48;materials.stone.roughness=.7-wet*.22},

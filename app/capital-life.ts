@@ -4,7 +4,7 @@ import {batchScenery} from './static-batching';
 import {createResidentInstances} from './resident-instances';
 
 type RoutineKind='talk'|'read'|'garden'|'work'|'serve'|'play'|'walk'|'maintain';
-const routines:{name:string;kind:RoutineKind;occupation:ResidentOccupation;position:[number,number,number];yaw:number;path?:[number,number,number][]}[]=[
+const routines:{name:string;kind:RoutineKind;occupation:ResidentOccupation;position:[number,number,number];yaw:number;studio?:boolean;path?:[number,number,number][]}[]=[
  {name:'Fountain conversation',kind:'talk',occupation:'technician',position:[43,.15,177],yaw:Math.PI/2},
  {name:'Fountain conversation',kind:'talk',occupation:'archivist',position:[45,.15,177],yaw:-Math.PI/2},
  {name:'Reading by the water',kind:'read',occupation:'archivist',position:[40,.63,183],yaw:Math.PI/2},
@@ -19,6 +19,8 @@ const routines:{name:string;kind:RoutineKind;occupation:ResidentOccupation;posit
  {name:'Park chapter',kind:'read',occupation:'archivist',position:[-55.8,.62,280.5],yaw:Math.PI/2},
  {name:'Street-lamp care',kind:'maintain',occupation:'technician',position:[68,.13,163],yaw:-Math.PI/2},
  {name:'Library reader',kind:'read',occupation:'archivist',position:[-150,.62,-16],yaw:0},
+ {name:'Code studio session',kind:'work',occupation:'technician',position:[45.05,.83,161.2],yaw:Math.PI,studio:true},
+ {name:'Prototype studio session',kind:'work',occupation:'archivist',position:[58.95,.83,161.2],yaw:Math.PI,studio:true},
 ];
 export function createCapitalLife(scene:T.Scene,player:T.Group,blocked:(x:number,z:number)=>boolean){
  const root=new T.Group();root.name='Capital_EverydayLife';scene.add(root);
@@ -26,25 +28,33 @@ export function createCapitalLife(scene:T.Scene,player:T.Group,blocked:(x:number
  const actors=routines.map((routine,index)=>{
   const actor=createCuteResident(colors[index%colors.length],index,routine.occupation);actor.root.position.set(...routine.position);actor.root.rotation.y=routine.yaw;actor.root.scale.setScalar(routine.kind==='play'?.68:.9);actor.root.name='Citizen_'+routine.name;actor.root.userData.routine=routine.kind;
   let prop:T.Group|null=null;
-  if(routine.kind==='read'||routine.kind==='work'){
+  if(routine.kind==='read'||routine.kind==='work'&&!routine.studio){
    prop=new T.Group();prop.name=routine.kind==='read'?'Citizen_OpenBook':'Citizen_Laptop';prop.position.set(0,.72,.39);actor.root.add(prop);
    const cover=new T.Mesh(new T.BoxGeometry(.54,.04,.36),new T.MeshStandardMaterial({color:routine.kind==='read'?'#ccab78':'#577f8c',roughness:.68}));prop.add(cover);
    const page=new T.Mesh(new T.BoxGeometry(.5,routine.kind==='read'?.02:.31,routine.kind==='read'?.33:.03),new T.MeshStandardMaterial({color:routine.kind==='read'?'#edf1db':'#bddbcf',roughness:.62}));page.position.set(0,routine.kind==='read'?.035:.15,routine.kind==='read'?0:-.16);prop.add(page);
   }
   batchScenery(actor.root,{parts:actor.movingParts,prop});root.add(actor.root);
   const path=routine.path?new T.CatmullRomCurve3(routine.path.map(point=>new T.Vector3(...point)),true,'centripetal'):null;
-  return {actor,routine,path,progress:index*.071%1,phase:index*.53};
+  const length=path?.getLength()??1;
+  return {actor,routine,path,progress:0,phase:index*.53,length,walked:0,nextStop:length/4,dwell:0,pauseLength:3.5+(index%3)*1.2};
  });
  const instances=createResidentInstances(root,actors.map(entry=>entry.actor));
- let elapsed=0,time=0;
+ let elapsed=0,time=0;const point=new T.Vector3(),direction=new T.Vector3(),facing=new T.Quaternion(),up=new T.Vector3(0,1,0);
  function update(delta:number,reduced:boolean,active:boolean){
   root.visible=active;if(!active)return;elapsed+=Math.max(0,delta);if(elapsed<.075)return;const step=Math.min(.18,elapsed);elapsed=0;if(!reduced)time+=step;
   for(const entry of actors){
    const {actor,routine,path}=entry,distance=actor.root.position.distanceTo(player.position);actor.root.visible=distance<95;if(!actor.root.visible)continue;
    let moving=false;
-   if(path&&!reduced){const nextProgress=(entry.progress+step*.035)%1,point=path.getPointAt(nextProgress);if(!blocked(point.x,point.z)){entry.progress=nextProgress;const direction=path.getTangentAt(nextProgress);actor.root.position.copy(point);actor.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.atan2(direction.x,direction.z)),Math.min(1,step*5));moving=true}}
+  if(path&&!reduced){
+   if(entry.dwell>0){entry.dwell=Math.max(0,entry.dwell-step);if(routine.kind==='walk'){direction.set(52-actor.root.position.x,0,180-actor.root.position.z);actor.root.quaternion.slerp(facing.setFromAxisAngle(up,Math.atan2(direction.x,direction.z)),Math.min(1,step*2))}}
+   else{const remaining=entry.nextStop-entry.walked,speed=(routine.kind==='play'?1.35:1.05)*T.MathUtils.clamp(remaining/.9,.2,1),advance=Math.min(remaining,speed*step),progress=(entry.walked+advance)%entry.length/entry.length;path.getPointAt(progress,point);
+    if(!blocked(point.x,point.z)){entry.walked+=advance;entry.progress=progress;path.getTangentAt(progress,direction);actor.root.position.copy(point);actor.root.quaternion.slerp(facing.setFromAxisAngle(up,Math.atan2(direction.x,direction.z)),Math.min(1,step*5));moving=true;if(remaining-advance<.001){entry.dwell=entry.pauseLength;entry.nextStop+=entry.length/4}}
+   }
+  }
+  actor.root.userData.routineActivity=entry.dwell>0?'pause':moving?'walking':routine.kind;
    actor.update(step,{moving,reduced,attentive:routine.kind==='talk',look:Math.sin(time*.5+entry.phase)*.18});
    if(routine.kind==='read'||routine.kind==='work'){actor.parts.arms.forEach(arm=>arm.rotation.x=-.9);actor.parts.head.rotation.x=.16;actor.feet.forEach(foot=>foot.position.z=.22)}
+  if(routine.studio&&!reduced)actor.parts.arms.forEach((arm,index)=>{arm.rotation.x=-.9+Math.sin(time*3.1+entry.phase+index*1.7)*.055});
    if((routine.kind==='garden'||routine.kind==='maintain')&&!reduced){actor.parts.arms[0].rotation.x=-.7-Math.sin(time*1.7+entry.phase)*.25;actor.parts.head.rotation.x=.1}
    if(routine.kind==='serve'&&!reduced)actor.parts.arms[1].rotation.x=-.5-Math.max(0,Math.sin(time+entry.phase))*.3;
   }

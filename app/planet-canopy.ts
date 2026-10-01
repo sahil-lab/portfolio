@@ -4,9 +4,13 @@ import {planetGeography,planetPoint,planetUp,type PlanetSurface} from './planet-
 import {realmSiteDistance} from './realm-layout';
 import {civilizationLogoReserved} from './civilization-world';
 import type {createPlanetInfrastructure} from './planet-infrastructure';
+import {planetBiome} from './planet-biomes';
+import {planetTownComposition} from './planet-composition';
 
 export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infrastructure:ReturnType<typeof createPlanetInfrastructure>,publicPlaces:{position:T.Vector3;radius:number}[],outposts:{position:T.Vector3}[]){
  const assets=new Map<string,ReturnType<typeof createCanopyAsset>>();for(const kind of ['tree','banyan'] as const)for(const detail of ['full','distant'] as const)assets.set(kind+'/'+detail,createCanopyAsset(kind,detail));
+ const biome=planetBiome(surface.stop),leaf=new T.Color(biome.leaf),tip=new T.Color(biome.tip),color=new T.Color();
+ for(const asset of assets.values()){const colors=asset.crown.attributes.color;for(let vertex=0;vertex<colors.count;vertex++){color.copy(leaf).lerp(tip,T.MathUtils.smoothstep(colors.getY(vertex),.04,.34));colors.setXYZ(vertex,color.r,color.g,color.b)}}
  const radiusFor=(kind:'tree'|'banyan')=>Math.max(assets.get(kind+'/full')!.radius,assets.get(kind+'/distant')!.radius);
  const records:(CanopyPlacement&{direction:T.Vector3;canopyRadius:number})[]=[],vertical=new T.Vector3(0,1,0);
  let seed=0;for(let index=0;index<surface.stop.id.length;index++)seed+=surface.stop.id.charCodeAt(index)*(index+1);const phase=seed*.017;
@@ -37,9 +41,14 @@ export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infra
   if(best)records.push(best);
  }
  const target=surface.stop.worldKind?170:130;
- for(let index=0;index<1600&&records.length<target+2;index++){
-    const sample=index*997%1600,latitude=1-2*(sample+.5)/1600,longitude=sample*2.3999632297+phase,direction=new T.Vector3(Math.sqrt(1-latitude*latitude)*Math.cos(longitude),latitude,Math.sqrt(1-latitude*latitude)*Math.sin(longitude));
-    const tree=survey(direction,'tree',.44+(sample%7)*.029,sample);if(tree)records.push(tree);
+ const woodlandDistance=planetTownComposition(surface.stop,0,1).woods,candidates=Array.from({length:1600},(_,sample)=>{
+  const latitude=1-2*(sample+.5)/1600,longitude=sample*2.3999632297+phase,direction=new T.Vector3(Math.sqrt(1-latitude*latitude)*Math.cos(longitude),latitude,Math.sqrt(1-latitude*latitude)*Math.sin(longitude));
+  const nearest=Math.max(...infrastructure.towns.map(town=>direction.dot(town.direction))),distance=Math.acos(T.MathUtils.clamp(nearest,-1,1))*surface.radius;
+  return {sample,direction,priority:Math.abs(distance-woodlandDistance)+sample*.00001};
+ }).sort((first,second)=>first.priority-second.priority);
+ for(const hemisphere of [1,-1])for(const candidate of candidates){
+  if(candidate.direction.y*hemisphere<0)continue;if(records.filter(record=>record.kind==='tree'&&record.direction.y*hemisphere>=0).length>=target/2)break;
+  const tree=survey(candidate.direction,'tree',.44+(candidate.sample%7)*.029,candidate.sample);if(tree)records.push(tree);
  }
  const grove=createCanopyGrove(records,point=>{const normal=point.clone().sub(surface.center).normalize();return planetPoint(surface,normal).addScaledVector(planetUp(surface,point),-.08)},assets);grove.root.name='Planet_LayeredLeafTrees_'+surface.stop.id;parent.add(grove.root);
  return {...grove,records,banyans:records.filter(record=>record.kind==='banyan')};

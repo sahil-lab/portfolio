@@ -4,7 +4,7 @@ The HUD keeps five category buttons onscreen, with a small transparent movement 
 
 | Category | Controls |
 | --- | --- |
-| World | Projects, direct Resume, Sahil Plaza, Project Garden; Mall, Friends & games, Travel, City; expandable City places, Walks & discoveries, and Books & districts groups retaining every destination and the eight-district atlas; Arrive now during transit |
+| World | Projects, direct Resume, Sahil Plaza, Project Garden, Gallery; Mall, Friends & games, Travel, City; expandable City places, Walks & discoveries, and Books & districts groups retaining every destination and the eight-district atlas; Arrive now during transit |
 | Character | Angel/Main quick switch and mode selector; landing, takeoff, Walk/Run, ascent, descent, boost, free roam, planet selection and travel; main Walk/Skate |
 | View | World lighting, First person, Close, Far, Fullscreen |
 | Activity | Friends & games, Courier journal, Interact, delivery and next-round actions when available, dispatch progress, Hide/Show dispatch, Operate exhibit, project and resume links |
@@ -22,6 +22,12 @@ physical resume-book destinations remain in Books & districts. The focused
 `--world-only` check covers these groups and direct-reader access, with `--touch`
 available to test the phone pointer mode.
 
+Gallery visits the vaulted code studio and prototype workshop without opening
+a modal. It uses a dedicated responsive Far view, preserves saved Close and
+first-person modes, and leaves the central passage open. The two seated workers
+remain part of the existing resident system. The capital browser check's
+`--gallery` option verifies the shortcut, day/night framing and resident motion.
+
 The contextual command uses the existing interaction prompt and dispatcher;
 the Activity menu's Interact action and keyboard interaction remain available.
 It is hidden while a category, blocking sheet, observation or shared activity
@@ -29,6 +35,16 @@ is open, while paused, or when controlling Angel. The command wraps long labels
 and sits above the phone joystick or between desktop location and movement
 controls. The capital browser check verifies reading-bay commands at 1440, 390,
 320 and 844 pixels, including one-dispatch clicks, full text and no overlap.
+
+The Project Garden's six local studies open a compact inspection dock without
+pausing the world. Run/Pause and Reset use the existing exhibit sequencer;
+the component study also retains color selection. Project source opens the
+existing resume reader. The dock identifies the examples as illustrative data,
+not the project runtimes, and suppresses its duplicate provenance toast.
+Leaving the installation dismisses the dock. Escape on its controls closes it
+without pausing exploration. Blocking sheets, category menus, observation and
+Angel control hide the dock; the normal contextual command returns afterward.
+Buttons remain at least 44px, with wrapping labels and scrollable phone layouts.
 
 Implementation: `app/hud-category.tsx` reuses the installed Base UI popover through `components/ui/popover.tsx`. `app/hud-controls.css` styles portalled contents independently of `.kingdom` and overrides the old distributed HUD layout. The existing control callbacks, restrictions and modal content remain in `app/page.tsx`.
 

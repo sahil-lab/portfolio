@@ -2,14 +2,17 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {architectureProfiles,architectureRecipe,type ArchitectureStyle} from './architecture-profiles';
 import {addFacadeCraft,type FacadeFloor} from './facade-craft';
+import {createWindowInteriorAtlas,mapWindowRoom,windowRoom} from './window-interiors';
 
 export function architectureMaterials(style:ArchitectureStyle,accent?:string){
  const palette=architectureProfiles[style],finish=(color:string,roughness=.74,metalness=.06)=>new T.MeshStandardMaterial({color,roughness,metalness});
  const materials={wall:finish(accent??palette.wall),stone:finish(palette.stone),rail:finish('#293f46',.58,.15),metal:finish(palette.metal,.4,.55),wood:finish(palette.wood,.87),glass:finish(palette.glass,.22,.22),leaf:finish(palette.leaf,.96)};
+ const interior=createWindowInteriorAtlas();materials.glass.aoMap=interior.occlusion;materials.glass.aoMapIntensity=.75;materials.glass.emissiveMap=interior.emission;
  materials.leaf.userData.surface=materials.wood.userData.surface='natural';materials.wall.userData.surface=materials.stone.userData.surface='ceramic';materials.glass.userData.surface='glass';return materials;
 }
 export type ArchitectureMaterials=ReturnType<typeof architectureMaterials>;
 export type BuildingCraftOptions={style:ArchitectureStyle;address:string;width?:number;height?:number;depth?:number;materials?:ArchitectureMaterials;detail?:boolean;stairs?:boolean;distant?:boolean};
+export const architectureStoreys=(height:number,rhythm:number)=>Math.max(1,Math.min(5,Math.ceil(height/(2.8+rhythm*.85))));
 function roofProfile(points:[number,number][],depth:number){
  const shape=new T.Shape(points.map(point=>new T.Vector2(...point)));shape.closePath();return new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:4}).translate(0,0,-depth/2);
 }
@@ -22,7 +25,7 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
  function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x=0,y=0,z=0,detail=false){const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;(detail?details:envelope).add(object);counts[name]=(counts[name]??0)+1;return object}
  function box(name:string,x:number,y:number,z:number,w:number,h:number,d:number,material:T.Material,detail=false){return mesh(name,new T.BoxGeometry(w,h,d),material,x,y,z,detail)}
  function beam(name:string,from:T.Vector3,to:T.Vector3,material:T.Material,size=.07,detail=true){const direction=to.clone().sub(from),object=mesh(name,new T.BoxGeometry(size,direction.length(),size),material,0,0,0,detail);object.position.copy(from).add(to).multiplyScalar(.5);object.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.normalize());return object}
- const storeys=Math.max(1,Math.min(5,Math.ceil(height/(2.8+recipe.rhythm*.85)))),floors:FacadeFloor[]=[];
+ const storeys=architectureStoreys(height,recipe.rhythm),floors:FacadeFloor[]=[];
  const doorWidth=Math.min(1.1,width*.24),doorX=width*recipe.entry;
  for(let level=0;level<storeys;level++){
   const setback=style==='citadel'?.1:recipe.massing===1?.085:recipe.massing===3?.055:0;
@@ -37,14 +40,14 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
       const horizontal=(bay-(bays-1)/2)*span/(bays+.65)+(recipe.rhythm-.5)*.12;
       if(level===0&&face===0&&Math.abs(horizontal-doorX)<(bayWidth+doorWidth+.24)/2+.14)continue;
       const position=new T.Vector3(horizontal,floor.bottom+(floor.top-floor.bottom)*.53,radius+.022).applyQuaternion(rotation).add(new T.Vector3(floor.x,0,floor.z));
-        const pane=mesh('Residence_WindowShadow',new T.PlaneGeometry(bayWidth-.13,bayHeight-.13),materials.glass,position.x,position.y,position.z);pane.quaternion.copy(rotation);
+      const pane=mesh('Residence_WindowShadow',mapWindowRoom(new T.PlaneGeometry(bayWidth-.13,bayHeight-.13),bayWidth-.13,bayHeight-.13,windowRoom(address,level,face,bay)),materials.glass,position.x,position.y,position.z);pane.quaternion.copy(rotation);
      }
     }
  }
  box('Residence_StoneFoundation',0,.1,0,width+.24,.2,depth+.24,materials.stone);
  const top=floors.at(-1)!,roofY=top.top,roofWidth=top.width+.24,roofDepth=top.depth+.24,pitch=recipe.roofPitch,roofX=top.x??0,roofZ=top.z??0;
  if(detailed){
-   const craft=addFacadeCraft(details,{floors,entry:{x:doorX,width:doorWidth+.24},profile:profile.window,planting:profile.planting,balconies:style!=='workshop'&&style!=='forge',roof:style==='citadel'||style==='solstice'||style==='atelier',bays:recipe.bays,bayOffset:(recipe.rhythm-.5)*.12,balconyFaces:recipe.balcony===0?[0,2]:recipe.balcony===1?[0,1,3]:[0,1,2,3],finishes:{stone:materials.stone,rail:materials.rail,metal:materials.metal,glass:materials.glass,planter:materials.wood,leaf:materials.leaf}});
+  const craft=addFacadeCraft(details,{floors,windowSeed:address,entry:{x:doorX,width:doorWidth+.24},profile:profile.window,planting:profile.planting,balconies:style!=='workshop'&&style!=='forge',roof:style==='citadel'||style==='solstice'||style==='atelier',bays:recipe.bays,bayOffset:(recipe.rhythm-.5)*.12,balconyFaces:recipe.balcony===0?[0,2]:recipe.balcony===1?[0,1,3]:[0,1,2,3],finishes:{stone:materials.stone,rail:materials.rail,metal:materials.metal,glass:materials.glass,planter:materials.wood,leaf:materials.leaf}});
   root.userData.facadeCounts=craft.userData.detailCounts;
  }
  box('Residence_EntranceRecess',doorX,1.12,depth/2+.12,doorWidth+.24,2.04,.08,materials.rail);

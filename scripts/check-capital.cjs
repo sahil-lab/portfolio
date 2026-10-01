@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string',default:'http://127.0.0.1:3001/'},profile:{type:'boolean',default:false},quality:{type:'string',default:'low'},output:{type:'string',default:'outputs/playtest/capital'},'all-planets':{type:'boolean',default:false}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string',default:'http://127.0.0.1:3001/'},profile:{type:'boolean',default:false},quality:{type:'string',default:'low'},output:{type:'string',default:'outputs/playtest/capital'},'all-planets':{type:'boolean',default:false},studies:{type:'boolean',default:false},biomes:{type:'boolean',default:false},gallery:{type:'boolean',default:false}}});
 assert.ok(['low','balanced','high'].includes(options.quality));const output=path.resolve(options.output);fs.mkdirSync(output,{recursive:true});
 async function main(){
  const browser=await chromium.launch({channel:'msedge',headless:true,args:['--enable-unsafe-swiftshader']}),page=await browser.newPage({viewport:{width:1440,height:960},deviceScaleFactor:1}),errors=[],captures=[];
@@ -23,7 +23,7 @@ async function main(){
     const report=await page.evaluate(()=>{const world=globalThis.__capitalWorld;world.renderer.info.reset();world.renderer.render(world.scene,world.camera);const probe=document.createElement('canvas');probe.width=160;probe.height=100;const context=probe.getContext('2d');context.drawImage(world.renderer.domElement,0,0,160,100);const data=context.getImageData(0,0,160,100).data,colors=new Set();for(let index=0;index<data.length;index+=4)colors.add(`${data[index]>>3},${data[index+1]>>3},${data[index+2]>>3}`);return {colors:colors.size,oneWorld:document.querySelectorAll('.world canvas').length===1,overflow:document.documentElement.scrollWidth>innerWidth,position:world.player.position.toArray(),draws:world.renderer.info.render.calls,triangles:world.renderer.info.render.triangles,night:world.weather.visual.night,lighting:world.weather.sky.look,visibleCitizens:world.civicLife.actors.filter(entry=>entry.actor.root.visible).length,details:world.city.architecture.filter(entry=>entry.town.detailed).length}});
    assert.ok(report.colors>35,name+' blank');assert.ok(report.oneWorld);assert.equal(report.overflow,false);await page.screenshot({path:path.join(output,name+'.png')});captures.push({name,...report});console.log('CAPITAL_CAPTURE '+JSON.stringify({name,colors:report.colors,draws:report.draws,triangles:report.triangles}));
   }
-  const arrivalFramed=()=>page.evaluate(()=>{const world=globalThis.__capitalWorld;return [[40.4,10.55,154.8],[63.6,10.55,154.8],[40.4,8.65,163.6],[63.6,8.65,163.6],[44,5.6,163],[60,8,163],[45.6,.3,180],[58.4,8.5,180],[52,.8,201]].every(point=>{const projected=world.player.position.clone().set(...point).multiplyScalar(world.scene.scale.x).project(world.camera);return Math.abs(projected.x)<.92&&Math.abs(projected.y)<.78&&projected.z<1})});
+  const arrivalFramed=()=>page.evaluate(()=>{const world=globalThis.__capitalWorld;return [[52,14.1,163.6],[40.4,10.55,154.8],[63.6,10.55,154.8],[40.4,8.65,163.6],[63.6,8.65,163.6],[43.4,8.3,155.6],[60.6,12.6,155.6],[45.6,.3,180],[58.4,8.5,180],[52,.8,201]].every(point=>{const projected=world.player.position.clone().set(...point).multiplyScalar(world.scene.scale.x).project(world.camera);return Math.abs(projected.x)<.92&&Math.abs(projected.y)<.78&&projected.z<1})});
   assert.ok(await arrivalFramed(),'arrival crops the pavilion, portfolio sign or fountain');await capture('arrival-day');assert.ok(await page.getByRole('link',{name:"Sahil Upadhyay's Living Computer Kingdom",exact:true}).count());
   await page.setViewportSize({width:390,height:844});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));assert.ok(await arrivalFramed(),'mobile arrival crops the pavilion, portfolio sign or fountain');await capture('arrival-day-mobile');await page.setViewportSize({width:1440,height:960});
   await page.getByRole('button',{name:'View controls',exact:true}).click();await page.getByRole('button',{name:'Far camera',exact:true}).click();await page.keyboard.press('Escape');
@@ -36,17 +36,46 @@ async function main(){
    try{world.renderer.info.reset();world.renderer.render(world.scene,world.camera)}finally{for(const [object,callback] of restore)object.onBeforeRender=callback}
   return Object.entries(counts).sort((first,second)=>second[1].triangles-first[1].triangles);
   });console.log('CAPITAL_RENDER_COSTS '+JSON.stringify(renderCosts));
-  if(options.profile)return;
+  const galleryChecks=[];
+  async function galleryCapture(lighting){
+   for(const viewport of [{width:1440,height:960},{width:390,height:844}]){
+    await page.setViewportSize(viewport);await visit('Gallery');await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    const report=await page.evaluate(()=>{const world=globalThis.__capitalWorld,residents=world.civicLife.actors.filter(entry=>entry.routine.studio),points=[[45.05,2.5,160],[58.95,2.5,160],[52,13.95,159],[40.4,8.55,163.6],[63.6,8.55,163.6]].map(point=>world.player.position.clone().set(...point).multiplyScalar(world.scene.scale.x).project(world.camera).toArray());return {position:world.player.position.toArray(),residents:residents.length,visible:residents.filter(entry=>entry.actor.root.visible).length,arm:residents[0].actor.parts.arms[0].rotation.x,points,blocked:world.transport.blocked(world.player.position.x,world.player.position.z),near:world.capital.nearGallery}});
+    assert.equal(report.residents,2);assert.equal(report.visible,2);assert.equal(report.blocked,false);assert.equal(report.near,true);assert.ok(report.points.every(([horizontal,vertical,depth])=>Math.abs(horizontal)<.94&&Math.abs(vertical)<.9&&depth<1),JSON.stringify({viewport,report}));
+    await page.waitForFunction(arm=>globalThis.__capitalWorld.civicLife.actors.find(entry=>entry.routine.studio).actor.parts.arms[0].rotation.x!==arm,report.arm,{timeout:15000});
+    await capture('gallery-'+lighting+'-'+viewport.width);galleryChecks.push({lighting,viewport,...report});
+   }
+   await page.setViewportSize({width:1440,height:960});await visit('Sahil Plaza');
+  }
+  if(options.gallery)await galleryCapture('day');
+  if(options.profile){assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'profile-checks.json'),JSON.stringify({captures,galleryChecks,promenades,errors},null,2)+'\n');return}
+  const studyChecks=[];
+  if(options.studies){
+   for(let index=0;index<6;index++){
+    const viewport=index===1?{width:320,height:740}:index===4?{width:390,height:844}:{width:1440,height:960};await page.setViewportSize(viewport);
+    const approach=await page.evaluate(index=>{const world=globalThis.__capitalWorld;world.goCapital('project-garden');const entry=world.capital.studies.entries[index];world.player.position.set(entry.project.building.x,.8,entry.project.building.z+1.65);return {blocked:world.transport.blocked(world.player.position.x,world.player.position.z),name:entry.project.name}},index);assert.equal(approach.blocked,false,approach.name+' study approach');
+    await page.keyboard.press('e');const dock=page.locator('.project-study-dock');await dock.waitFor({state:'visible'});await dock.getByRole('button',{name:'Reset study',exact:true}).click();
+    if(index===4)await dock.getByRole('combobox',{name:'Study color',exact:true}).selectOption('Amber');
+    await dock.getByRole('button',{name:'Run study',exact:true}).click();await dock.getByRole('button',{name:'Pause study',exact:true}).click();
+    assert.equal(await page.evaluate(index=>globalThis.__capitalWorld.capital.studies.entries[index].state.snapshot.paused,index),true);await dock.getByRole('button',{name:'Run study',exact:true}).click();
+    await page.waitForFunction(index=>{const state=globalThis.__capitalWorld.capital.studies.entries[index].state.snapshot;return state.step===3&&!state.running},index,{timeout:60000});
+    const state=await page.evaluate(index=>{const world=globalThis.__capitalWorld,entry=world.capital.studies.entries[index],dock=document.querySelector('.project-study-dock'),bounds=dock.getBoundingClientRect(),points=entry.points.map(point=>entry.group.localToWorld(point.clone()).project(world.camera).toArray());return {name:entry.project.name,result:entry.state.snapshot.result,committed:entry.state.snapshot.committedInput,points,bounds:bounds.toJSON(),overflow:dock.scrollWidth>dock.clientWidth+1,targets:[...dock.querySelectorAll('button')].map(button=>({name:button.getAttribute('aria-label')??button.textContent,height:button.getBoundingClientRect().height}))}},index);
+    assert.equal(state.overflow,false);assert.ok(state.bounds.x>=0&&state.bounds.right<=viewport.width+1&&state.bounds.top>=0&&state.bounds.bottom<=viewport.height);assert.ok(state.targets.every(target=>target.height>=44));assert.ok(state.points.every(([horizontal,vertical,depth])=>Math.abs(horizontal)<.92&&Math.abs(vertical)<.9&&depth<1),JSON.stringify(state));if(index===4)assert.equal(state.committed,'Amber');studyChecks.push(state);await capture('project-study-'+index+'-'+viewport.width);
+    if(index===0){await dock.getByRole('button',{name:'Project source',exact:true}).click();await page.getByRole('dialog',{name:'Sahil Upadhyay',exact:true}).waitFor();await page.getByRole('button',{name:'Close resume',exact:true}).click();await dock.waitFor({state:'hidden'})}else await dock.getByRole('button',{name:'Close project study',exact:true}).click();
+   }
+   await page.setViewportSize({width:1440,height:960});await page.evaluate(()=>globalThis.__capitalWorld.goCapital('plaza'));
+  }
   const choreography=await page.evaluate(()=>{
    const fountain=globalThis.__capitalWorld.capital.fountain,geometry=fountain.jets.geometry,positions=geometry.attributes.position.array,before=positions.slice();
-   for(let frame=0;frame<610&&(Math.floor(fountain.time/20)%3!==2||fountain.time%20<2);frame++)fountain.update(.1,false);
+    const nextCascade=(Math.floor(fountain.time/60)+1)*60+43;for(let frame=0;frame<1040&&fountain.time<nextCascade;frame++)fountain.update(.1,false);
    return {changed:positions.some((value,index)=>Math.abs(value-before[index])>.05),sameGeometry:fountain.jets.geometry===geometry,phase:fountain.root.userData.choreography,upperBowl:positions[1]>3.5};
   });assert.ok(choreography.changed&&choreography.sameGeometry&&choreography.upperBowl);assert.equal(choreography.phase,'cascade');await capture('plaza-cascade');
   for(const lighting of ['sunset','night']){
    await page.getByRole('button',{name:'View controls',exact:true}).click();await page.getByRole('combobox',{name:'World lighting',exact:true}).selectOption(lighting);await page.keyboard.press('Escape');
   await page.waitForFunction(lighting=>{const world=globalThis.__capitalWorld;return lighting==='night'?world.weather.visual.night===1&&world.weather.sky.look.ambient<.23:world.weather.sky.look.sunY<28},lighting);await capture('plaza-'+lighting);
+    if(lighting==='night'&&options.gallery)await galleryCapture('night');
   }
-  await page.setViewportSize({width:390,height:844});await capture('plaza-night-mobile');await page.setViewportSize({width:1440,height:960});
+  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('plaza-night-mobile');await page.setViewportSize({width:1440,height:960});
   await page.getByRole('button',{name:'View controls',exact:true}).click();await page.getByRole('combobox',{name:'World lighting',exact:true}).selectOption('day');await page.keyboard.press('Escape');await page.waitForFunction(()=>globalThis.__capitalWorld.weather.visual.night===0&&globalThis.__capitalWorld.weather.sky.look.ambient>.59);
   for(const [id,name] of [['willow-park','Willow Park'],['play-garden','Play Garden'],['lantern-mall','Lantern Shopping Arcade'],['weekend-market','Weekend Market'],['public-library','Open Shelf Library'],['picture-house','The Picture House'],['community-clinic','Community Clinic'],['neighborhood-school','Neighborhood School'],['sports-court','Community Sports Court']]){
   await visit(name);
@@ -83,9 +112,10 @@ async function main(){
    assert.ok(await page.evaluate(destination=>globalThis.__capitalWorld.goSharedPlanet(destination),destination));
    await page.waitForFunction(destination=>globalThis.__capitalWorld.transport.streaming.ready(destination),destination,{timeout:120000});
    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('planet-arrival-'+destination);
-   await page.setViewportSize({width:390,height:844});await page.evaluate(destination=>globalThis.__capitalWorld.goSharedPlanet(destination),destination);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('planet-arrival-'+destination+'-mobile');await page.setViewportSize({width:1440,height:960});
+  await page.setViewportSize({width:390,height:844});await page.evaluate(destination=>globalThis.__capitalWorld.goSharedPlanet(destination),destination);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('planet-arrival-'+destination+'-mobile');await page.setViewportSize({width:1440,height:960});
+  if(options.biomes){assert.ok(await page.evaluate(destination=>globalThis.__capitalWorld.observePlanet(destination),destination));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('planet-biome-'+destination);await page.setViewportSize({width:390,height:844});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await capture('planet-biome-'+destination+'-mobile');await page.evaluate(()=>globalThis.__capitalWorld.stopObservation());await page.setViewportSize({width:1440,height:960})}
   }
-  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({quality:options.quality,captures,errors,promenades,readingCourt,walkableLookout:true,currentResume:true},null,2)+'\n');console.log('CAPITAL_BROWSER_OK');
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({quality:options.quality,captures,errors,promenades,readingCourt,studyChecks,galleryChecks,walkableLookout:true,currentResume:true},null,2)+'\n');console.log('CAPITAL_BROWSER_OK');
  }catch(error){await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});const text=await page.locator('body').innerText().catch(()=>'');fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:error.message,errors,text,captures},null,2)+'\n');console.error(JSON.stringify({error:error.message,errors,text:text.slice(-2500)}));throw error}
  finally{await browser.close()}
 }

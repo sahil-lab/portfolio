@@ -5,6 +5,8 @@ const T=require('three'),{createCapitalWorld,capitalArrival,capitalStair}=requir
 test('capital plaza keeps its arrival clear, links public destinations, and opens the current portfolio',()=>{
  const scene=new T.Scene(),player=new T.Group(),pages=[],world=createCapitalWorld(scene,player,{blocked:()=>false,notice:()=>{},portfolio:page=>pages.push(page),cue:()=>{}});
  assert.equal(world.root.parent,scene);assert.equal(world.blocked(capitalArrival.x,capitalArrival.z,capitalArrival.y),false);assert.ok(world.routes.length>=3);assert.ok(world.root.getObjectByName('Civic_Plaque_SAHIL UPADHYAY'));assert.ok(world.root.getObjectByName('Capital_CanalDataFerries'));
+ const tiles=world.root.getObjectByName('Capital_PavingInlay');assert.equal(tiles.count,180);assert.equal(tiles.receiveShadow,true);assert.ok(world.root.getObjectByName('Capital_BakedContact'));
+ const foregroundTrees=[];world.root.traverse(object=>{if(object.name.startsWith('Civic_Tree_')&&object.position.z>201)foregroundTrees.push(object)});assert.ok(foregroundTrees.length);assert.ok(foregroundTrees.every(tree=>Math.abs(tree.position.x-43)>4),'foreground planting leaves The Builder sign unobstructed');
  for(let z=201;z<=216;z+=.5)for(const height of [.8,2,3])assert.equal(world.blocked(52,z,height),false,'arrival and follow-camera corridor must remain clear');
  player.position.set(43,.8,200);assert.ok(world.prompt());assert.ok(world.interact());assert.deepEqual(pages,[0]);world.update(.1,false,{night:1,wet:1,wind:12},true);disposeScene(scene);
 });
@@ -12,6 +14,12 @@ test('observation stairs and canal bridge provide continuous traversable heights
  const scene=new T.Scene(),world=createCapitalWorld(scene,new T.Group(),{blocked:()=>false,notice:()=>{},portfolio:()=>{},cue:()=>{}});let height=.8;
  for(let step=0;step<=150;step++){const z=capitalStair.startZ+(capitalStair.endZ-capitalStair.startZ)*step/150;height=world.height(capitalStair.x,z,height);assert.ok(height!==null);assert.equal(world.blocked(capitalStair.x,z,height),false)}assert.ok(Math.abs(height-6.2)<1e-6);
  height=.8;for(let step=0;step<=100;step++){const x=23.5+step/100*11.5;height=world.height(x,180,height);assert.ok(height!==null);assert.equal(world.blocked(x,180,height),false)}assert.ok(Math.abs(height-.8)<1e-6);disposeScene(scene);
+});
+test('the gallery destination and its central interior remain accessible with a framed inspection view',()=>{
+ const {capitalGalleryCameraView}=require('../app/capital-gallery.ts'),{createGameCamera}=require('../app/game-camera.ts'),{defaultSettings}=require('../app/persistence.ts'),scene=new T.Scene(),player=new T.Group();scene.add(player);const world=createCapitalWorld(scene,player,{blocked:()=>false,notice(){},portfolio(){},cue(){}}),arrival=world.destination('gallery');player.position.set(arrival.x,arrival.y,arrival.z);assert.equal(world.nearGallery,true);assert.equal(world.blocked(arrival.x,arrival.z,arrival.y),false);
+ for(let forward=155;forward<=168;forward+=.2)assert.equal(world.blocked(52,forward,.8),false,'central gallery passage');scene.scale.setScalar(2);scene.updateMatrixWorld(true);scene.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(scene.matrixWorld)});
+ for(const aspect of [1440/960,390/844,320/740]){const camera=new T.PerspectiveCamera(50,aspect,.1,18000),rig=createGameCamera(camera,scene,player),view=capitalGalleryCameraView(aspect);rig.reset(view);for(let frame=0;frame<60;frame++)rig.update(1/60,false,defaultSettings,false,view.focusHeight);camera.updateMatrixWorld(true);for(const point of [[45.05,2.5,160],[58.95,2.5,160],[52,13.95,159],[40.4,8.55,163.6],[63.6,8.55,163.6]]){const projected=new T.Vector3(...point).multiplyScalar(2).project(camera);assert.ok(Math.abs(projected.x)<.94&&Math.abs(projected.y)<.9,JSON.stringify({aspect,point,projected}))}}
+ disposeScene(scene);
 });
 test('all five promenades stay clear of the canal, planted edges, and their own street lamps',()=>{
  const scene=new T.Scene(),world=createCapitalWorld(scene,new T.Group(),{blocked:()=>false,notice:()=>{},portfolio:()=>{},cue:()=>{}});assert.equal(world.routes.length,5);
