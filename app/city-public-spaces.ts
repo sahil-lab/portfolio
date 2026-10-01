@@ -2,6 +2,7 @@ import * as T from 'three';
 import {createArtificialTurf,createPoolCourt} from './city-gardens';
 import {batchScenery} from './static-batching';
 import {createEverydayPlace,cityEverydaySites,type CityEverydayId} from './everyday-places';
+import {createScenicStreet} from './storybook-street';
 
 export const publicPoolSites=[
   {id:'central',x:-23,z:48,width:8,depth:4.4},
@@ -24,11 +25,12 @@ export function createCityPublicSpaces(scene:T.Scene,player?:T.Group,notice:(mes
     venue.root.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(venue.root.matrix)});
     return {site,venue};
   });
+  const donut=cityEverydaySites.find(site=>site.id==='loop-glaze')!,streets=[createScenicStreet(),createScenicStreet(true)];for(const street of streets){street.root.position.set(donut.x,0,donut.z);root.add(street.root)}
   const point=new T.Vector3(),local=(site:{x:number;z:number},position:T.Vector3)=>point.set(position.x-site.x,position.y,position.z-site.z);
   const near=()=>player?places.find(({site,venue})=>venue.near(local(site,player.position))):undefined;
-  return {root,pools,places,
+  return {root,pools,places,streets,
     update:(dt:number,reduced:boolean,environment={night:0,wet:0,wind:0})=>{pools.forEach(({court})=>court.update(dt,reduced));for(const {site,venue} of places)if(!player||Math.hypot(player.position.x-site.x,player.position.z-site.z)<100)venue.update(dt,reduced,environment)},
-    height:(x:number,z:number,previous:number)=>{for(const {site,venue} of places){const elevation=venue.height(x-site.x,z-site.z,previous);if(elevation!==null)return elevation}return null},
+    height:(x:number,z:number,previous:number)=>{for(const {site,venue} of places){const elevation=venue.height(x-site.x,z-site.z,previous);if(elevation!==null)return elevation}for(const street of streets){const elevation=street.height(x-donut.x,z-donut.z,previous);if(elevation!==null)return elevation}return null},
     prompt:()=>{const place=near();return place?`E \u00b7 ${place.site.name}`:null},
     interact:()=>{const place=near();if(!place||!player)return false;const message=place.venue.interact(local(place.site,player.position));if(message)notice(message);return !!message},
     destination:(id:CityEverydayId)=>{const place=places.find(place=>place.site.id===id);return place?{position:place.venue.approach.clone().add(new T.Vector3(place.site.x,0,place.site.z)),name:place.site.name}:null},

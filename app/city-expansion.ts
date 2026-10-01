@@ -6,6 +6,7 @@ import {createCuteResident} from './cute-resident';
 import {createCityLandmarks} from './city-landmarks';
 import {motherboardBounds} from './world-config';
 import {cityBlockPlan,cityDistrictReserved,nearestCityDistrict} from './city-districts';
+import {cityEverydaySites,everydayFootprint} from './everyday-config';
 import {createAuthoredDistricts} from './city-district-world';
 import {createCanopyAsset,createCanopyGrove,createCanopyMaterials,type CanopyPlacement} from './canopy-grove';
 import {createWorkScheduler} from './work-scheduler';
@@ -97,7 +98,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
   }
   const banyanAssets=new Map<string,ReturnType<typeof createCanopyAsset>>();for(const detail of ['full','distant'] as const)banyanAssets.set('banyan/'+detail,createCanopyAsset('banyan',detail));
   const banyanScale=1.45,banyanRadius=Math.max(...[...banyanAssets.values()].map(asset=>asset.radius))*banyanScale;
-  const banyanRecords:CanopyPlacement[]=[[-150,279],[250,379],[-250,-121],[350,779]].filter(([x,z])=>architecture.some(block=>block.x===x&&block.z===z)&&lots.every(lot=>Math.hypot(Math.max(0,Math.abs(lot.x-x)-lot.width/2),Math.max(0,Math.abs(lot.z-z)-lot.depth/2))>banyanRadius+.5)).map(([x,z],index)=>({id:'motherboard/banyan-'+index,kind:'banyan',position:new T.Vector3(x,.04,z),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),index*.9),scale:banyanScale,stretch:1.1,patch:x+','+z}));
+  const banyanRecords:CanopyPlacement[]=[[-150,279],[350,379],[-250,-121],[350,779]].filter(([x,z])=>architecture.some(block=>block.x===x&&block.z===z)&&lots.every(lot=>Math.hypot(Math.max(0,Math.abs(lot.x-x)-lot.width/2),Math.max(0,Math.abs(lot.z-z)-lot.depth/2))>banyanRadius+.5)&&cityEverydaySites.every(site=>{const footprint=everydayFootprint(site.kind);return Math.hypot(Math.max(0,Math.abs(site.x-x)-footprint.width/2),Math.max(0,Math.abs(site.z-z)-footprint.depth/2))>banyanRadius+.5})).map(([x,z],index)=>({id:'motherboard/banyan-'+index,kind:'banyan',position:new T.Vector3(x,.04,z),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),index*.9),scale:banyanScale,stretch:1.1,patch:x+','+z}));
   const banyanGroves=createCanopyGrove(banyanRecords,undefined,banyanAssets);banyanGroves.root.name='City_BanyanCourtyards';root.add(banyanGroves.root);
   root.userData.staticCameraBounds=cameraBounds;
   const roofscape=createVisibleGeometry(root,silhouettes);for(const part of silhouettes)part.geometry.dispose();silhouettes.length=0;

@@ -5,14 +5,17 @@ import {planetGeography,planetPoint,planetUp,type PlanetSurface} from './planet-
 import {realmSiteDistance} from './realm-layout';
 import {civilizationLogoReserved} from './civilization-world';
 import type {createPlanetInfrastructure} from './planet-infrastructure';
+import {signatureShopForPlanet} from './signature-shops';
 
 export function createPlanetPublicSpaces(parent:T.Object3D,surface:PlanetSurface,infrastructure:ReturnType<typeof createPlanetInfrastructure>){
  const root=new T.Group();root.name='Planet_PublicLife_'+surface.stop.id;parent.add(root);
  const style=planetArchitectureFor(surface.stop),kinds:EverydayKind[]=['park','playground','mall','market',surface.stop.worldKind==='research'?'school':surface.stop.worldKind==='foundry'?'clinic':'library',surface.stop.worldKind==='skills'?'cinema':'sports'];
  const places:{kind:EverydayKind;name:string;position:T.Vector3;rotation:T.Quaternion;inverse:T.Quaternion;scale:number;radius:number;venue:ReturnType<typeof createEverydayPlace>;approach:T.Vector3}[]=[];
  const groundNormal=new T.Vector3(),point=new T.Vector3();
- for(const [index,town] of infrastructure.towns.entries()){
-  const kind=kinds[index%kinds.length],footprint=everydayFootprint(kind),scale=kind==='mall'?.5:.54,radius=Math.hypot(footprint.width,footprint.depth)*scale/2+.8;
+ const signature=signatureShopForPlanet(surface.stop.id),sites=infrastructure.towns.map((town,index)=>({town,kind:kinds[index%kinds.length]}));
+ if(infrastructure.towns[0])sites.push({town:infrastructure.towns[0],kind:'shop'});
+ for(const [index,{town,kind}] of sites.entries()){
+  const footprint=everydayFootprint(kind),scale=kind==='mall'?.5:.54,radius=Math.hypot(footprint.width,footprint.depth)*scale/2+.8;
   let best:{position:T.Vector3;normal:T.Vector3;rotation:T.Quaternion;score:number}|null=null;
   for(const north of [24,-24,34,-34,45,-45,58,-58])for(const east of [0,18,-18,30,-30,44,-44]){
    const direction=town.direction.clone().addScaledVector(town.north,north/surface.radius).addScaledVector(town.east,east/surface.radius).normalize();
@@ -31,7 +34,7 @@ export function createPlanetPublicSpaces(parent:T.Object3D,surface:PlanetSurface
    const score=slope*20+position.distanceTo(town.position)*.15;if(!best||score<best.score)best={position,normal:up,rotation,score};
   }
   if(!best)continue;
-  const name=town.name+' '+everydayPlaceNames[kind],venue=createEverydayPlace({kind,style,address:surface.stop.id+'/public-'+index,name});
+    const name=kind==='shop'?signature.name:town.name+' '+everydayPlaceNames[kind],venue=createEverydayPlace({kind,style,address:surface.stop.id+'/public-'+index,name,shopTheme:kind==='shop'?signature.theme:undefined});
   venue.root.position.copy(best.position);venue.root.quaternion.copy(best.rotation);venue.root.scale.setScalar(scale);root.add(venue.root);venue.root.updateMatrix();
   venue.root.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(venue.root.matrix)});
   const approach=venue.approach.clone().multiplyScalar(scale).applyQuaternion(best.rotation).add(best.position),grounded=planetPoint(surface,approach.clone().sub(surface.center));

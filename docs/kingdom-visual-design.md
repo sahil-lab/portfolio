@@ -46,6 +46,57 @@ longer imposes the previous solid ceiling on orbital camera movement.
 - Far-away discovery labels fade; full labels return on approach. Existing
   artwork and machine emissions are not recolored by the finishing pass.
 
+## Signature Shops And Scenic Streets
+
+World > Signature shops now visits ten sculpted storefronts. Existing public
+venues remain in place; each satellite receives one additional shop near a town.
+
+| Destination | Shop | Rooftop silhouette |
+| --- | --- | --- |
+| Motherboard Central | Loop & Glaze | Open donut ring, dripping glaze and instanced sprinkles |
+| GitHub - The Forge | Copper Crumb | Braided pretzel and butterfly roof |
+| Cache Gardens | Scoop Cache | Waffle cone, three scoops and scalloped canopy |
+| LinkedIn - The Citadel | Paper & Steam | Teapot with curved spout and folded gable |
+| Petal Park | Petal Pantry | Fruit tart and petal roof |
+| Solstice Springs | Sunrise Roastery | Takeaway cup and ceramic dome |
+| Cloud Nine | Nimbus Sugar Works | Spun sugar cone and rounded towers |
+| AI Research Planet | Prism Optics | Angled telescope, fitted lens and prismatic piers |
+| Project Foundry Planet | Fold & Fly | Glider and hangar roof |
+| Skills / Technology Planet | Ribbon & Reel | Diamond kite, ribbon tail and sail canopy |
+
+The shared catalog lives in [everyday-config](../app/everyday-config.ts), while
+[signature-shops](../app/signature-shops.ts) owns the meshes and display-color
+interaction. The menu does not import the geometry builder. Roof supports meet
+the actual sculpture geometry. Storefront meshes remain below 20,000 triangles
+each, and no new real-time lights are added.
+
+[storybook-street](../app/storybook-street.ts) builds striped tethered balloons
+and two rolling roads around Loop & Glaze at city coordinates (250, 379).
+Balloons stay below 2,500 triangles each, reuse tether buffers, follow local
+planet gravity, and stop moving in reduced-motion or inactive venues. Road
+meshes, shoulders and walking heights share the same sampled curves and grades.
+Endpoints join existing streets. The displaced banyan remains in the neighboring
+courtyard, and banyan placement now respects public-venue footprints.
+
+Shop travel uses the existing planet streamer, waits for loaded scenery, and
+arrives at the clear entrance with a local movement and camera frame. Returning
+home or to the station cancels a pending shop arrival. Responsive cameras retain
+collision checks; Fold & Fly uses a higher view and Ribbon & Reel uses a sideways
+angle to clear nearby infrastructure.
+
+Verification includes geometry and placement tests, real road walks through the
+world controller, reduced-motion and tether checks, loading cancellation, and
+desktop/mobile canvas and full-landmark bounds. Run the visual tour with
+`node scripts/check-kingdom-visuals.cjs --shops --url=http://127.0.0.1:4332 --prefix=shops-final`
+in an environment with Playwright available. `--shop=motherboard` limits the tour
+to the donut district. Captures and JSON reports are generated under
+`outputs/playtest`.
+
+The full Node regression suite and TypeScript check passed. Scoped runtime lint
+is clean; the CommonJS harness still triggers the repository's existing
+`no-require-imports` policy and older unused-parameter findings. These checks do
+not certify hosted deployment or physical-phone performance.
+
 ## Lantern Presentation Pass, 1 October 2026
 
 This follow-up responds to the mobile composition critique while retaining

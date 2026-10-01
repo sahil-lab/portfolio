@@ -20,7 +20,7 @@ import {defaultSettings,loadSave,writeSave,type Settings} from './persistence';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {Users,Radio,Coffee,ChevronDown} from 'lucide-react';
 import {Trees,Smile,ShoppingBag,ShoppingBasket,Clapperboard,HeartPulse,GraduationCap,CircleDot,Landmark,Binoculars,Sprout,Waves} from 'lucide-react';
-import {cityEverydaySites} from './everyday-config';
+import {cityEverydaySites,signatureShops} from './everyday-config';
 import {FriendsClient} from './friends-client';
 import type {PlayView} from '../lib/friends-protocol';
 import type {FriendsActivityStatus} from './friends-activities';
@@ -38,7 +38,7 @@ import {projects} from './portfolio';
 import {Demonstration,ProjectDetails,ResumeContent} from './exhibit-view';
 import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sheet';
 const districtIcons=[Cpu,Microchip,Library,Palette,Network,Database,Cloud,Workflow];
-const everydayIcons={park:Trees,playground:Smile,mall:ShoppingBag,market:ShoppingBasket,cinema:Clapperboard,clinic:HeartPulse,school:GraduationCap,library:Library,sports:CircleDot};
+const everydayIcons={park:Trees,playground:Smile,mall:ShoppingBag,market:ShoppingBasket,cinema:Clapperboard,clinic:HeartPulse,school:GraduationCap,library:Library,sports:CircleDot,shop:Store};
 export default function Home(){
  const [radioOpen,setRadioOpen]=useState(false),[radioVisited,setRadioVisited]=useState(false);
  const [friendsClient]=useState(()=>new FriendsClient());const [friendsOpen,setFriendsOpen]=useState(false),[friendsVisited,setFriendsVisited]=useState(false);
@@ -47,6 +47,7 @@ export default function Home(){
  const [showAtlas,setShowAtlas]=useState(false);
  const [category,setCategory]=useState<'World'|'Character'|'View'|'Activity'|'System'|null>(null);
  const [observing,setObserving]=useState<number|null>(null);
+ const [visitingShop,setVisitingShop]=useState(false);
  const [inCommons,setInCommons]=useState(false);
  const [cityName,setCityName]=useState<string|null>(null);
  const [transit,setTransit]=useState<TransitStatus>(emptyTransit);
@@ -106,6 +107,7 @@ export default function Home(){
  <button aria-label="City" title="Lantern Quarter" disabled={angel.controlled||paused||!ready} onClick={()=>{game.current?.goCity();setCategory(null)}}><Building2 size={17}/><span>City</span></button>
  </div></section>
  <details className="hud-destination-group" name="world-destinations"><summary><Building2 size={17}/><span>City places</span><ChevronDown className="hud-destination-chevron" size={14}/></summary><div className="hud-action-grid">{cityEverydaySites.map(site=>{const Icon=everydayIcons[site.kind];return <button key={site.id} aria-label={'Visit '+site.name} title={site.name} disabled={controlsDisabled||angel.controlled||!!transit.mode} onClick={()=>{if(game.current?.goEverydayPlace(site.id))setCategory(null)}}><Icon size={17}/><span>{site.name}</span></button>})}</div></details>
+ <details className="hud-destination-group" name="world-destinations"><summary><Store size={17}/><span>Signature shops</span><ChevronDown className="hud-destination-chevron" size={14}/></summary><div className="hud-action-grid">{signatureShops.map(shop=><button key={shop.planet} type="button" aria-label={'Visit '+shop.name} title={shop.name+' / '+transitStops.find(stop=>stop.id===shop.planet)?.name} disabled={controlsDisabled||visitingShop||angel.controlled||observing!==null||inside!==null||!!transit.mode||transit.driving} onClick={async()=>{setVisitingShop(true);setCategory(null);try{await game.current?.goSignatureShop(shop.planet)}catch{setNotice('This shop could not be reached. Please try again.')}finally{setVisitingShop(false)}}}><Store size={17}/><span>{shop.name}</span></button>)}</div></details>
  <details className="hud-destination-group" name="world-destinations"><summary><Compass size={17}/><span>Walks & discoveries</span><ChevronDown className="hud-destination-chevron" size={14}/></summary><div className="hud-action-grid">
  {([{id:'waterfront',name:'Canal Promenade',Icon:Waves},{id:'lookout',name:'Observation Terrace',Icon:Binoculars}] as const).map(({id,name,Icon})=><button key={id} aria-label={'Visit '+name} title={name} disabled={controlsDisabled||angel.controlled||!!transit.mode} onClick={()=>{if(game.current?.goCapital(id))setCategory(null)}}><Icon size={17}/><span>{name}</span></button>)}
  <button aria-label="Commons" title="Motherboard Commons" disabled={angel.controlled} onClick={()=>{game.current?.goCommons();setCategory(null)}}><Store size={17}/><span>Commons</span></button>

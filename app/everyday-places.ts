@@ -8,11 +8,13 @@ import {createCapitalFountain} from './capital-fountain';
 import {rampHeight,type Ramp} from './traversal';
 import {createSpatialIndex} from './spatial-index';
 import {cacheStaticTransforms} from './static-transforms';
+import {createSignatureShop,signatureShops,type ShopTheme} from './signature-shops';
+import {createTetheredBalloon} from './storybook-street';
 
 export {everydayKinds,everydayPlaceNames,cityEverydaySites,everydayFootprint,type EverydayKind,type CityEverydayId} from './everyday-config';
 import {everydayPlaceNames,everydayFootprint,type EverydayKind} from './everyday-config';
 
-export function createEverydayPlace(options:{kind:EverydayKind;style:ArchitectureStyle;address:string;name?:string}){
+export function createEverydayPlace(options:{kind:EverydayKind;style:ArchitectureStyle;address:string;name?:string;shopTheme?:ShopTheme}){
  const {kind,style,address}=options,recipe=architectureRecipe(style,address),name=options.name??everydayPlaceNames[kind],profile=architectureProfiles[style],material=architectureMaterials(style),{width,depth}=everydayFootprint(kind);
  const root=new T.Group();root.name='Everyday_'+address;root.userData.placeKind=kind;root.userData.architectureStyle=style;root.userData.architectureRecipe=recipe;
  const fixed=new T.Group(),moving=new T.Group();fixed.name='Everyday_StaticCraft';moving.name='Everyday_ActiveProps';root.add(fixed,moving);
@@ -23,6 +25,8 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
  const civic=createCivicKit();civic.materials.stone.color.set(profile.stone);civic.materials.brass.color.set(profile.metal);civic.materials.leaf.color.set(profile.leaf);civic.materials.wood.color.set(profile.wood);
  const ramps:Ramp[]=[],decks:{x:number;z:number;width:number;depth:number;y:number}[]=[],fountains:ReturnType<typeof createCapitalFountain>[]=[],steam:T.Points[]=[];
  let film:{texture:T.CanvasTexture;paint:(time:number)=>void}|null=null,lastFilmFrame=-1;
+ let signature:ReturnType<typeof createSignatureShop>|null=null;
+ let balloon:ReturnType<typeof createTetheredBalloon>|null=null;
  let time=0,activeUntil=0,visits=0;
  function mesh(part:string,geometry:T.BufferGeometry,finish:T.Material,x:number,y:number,z:number,parent:T.Object3D=fixed,solid=false){
   const object=new T.Mesh(geometry,finish);object.name=part;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;parent.add(object);features[part]=(features[part]??0)+1;
@@ -147,6 +151,10 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
    const roof=mesh('Market_FoldedCanopy',new T.ConeGeometry(2.8,.8,4).rotateY(Math.PI/4),stall%2?material.wall:material.stone,x,3.6,z);roof.scale.z=.63;
    for(let product=0;product<5;product++)mesh('Market_Produce',new T.IcosahedronGeometry(.19,0),product%2?material.leaf:material.stone,x-1.1+product*.5,1.71,z);
   }
+ }else if(kind==='shop'){
+  signature=createSignatureShop(name,options.shopTheme);fixed.add(signature.root);moving.add(signature.hero);solids.push(...signature.solids);Object.assign(features,signature.features);root.userData.shopTheme=signature.theme;
+  const design=signatureShops.find(shop=>shop.theme===signature!.theme)!;balloon=createTetheredBalloon(design.accent,signatureShops.indexOf(design));balloon.root.position.set(7.1,0,-4);moving.add(balloon.root);features.Shop_TetheredBalloon=1;
+  for(const side of [-1,1]){bench(side*6.9,3.8,side<0?Math.PI/2:-Math.PI/2);tree(side*7.5,-5.5,4.1);civic.flowers(fixed,side*7.8,6,1.3,1.3,side)}
  }else if(kind==='sports'){
   const court=new T.MeshStandardMaterial({color:'#328b82',roughness:.93});box('Sports_CourtSurface',0,.025,-1,15,.045,20,court);
   for(const side of [-1,1]){box('Sports_Sideline',side*7.15,.056,-1,.08,.018,19.1,material.stone);box('Sports_Baseline',0,.057,-1+side*9.5,14.3,.018,.08,material.stone);box('Sports_HoopPost',0,1.6,-1+side*9,.15,3.2,.15,material.metal,fixed,true);box('Sports_Backboard',0,3.2,-1+side*8.8,1.8,1,.12,material.stone);const ring=mesh('Sports_BasketRim',new T.TorusGeometry(.35,.025,5,18),material.wood,0,2.93,-1+side*8.2);ring.rotation.x=Math.PI/2}
@@ -182,7 +190,7 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
  cacheStaticTransforms(fixed);
  const collisionIndex=createSpatialIndex(solids,solid=>({minX:solid.min.x,maxX:solid.max.x,minZ:solid.min.z,maxZ:solid.max.z}),8),collisionCandidates=new Set<T.Box3>(),collisionBounds=new T.Box3();for(const solid of solids)collisionBounds.union(solid);
  const approach=new T.Vector3(0,.8,depth/2-2.6),point=new T.Vector3();
- const actions:Record<EverydayKind,string[]>={park:['Fountain on.','A quiet seat by the fountain.'],playground:['Swings and seesaw moving.','Another turn at the playground.'],mall:['Shops open: Books / Fashion / Groceries / Cafe.','The arcade is open.'],market:['Today: fresh produce, flowers, and handmade goods.'],cinema:['Tonight at the Picture House: A Journey Around the Planets.'],clinic:['Reception is open.'],school:['The school bell rings.'],library:['On the open shelf: Planet Atlas / Field Notes / Stories of the City.'],sports:['Court ready. The ball is in play.']};
+ const actions:Record<EverydayKind,string[]>={park:['Fountain on.','A quiet seat by the fountain.'],playground:['Swings and seesaw moving.','Another turn at the playground.'],mall:['Shops open: Books / Fashion / Groceries / Cafe.','The arcade is open.'],market:['Today: fresh produce, flowers, and handmade goods.'],cinema:['Tonight at the Picture House: A Journey Around the Planets.'],clinic:['Reception is open.'],school:['The school bell rings.'],library:['On the open shelf: Planet Atlas / Field Notes / Stories of the City.'],sports:['Court ready. The ball is in play.'],shop:['The pastry display is open.']};
  return {
     root,kind,style,name,width,depth,approach,solids,features,moving,ramps,decks,
     height(x:number,z:number,previous:number){for(const ramp of ramps){const elevation=rampHeight(ramp,x,z);if(elevation!==null&&Math.abs(previous-elevation)<.6)return elevation}for(const deck of decks)if(Math.abs(x-deck.x)<deck.width/2-.08&&Math.abs(z-deck.z)<deck.depth/2&&Math.abs(previous-deck.y)<.6)return deck.y;return null},
@@ -193,8 +201,8 @@ export function createEverydayPlace(options:{kind:EverydayKind;style:Architectur
   },
   near(local:T.Vector3){return Math.abs(local.y-.8)<3&&Math.hypot(local.x-approach.x,local.z-approach.z)<3.5},
   prompt(local:T.Vector3){return this.near(local)?`E \u00b7 ${name}`:null},
-  interact(local:T.Vector3){if(!this.near(local))return null;activeUntil=time+12;return actions[kind][visits++%actions[kind].length]},
-    update(delta:number,reduced:boolean,environment={night:0,wet:0,wind:0}){if(!reduced)time+=Math.max(0,Number.isFinite(delta)?delta:0);civic.lighting(environment.night,environment.wet);for(const fountain of fountains)fountain.update(delta,reduced,time<activeUntil?1:0,environment.night,environment.wet,environment.wind);for(const motion of motions){const value=!reduced&&(time<activeUntil||kind==='playground'&&time%24>10&&time%24<16)?Math.sin(time*motion.speed)*motion.amplitude:0;if(motion.object.name==='Playground_WorkingSwing'||motion.axis==='z')motion.object.rotation[motion.axis]=motion.rest+value;else motion.object.position[motion.axis]=motion.rest+value}for(const vapor of steam){const positions=vapor.geometry.attributes.position;for(let index=0;index<positions.count;index++)positions.setY(index,1.42+(reduced?index/12:(time*.25+index/12)%1)*.65);positions.needsUpdate=true}if(film&&Math.floor(time*8)!==lastFilmFrame){film.paint(time);lastFilmFrame=Math.floor(time*8)}},
+  interact(local:T.Vector3){if(!this.near(local))return null;activeUntil=time+12;if(signature)return signature.interact();return actions[kind][visits++%actions[kind].length]},
+    update(delta:number,reduced:boolean,environment={night:0,wet:0,wind:0}){if(!reduced)time+=Math.max(0,Number.isFinite(delta)?delta:0);signature?.update(delta,reduced);balloon?.update(delta,reduced);civic.lighting(environment.night,environment.wet);for(const fountain of fountains)fountain.update(delta,reduced,time<activeUntil?1:0,environment.night,environment.wet,environment.wind);for(const motion of motions){const value=!reduced&&(time<activeUntil||kind==='playground'&&time%24>10&&time%24<16)?Math.sin(time*motion.speed)*motion.amplitude:0;if(motion.object.name==='Playground_WorkingSwing'||motion.axis==='z')motion.object.rotation[motion.axis]=motion.rest+value;else motion.object.position[motion.axis]=motion.rest+value}for(const vapor of steam){const positions=vapor.geometry.attributes.position;for(let index=0;index<positions.count;index++)positions.setY(index,1.42+(reduced?index/12:(time*.25+index/12)%1)*.65);positions.needsUpdate=true}if(film&&Math.floor(time*8)!==lastFilmFrame){film.paint(time);lastFilmFrame=Math.floor(time*8)}},
   localPoint(position:T.Vector3,origin:T.Vector3,inverse:T.Quaternion,scale=1){return point.copy(position).sub(origin).applyQuaternion(inverse).divideScalar(scale)},
  };
 }

@@ -7,7 +7,8 @@ const {ACESFilmicToneMapping,AgXToneMapping,NeutralToneMapping}=require('three')
 
 async function main(){
   const lanternOnly=process.argv.includes('--lantern');
-  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly;
+  const shopsOnly=process.argv.includes('--shops');
+  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly||shopsOnly;
   const matchReference=process.argv.includes('--match-reference');
   const referenceOnly=process.argv.includes('--reference')||matchReference;
   const browser=await chromium.launch({channel:workshopOnly?'chrome':'msedge',headless:true,args:workshopOnly?[]:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -65,6 +66,43 @@ async function main(){
     }
     const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));
     const report=()=>console.log(JSON.stringify({checks:checks.map(({controls,mapNodes,toolbar,...check})=>({...check,visibleControls:controls.length,mapTargets:mapNodes.length,toolbarTargets:toolbar.length})),errors,screenshots:output},null,2));
+    if(shopsOnly){
+      const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
+      const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=45;function frame(){if(--remaining>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));
+      await page.evaluate(value=>globalThis.__kingdomReview.settings(value),settings);
+      await page.waitForFunction(()=>globalThis.__kingdomReview.scene.userData.studioEnvironment==='ready',{},{timeout:30000});
+      const cancelled=await page.evaluate(async()=>{const world=globalThis.__kingdomReview,visit=world.goSignatureShop('copper');world.goTransitHub();const arrived=await visit,current=world.transport.journey.current;world.home();return {arrived,current}});assert.equal(cancelled.arrived,false,'A cancelled load must not teleport the player later');assert.equal(cancelled.current,1);
+      await page.getByRole('button',{name:'World controls',exact:true}).click();await page.locator('summary').filter({hasText:'Signature shops'}).click();
+      const shopMenu=page.locator('details[open]').filter({has:page.locator('summary').filter({hasText:'Signature shops'})}),names=await shopMenu.getByRole('button').allTextContents();assert.equal(names.length,10);await page.keyboard.press('Escape');
+      const planets=await page.evaluate(()=>globalThis.__kingdomReview.transport.surfaces.map(surface=>surface?.stop.id??'motherboard')),only=process.argv.find(argument=>argument.startsWith('--shop='))?.slice(7);
+      for(const [index,name] of names.entries()){
+        if(only&&planets[index]!==only)continue;
+        await page.getByRole('button',{name:'World controls',exact:true}).click();await page.locator('summary').filter({hasText:'Signature shops'}).click();await page.getByRole('button',{name:'Visit '+name,exact:true}).click();
+        await page.waitForFunction(destination=>{const world=globalThis.__kingdomReview;if(world.transport.journey.current!==destination)return false;const shop=destination?world.transport.landscapes[destination]?.publicSpaces?.places.find(place=>place.kind==='shop'):world.cityGardens.places.find(place=>place.site.id==='loop-glaze');if(!shop)return false;const approach=destination?shop.approach:shop.venue.approach.clone().add(world.player.position.clone().set(shop.site.x,0,shop.site.z));return world.player.position.distanceTo(approach)<.15},index,{timeout:90000});
+        for(const [label,width,height] of [['desktop',1440,960],['mobile',390,844]]){
+          await page.setViewportSize({width,height});await settle();await capture(`shop-${planets[index]}-${label}`);
+          const state=await page.evaluate(destination=>{
+            const world=globalThis.__kingdomReview,shop=destination?world.transport.landscapes[destination].publicSpaces.places.find(place=>place.kind==='shop'):world.cityGardens.places.find(place=>place.site.id==='loop-glaze'),venue=shop.venue,hero=venue.moving.children.find(object=>object.name==='Donut_RooftopSculpture'||object.name.startsWith('Shop_Rooftop_')),balloon=venue.moving.getObjectByName('Balloon_Airship');
+            const screen=object=>object.getWorldPosition(world.player.position.clone()).project(world.camera).toArray(),normal=destination?world.player.position.clone().sub(world.transport.surfaces[destination].center).normalize():world.player.position.clone().set(0,1,0),up=world.player.position.clone().set(0,1,0).applyQuaternion(world.player.quaternion);
+            const extent=object=>{const points=[];object.traverse(child=>{if(!child.isMesh||child.isInstancedMesh)return;child.geometry.computeBoundingBox();const bounds=child.geometry.boundingBox;for(const horizontal of [bounds.min.x,bounds.max.x])for(const height of [bounds.min.y,bounds.max.y])for(const forward of [bounds.min.z,bounds.max.z])points.push(world.player.position.clone().set(horizontal,height,forward).applyMatrix4(child.matrixWorld).project(world.camera))});return {minX:Math.min(...points.map(point=>point.x)),maxX:Math.max(...points.map(point=>point.x)),minY:Math.min(...points.map(point=>point.y)),maxY:Math.max(...points.map(point=>point.y))}};
+            return {theme:venue.root.userData.shopTheme,hero:screen(hero),balloon:screen(balloon),heroBounds:extent(hero),balloonBounds:extent(balloon),balloonVisible:balloon.visible&&venue.moving.visible,upAlignment:normal.dot(up),position:world.player.position.toArray(),camera:world.camera.position.toArray(),prompt:destination?world.transport.prompt():world.cityGardens.prompt()};
+          },index);
+          Object.assign(checks.at(-1),state);assert.ok(state.theme);assert.equal(state.balloonVisible,true);assert.ok(state.upAlignment>.97);assert.ok(state.prompt.includes(name));
+          for(const [landmark,point] of [['shop',state.hero],['balloon',state.balloon]])assert.ok(Math.abs(point[0])<.94&&Math.abs(point[1])<.92&&point[2]<1,`${name}: ${landmark} is outside the ${label} view`);
+          for(const bounds of [state.heroBounds,state.balloonBounds])assert.ok(bounds.minX>-.96&&bounds.maxX<.96&&bounds.minY>-.96&&bounds.maxY<.96,`${name}: full landmark bounds are clipped in the ${label} view: ${JSON.stringify(bounds)}`);
+        }
+        const balloonPose=()=>page.evaluate(destination=>{const world=globalThis.__kingdomReview,shop=destination?world.transport.landscapes[destination].publicSpaces.places.find(place=>place.kind==='shop'):world.cityGardens.places.find(place=>place.site.id==='loop-glaze');return shop.venue.moving.getObjectByName('Balloon_Airship').position.toArray()},index);
+        const frozen=await balloonPose();await settle();assert.deepEqual(await balloonPose(),frozen);await page.evaluate(value=>globalThis.__kingdomReview.settings(value),{...settings,reducedMotion:false});await settle();assert.notDeepEqual(await balloonPose(),frozen);await page.evaluate(value=>globalThis.__kingdomReview.settings(value),settings);
+        await page.keyboard.press('e');await settle();assert.ok((await page.locator('.world-notice').allTextContents()).join(' ').includes(name));
+        if(index===0){
+          const walks=await page.evaluate(()=>{const world=globalThis.__kingdomReview;return world.cityGardens.streets.map(street=>{world.player.position.copy(street.samples[0].position).add(street.root.position);world.player.position.y=.8;let highest=.8,error=0;for(const sample of street.samples.slice(1)){const horizontal=sample.position.x+street.root.position.x,forward=sample.position.z+street.root.position.z;world.step((horizontal-world.player.position.x)/.75,(forward-world.player.position.z)/.75);error=Math.max(error,Math.hypot(horizontal-world.player.position.x,forward-world.player.position.z),Math.abs(world.player.position.y-sample.position.y-.825));highest=Math.max(highest,world.player.position.y)}return {name:street.root.name,samples:street.samples.length,highest,error}})});
+          for(const walk of walks){assert.ok(walk.highest>2);assert.ok(walk.error<.04,JSON.stringify(walk))}Object.assign(checks.at(-1),{roadWalks:walks,cancelledVisit:cancelled});
+          await page.evaluate(value=>{globalThis.__kingdomReview.goEverydayPlace('loop-glaze');globalThis.__kingdomReview.settings(value)},{...settings,worldLighting:'night'});await page.waitForFunction(()=>globalThis.__kingdomReview.weather.sky.look.ambient<.24,{},{timeout:20000});await settle();await capture('shop-motherboard-mobile-night');
+          await page.evaluate(value=>globalThis.__kingdomReview.settings(value),settings);await page.waitForFunction(()=>{const world=globalThis.__kingdomReview;return Math.abs(world.weather.sky.look.ambient-world.weather.visual.tint.ambient)<.008},{},{timeout:20000});
+        }
+      }
+      assert.ok(checks.length>0,'No matching shop was checked');assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,`${prefix}-checks.json`),JSON.stringify({checks,errors},null,2));report();return;
+    }
     if(lanternOnly){
       const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
       const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=45;function frame(){if(--remaining>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));
