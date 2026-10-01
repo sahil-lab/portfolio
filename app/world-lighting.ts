@@ -27,8 +27,8 @@ export function createCityLightResponse(scene:T.Scene){
   update(delta:number,night:number,wet:number){
    elapsed+=Math.max(0,delta);if(elapsed>=1){elapsed=0;scene.traverse(object=>{if(!(object instanceof T.Mesh))return;for(const material of Array.isArray(object.material)?object.material:[object.material]){
     if(!(material instanceof T.MeshStandardMaterial)||surfaces.has(material))continue;
-    const window=material.userData.surface==='glass',paving=material.userData.cityPaving===true;
-    if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,1.2):.42,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
+    const practical=material.userData.surface==='light',window=material.userData.surface==='glass'||practical,paving=material.userData.cityPaving===true;
+    if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,practical?4:1.2):.42,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
    }})}
     for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,night);material.emissiveIntensity=base.intensity*(1-night)+base.nightIntensity*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
   },

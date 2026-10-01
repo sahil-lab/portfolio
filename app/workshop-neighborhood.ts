@@ -85,7 +85,7 @@ export function createWorkshopNeighborhood(scene:T.Scene){
   return {root,solids,
     blocked:sceneryCollision(solids,[]),
     update:(night:boolean,feet?:T.Vector3)=>{
-      finishes.window.emissiveIntensity=night?.85:.16;courierContact.visible=false;
+      finishes.window.emissiveIntensity=night?2.4:.16;courierContact.visible=false;
       if(!feet||Math.abs(feet.y-.8)>.2)return;
       const deck=Math.min(feet.x+8.7,7.1-feet.x,feet.z-13.55,21.65-feet.z),forecourt=Math.min(13-Math.abs(feet.x),feet.z-21.7,27-feet.z),clearance=Math.max(deck,forecourt);
       if(clearance<=.2)return;

@@ -12,7 +12,7 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>){
     if(o.userData.cameraSolid)collision.push(new T.Box3().setFromObject(o).expandByScalar(.3));
     const worldPosition=new T.Vector3().setFromMatrixPosition(o.matrixWorld);
     const m=o.material,physical=m instanceof T.MeshPhysicalMaterial?m:null;
-    const key=[m.type,m.color.getHex(),m.emissive.getHex(),m.emissiveIntensity,m.userData.nightIllumination,m.emissiveMap?.uuid,m.aoMap?.uuid,m.aoMapIntensity,m.roughness,m.metalness,m.envMapIntensity,m.roughnessMap?.uuid,m.bumpMap?.uuid,m.bumpScale,physical?.clearcoat,physical?.clearcoatRoughness,physical?.transmission,m.transparent,m.opacity,m.side,Math.floor(worldPosition.x/40),Math.floor(worldPosition.z/40)].join('/');
+    const key=[m.type,m.color.getHex(),m.emissive.getHex(),m.emissiveIntensity,m.userData.surface,m.userData.nightIllumination,m.emissiveMap?.uuid,m.aoMap?.uuid,m.aoMapIntensity,m.roughness,m.metalness,m.envMapIntensity,m.roughnessMap?.uuid,m.bumpMap?.uuid,m.bumpScale,physical?.clearcoat,physical?.clearcoatRoughness,physical?.transmission,m.transparent,m.opacity,m.side,Math.floor(worldPosition.x/40),Math.floor(worldPosition.z/40)].join('/');
     const list=groups.get(key)??[];list.push(o);groups.set(key,list);
   });
   scene.userData.staticCameraBounds=collision;

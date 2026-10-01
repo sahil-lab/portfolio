@@ -46,6 +46,82 @@ longer imposes the previous solid ceiling on orbital camera movement.
 - Far-away discovery labels fade; full labels return on approach. Existing
   artwork and machine emissions are not recolored by the finishing pass.
 
+## Lantern Presentation Pass, 1 October 2026
+
+This follow-up responds to the mobile composition critique while retaining
+the published workshop materials, HDR environment, PBR Neutral tone mapping,
+GTAO, FXAA, adaptive quality, instancing, LOD and streaming. No renderer migration
+or new cloud service was introduced. Hosted deployment has not been verified.
+
+### Visual Changes
+
+- Lantern Quarter now has an open arcade with two swept ribs, a restrained
+  translucent canopy, fifteen instanced opal lanterns, fitted caps and suspension
+  cords. The arcade is below 7,000 triangles and introduces no real-time lights.
+  Four support posts clear the existing gardens and leave the centre walkable.
+- A 64-instance stone promenade and brass circuit inlays lead from arrival to
+  the clockhouse. A shared footprint map grounds the buildings and planters.
+  Night light pools sit above the promenade but below its raised brass details;
+  this layer ordering has a regression test.
+- Support piers and a gallery band visibly support the clockhouse's upper drum.
+  Existing buildings, residents, traffic, routes and interactions are retained.
+- Lantern arrival is now (150, 0.8, 95), with yaw 0.18, pitch 0.3, focus 12.5
+  and distance `max(58, min(122, 36/aspect))`. It refits when the viewport changes
+  until the user adjusts the camera. The duplicated arrival toast is removed.
+- The five categories remain directly reachable in a compact translucent icon
+  dock. Labels remain available through ARIA and native tooltips; every trigger
+  and menu-close target is at least 44px. The header's empty area no longer
+  intercepts scene input. The joystick shrinks from 116px to 104px without
+  changing its normalized movement response or release behavior.
+- Authored `surface: light` materials can reach bounded night emission above
+  the existing bloom threshold. Ordinary glazing retains its previous 1.2 cap.
+  Material-role metadata participates in batching so these policies cannot
+  silently merge. Workshop practical lamps also gain a stronger night glow.
+
+### Research And Corrections
+
+Reviewed the current [R3F scaling-performance guidance](https://r3f.docs.pmnd.rs/advanced/scaling-performance),
+[Drei Environment](https://drei.docs.pmnd.rs/staging/environment),
+[Drei AccumulativeShadows](https://drei.docs.pmnd.rs/staging/accumulative-shadows),
+the actual [BakeShadows implementation](https://github.com/pmndrs/drei/blob/master/src/core/BakeShadows.tsx),
+and the installed Three.js `UnrealBloomPass` source.
+
+| Supplied recommendation | Decision based on the current application |
+| --- | --- |
+| Add instancing, LOD, culling, HDR, AO and adaptive DPR | Already present. Retained and reused rather than claiming them as new work. |
+| Use `BakeShadows` to bake lighting into materials | Its implementation freezes shadow-map updates; it is not an offline material-lightmap baker. Existing workshop baked occlusion remains intact. |
+| Switch to ACES and add gamma correction | Retained the previously selected PBR Neutral and existing output conversion. A second gamma correction would be incorrect. |
+| Halve bloom resolution for a guaranteed 75% saving | The installed pass already begins at half width/height and builds a smaller mip chain. Fewer pixels do not guarantee the same proportional total frame-time saving. |
+| Force a full R3F/Drei migration | Not required to apply these rendering techniques to the existing React/Three.js world. Avoided an unrelated rewrite. |
+| Add Draco and KTX2 everywhere | Not implemented in this visual pass. Draco affects transfer/decode; KTX2 can affect transfer and GPU texture memory. Neither independently fixes composition or draw-call cost, and both require an asset/decoder pipeline and device checks. |
+| Promise 60 FPS, fewer than 50 draws or a 150 MB GPU budget | Treated as proposed goals, not measured results. No physical-phone or GPU-memory certification is claimed. |
+
+### Lantern Verification
+
+The complete Node regression suite, TypeScript and changed-module lint checks
+passed. Focused tests were rerun after the final light-pool height correction.
+The touch HUD workflow passed menu access, joystick release and rotation checks.
+The Balanced mobile camera-lifecycle check passed deliberate WebGL loss and
+restoration with the same document, canvas, scene and player position.
+
+Lantern's seven final day/sunset/night/movement captures at 1440x960 and 390x844
+are under `outputs/playtest/lantern-finished-*`, with no captured page or rendering
+errors. Bootloader's eleven compatibility captures are under
+`outputs/playtest/workshop-lantern-regression-*`; its reference-sized compact-HUD
+checks are under `outputs/playtest/compact-dock-probe-*`.
+
+The measured run in `outputs/playtest/lantern-final-checks.json` used Balanced,
+normal scene animation, a 90-frame warm-up and three 90-frame samples on local
+Chrome/Intel Arc. Median-run means were 21.85 ms at 1440x960 and 19.26 ms at
+390x844, with p95 values around 33.5 ms and 33.3 ms. These are viewport-emulation
+measurements, not iPhone/Android results or a matched before/after speedup. They
+precede only the small final light-pool height correction. Earlier probe timings
+used different scene revisions and should not be compared as controlled gains.
+
+```sh
+npm exec --yes --package=playwright -- node scripts/check-kingdom-visuals.cjs --lantern --measure --url=http://127.0.0.1:4332 --prefix=lantern-check
+```
+
 ## Workshop Reference Pass, 1 October 2026
 
 The workshop retains its mural, imported machinery, routes and controls. This pass

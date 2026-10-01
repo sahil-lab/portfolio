@@ -6,7 +6,8 @@ const {chromium}=require(playwrightPath??'playwright');
 const {ACESFilmicToneMapping,AgXToneMapping,NeutralToneMapping}=require('three');
 
 async function main(){
-  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop');
+  const lanternOnly=process.argv.includes('--lantern');
+  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly;
   const matchReference=process.argv.includes('--match-reference');
   const referenceOnly=process.argv.includes('--reference')||matchReference;
   const browser=await chromium.launch({channel:workshopOnly?'chrome':'msedge',headless:true,args:workshopOnly?[]:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -62,7 +63,28 @@ async function main(){
       console.log(`${name}: ${pixels.colors} canvas colors, ${pixels.render.calls} draws, ${pixels.render.triangles} triangles; layout and assets verified`);
       return pixels;
     }
+    const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));
     const report=()=>console.log(JSON.stringify({checks:checks.map(({controls,mapNodes,toolbar,...check})=>({...check,visibleControls:controls.length,mapTargets:mapNodes.length,toolbarTargets:toolbar.length})),errors,screenshots:output},null,2));
+    if(lanternOnly){
+      const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
+      const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=45;function frame(){if(--remaining>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));
+      await page.waitForFunction(()=>globalThis.__kingdomReview.scene.userData.studioEnvironment==='ready',{},{timeout:30000});
+      for(const [label,width,height] of [['desktop',1440,960],['mobile',390,844]]){
+        await page.setViewportSize({width,height});assert.equal(await page.evaluate(value=>{globalThis.__kingdomReview.settings(value);return globalThis.__kingdomReview.goCity()},settings),true);
+        for(const worldLighting of ['day','sunset','night']){
+          await page.evaluate(value=>globalThis.__kingdomReview.settings(value),{...settings,worldLighting});
+          await page.waitForFunction(()=>{const world=globalThis.__kingdomReview;return Math.abs(world.weather.sky.look.ambient-world.weather.visual.tint.ambient)<.008},{},{timeout:20000});await settle();await capture(`lantern-${label}-${worldLighting}`);
+          const state=await page.evaluate(()=>{const world=globalThis.__kingdomReview,lanterns=world.scene.getObjectByName('Arcade_OpalLanterns');return {count:lanterns?.count,glow:lanterns?.material.emissiveIntensity,camera:world.camera.position.toArray(),position:world.player.position.toArray()}});
+          assert.equal(state.count,15);assert.ok(worldLighting==='night'?state.glow>1:state.glow<1);Object.assign(checks.at(-1),state);
+          if(worldLighting==='day'&&process.argv.includes('--measure')){
+            await page.evaluate(value=>globalThis.__kingdomReview.settings(value),{...settings,reducedMotion:false});await measure();const samples=[];for(let run=0;run<3;run++)samples.push(await measure());
+            Object.assign(checks.at(-1),{warmupFrames:90,samples,sample:[...samples].sort((left,right)=>left.meanFrameMs-right.meanFrameMs)[1]});
+          }
+        }
+      }
+      await page.evaluate(value=>globalThis.__kingdomReview.settings(value),{...settings,reducedMotion:false});const before=await page.evaluate(()=>globalThis.__kingdomReview.player.position.toArray());await page.keyboard.down('d');await settle();await page.keyboard.up('d');assert.notDeepEqual(await page.evaluate(()=>globalThis.__kingdomReview.player.position.toArray()),before);await capture('lantern-mobile-moving');
+      assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,`${prefix}-checks.json`),JSON.stringify({checks,errors},null,2));report();return;
+    }
     if(workshopOnly){
       const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:matchReference?'high':'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
       const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=45;function frame(){if(--remaining>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));
@@ -94,7 +116,6 @@ async function main(){
         }
         if(matchReference)continue;
         if(referenceOnly){
-          const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));
           await measure();const samples=[];for(let run=0;run<3;run++)samples.push(await measure());
           const sample=[...samples].sort((left,right)=>left.meanFrameMs-right.meanFrameMs)[1];
           Object.assign(checks.at(-1),{occlusion:!process.argv.includes('--ao-control'),warmupFrames:90,samples,sample});continue;

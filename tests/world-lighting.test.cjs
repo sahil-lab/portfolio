@@ -28,3 +28,12 @@ test('authored night glazing levels remain distinct, bounded and reversible with
  response.update(.1,0,0);materials.forEach(material=>{assert.equal(material.emissiveIntensity,.08);assert.equal(material.emissive.getHex(),new T.Color('#193443').getHex())});
  materials[0].dispose();assert.equal(response.count,levels.length-1);response.dispose();materials.slice(1).forEach(material=>material.dispose());geometry.dispose();
 });
+
+test('practical light emission can feed bloom without raising the ordinary window limit or merging material roles',()=>{
+ const {batchScenery}=require('../app/static-batching.ts'),scene=new T.Scene(),geometry=new T.BoxGeometry(),materials=[];
+ for(const surface of ['glass','light'])for(let index=0;index<4;index++){const material=new T.MeshStandardMaterial({color:'#fff1cf',emissive:'#ffd195',emissiveIntensity:.2});material.userData.surface=surface;material.userData.nightIllumination=2.4;const mesh=new T.Mesh(geometry.clone(),material);mesh.position.set(index,0,0);scene.add(mesh);materials.push(material)}
+ batchScenery(scene,{});assert.equal(scene.children.length,2);const response=createCityLightResponse(scene);response.update(1,1,0);
+ for(const mesh of scene.children)assert.equal(mesh.material.emissiveIntensity,mesh.material.userData.surface==='light'?2.4:1.2);
+ response.update(.1,0,0);for(const mesh of scene.children)assert.equal(mesh.material.emissiveIntensity,.2);response.dispose();
+ const {disposeScene}=require('../app/scene-resources.ts');disposeScene(scene);geometry.dispose();
+});

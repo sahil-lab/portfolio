@@ -6,6 +6,8 @@ import {createTransitModels} from './transit-models';
 import {batchScenery} from './static-batching';
 import {createResidentInstances} from './resident-instances';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
+import {createLanternArcade} from './lantern-arcade';
+import {createGroundOcclusion} from './ground-occlusion';
 
 export const citySquare={x:150,z:79};
 export function createCityLandmarks(parent:T.Object3D){
@@ -47,6 +49,14 @@ export function createCityLandmarks(parent:T.Object3D){
     box('Quarter_Crosswalk',-40,.102,stripe*1.05,6.5,.035,.55,finish.pearl);
   }
   for(let dash=-4;dash<=4;dash++)if(Math.abs(dash)>1)box('Quarter_RoadDash',dash*8,.103,48,3,.02,.16,gold);
+  const promenade=new T.InstancedMesh(new T.PlaneGeometry(1.98,2.12).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:'#ffffff',roughness:.9}),64),paverPose=new T.Object3D();promenade.name='Quarter_InlaidPromenade';promenade.receiveShadow=true;
+  const stoneColors=['#c9cdbf','#c3c9bd','#d2d3c6'].map(color=>new T.Color(color));
+  for(let row=0;row<16;row++)for(let column=0;column<4;column++){const index=row*4+column;paverPose.position.set(-3.06+column*2.04,.052,-3.5+row*2.18);paverPose.updateMatrix();promenade.setMatrixAt(index,paverPose.matrix);promenade.setColorAt(index,stoneColors[(row+column*2)%stoneColors.length])}promenade.computeBoundingSphere();root.add(promenade);
+  for(const side of [-1,1])box('Quarter_PromenadeInlay',side*4.16,.06,12.85,.045,.015,35, gold);
+  for(const forward of [1,12,24]){
+    mesh('Quarter_CircuitMedallion',new T.TorusGeometry(.34,.023,5,28).rotateX(Math.PI/2),gold,0,.077,forward);
+    for(const side of [-1,1])box('Quarter_PromenadeTrace',side*1.75,.066,forward,2.6,.015,.035,gold);
+  }
   const cafe=building('ByteCafe',-21,-14,'#e7806b',6.6,1.8);
   sign('Cafe_Name','PACKET POST',-21,5.9,-7.3,7.6,'#8e6353');
   const cup=new T.Group();cup.name='Dispatch_SortingTower';cup.position.set(-21,13,-14);root.add(cup);
@@ -72,6 +82,9 @@ export function createCityLandmarks(parent:T.Object3D){
   for(let index=0;index<42;index++){const angle=index/42*Math.PI*2;dummy.position.set(Math.sin(angle)*7.55,6.28,Math.cos(angle)*7.55);dummy.rotation.y=angle;dummy.updateMatrix();bulbs.setMatrixAt(index,dummy.matrix)}music.add(bulbs);
   const clockProfile=[[0,-3.3],[2.8,-3.3],[4.6,-2.7],[4.9,-1.8],[4.9,1.8],[4.6,2.7],[2.8,3.3],[0,3.3]].map(([radius,height])=>new T.Vector2(radius,height));
   const mirrorBall=mesh('SignalHouse_ClockDrum',new T.LatheGeometry(clockProfile,40),finish.pearl,0,10.7,0,music);
+  mesh('SignalHouse_GalleryBand',new T.CylinderGeometry(4.35,4.75,.18,40),blue.paint,0,7.75,0,music);
+  mesh('SignalHouse_GalleryEdge',new T.TorusGeometry(4.75,.09,6,48).rotateX(Math.PI/2),gold,0,7.78,0,music);
+  for(let support=0;support<8;support++){const angle=support/8*Math.PI*2;mesh('SignalHouse_SupportPier',new T.CylinderGeometry(.13,.17,1.7,10),finish.ink,Math.sin(angle)*3.8,7.3,Math.cos(angle)*3.8,music)}
   for(let fin=0;fin<12;fin++){
     const angle=fin/12*Math.PI*2,slat=box('SignalHouse_ClockVane',Math.sin(angle)*4.95,10.7,Math.cos(angle)*4.95,.33,3.25,.14,gold,music);slat.rotation.y=angle;
   }
@@ -137,6 +150,8 @@ export function createCityLandmarks(parent:T.Object3D){
     const lamp=mesh('Quarter_LampLantern',new T.SphereGeometry(.47,12,8),new T.MeshStandardMaterial({color:'#fff3d6',emissive:'#ffdfac',emissiveIntensity:.32,roughness:.4}),x,5.5,z);lamp.scale.y=1.22;
     mesh('Quarter_LampCap',new T.CylinderGeometry(.36,.54,.2,12),gold,x,6.1,z);
   }
+  const arcade=createLanternArcade(root,{structure:finish.ink,trim:gold});solids.push(...arcade.solids);
+  root.add(createGroundOcclusion('Quarter_ContactShading',{x:0,z:3,width:88,depth:104,y:.036},solids.map(solid=>({x:solid.x,z:solid.z,width:solid.width,depth:solid.depth,round:solid.x===2&&solid.z===-15,strength:solid.height>4?.34:.23})),1.8));
   const residentSites=[[-5,12],[-15,29],[17,28],[29,1],[10,2],[-8,-2],[27,32],[-3,35]];
   const actors=residentSites.map(([x,z],index)=>{
     const actor=createCuteResident(['#e2836c','#579dc0','#63ae88','#dfb451'][index%4],index);batchScenery(actor.root,{parts:actor.movingParts});actor.root.scale.setScalar(1.6);actor.root.position.set(x,.1,z);root.add(actor.root);return {...actor,home:actor.root.position.clone(),phase:index*.8};
@@ -154,6 +169,7 @@ export function createCityLandmarks(parent:T.Object3D){
   };
   function update(dt:number,reduced:boolean,player:T.Group){
     if(Math.hypot(player.position.x-citySquare.x,player.position.z-citySquare.z)>220)return;
+    arcade.update();
     const visitor=player.position.clone().sub(root.position);
     for(const actor of actors)actor.update(dt,{moving:!reduced&&actor.root.position.distanceTo(visitor)>=2.8,reduced,attentive:actor.root.position.distanceTo(visitor)<5});
     if(reduced){instances.update();return}
