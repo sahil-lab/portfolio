@@ -78,6 +78,13 @@ test('angel releases a late-loading asset after world disposal',async()=>{
  const angel=createFlyingAngel(scene,camera,{dogHeight:16.875,surfaces:create().surfaces,load:()=>new Promise(done=>{resolve=done})});angel.dispose();resolve(asset);await angel.ready;
  assert.equal(released,1);assert.equal(scene.children.length,0);assert.equal(angel.loaded,false);assert.equal(angel.control(true),false);
 });
+
+test('standalone angel loader falls back to the original model and reports its real URL',async context=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{angelAsset}=require('../app/flying-angel.ts'),requests=[];
+ context.mock.method(GLTFLoader.prototype,'loadAsync',async url=>{requests.push(url);if(url===angelAsset)throw new Error('Candidate unavailable');return {scene:assetFixture()}});
+ const scene=new T.Scene(),angel=createFlyingAngel(scene,new T.PerspectiveCamera(),{dogHeight:16.875,surfaces:create().surfaces});await angel.ready;
+ assert.equal(angel.loaded,true);assert.deepEqual(requests,[angelAsset,'/assets/anime-angel.glb']);assert.equal(angel.root.userData.asset,'/assets/anime-angel.glb');angel.dispose();
+});
 test('landed angel keeps folded wings above ground and eases its legs into takeoff',async()=>{
  const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),bytes=fs.readFileSync('public/assets/anime-angel.glb'),asset=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;
  const scene=new T.Scene(),angel=createFlyingAngel(scene,new T.PerspectiveCamera(),{dogHeight:16.875,surfaces:create().surfaces,load:async()=>asset});await angel.ready;angel.control(true);assert.ok(angel.land());

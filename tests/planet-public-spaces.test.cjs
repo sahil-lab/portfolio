@@ -1,13 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
-const T=require('three'),{createPlanetSurface,planetGeography}=require('../app/planet-geography.ts'),{createPlanetInfrastructure}=require('../app/planet-infrastructure.ts'),{createPlanetPublicSpaces}=require('../app/planet-public-spaces.ts'),{transitStops}=require('../app/transit-config.ts'),{disposeScene}=require('../app/scene-resources.ts');
+const T=require('three'),{createPlanetSurface,planetGeography,planetPoint}=require('../app/planet-geography.ts'),{createPlanetInfrastructure}=require('../app/planet-infrastructure.ts'),{createPlanetPublicSpaces}=require('../app/planet-public-spaces.ts'),{transitStops}=require('../app/transit-config.ts'),{disposeScene}=require('../app/scene-resources.ts');
 test('planet public spaces use their own architectural family and stay clear of protected geography',()=>{
  const shopThemes=new Set();
  for(const stop of transitStops.slice(1)){
   const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),infrastructure=createPlanetInfrastructure(scene,surface),publicSpaces=createPlanetPublicSpaces(scene,surface,infrastructure);
   assert.ok(publicSpaces.places.length>=3,stop.name+' has '+publicSpaces.places.length+' public places');
     const shops=publicSpaces.places.filter(place=>place.kind==='shop');assert.equal(shops.length,1,stop.name+' needs its own signature shop');shopThemes.add(shops[0].venue.root.userData.shopTheme);
+  const shop=shops[0];shop.venue.root.updateWorldMatrix(true,true);assert.equal(shop.venue.width,60);assert.equal(shop.venue.depth,54);
+  if(shop.venue.root.userData.shopTheme!=='pretzel'){
+   const origin=shop.venue.root.localToWorld(new T.Vector3(0,20,23)),direction=new T.Vector3(0,-1,0).applyQuaternion(shop.rotation),hit=new T.Raycaster(origin,direction).intersectObject(shop.venue.root,true)[0];assert.ok(hit,stop.id+' forecourt missing');
+   const local=shop.venue.root.worldToLocal(hit.point.clone()),probe=new T.Vector3(0,0,23).multiplyScalar(shop.scale).applyQuaternion(shop.rotation).add(shop.position),ground=planetPoint(surface,probe.sub(surface.center)).sub(shop.position).applyQuaternion(shop.inverse).y/shop.scale;
+   assert.ok(Math.abs(local.y-ground-.038)<.08,stop.id+' enlarged forecourt must follow terrain: '+(local.y-ground));
+  }
   for(const place of publicSpaces.places){
    const geography=planetGeography(surface,place.position.clone().sub(surface.center).normalize());assert.equal(geography.water,false);assert.ok(geography.road>place.radius);assert.ok(geography.river>place.radius);assert.ok(publicSpaces.prompt(place.approach));assert.ok(publicSpaces.interact(place.approach));assert.equal(publicSpaces.blocked(place.approach),false,stop.name+' '+place.kind+' entrance blocked');
   }

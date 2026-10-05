@@ -11,7 +11,7 @@ export function createResidentInstances(parent:T.Object3D,residents:Resident[]){
   let ancestor:T.Object3D|null=source.parent;while(ancestor&&ancestor!==resident.root)ancestor=ancestor.parent;
   if(!ancestor||!(source.material instanceof T.MeshStandardMaterial)||source.material.map)continue;
   const material=source.material,physical=material instanceof T.MeshPhysicalMaterial?material:null;
-  const key=JSON.stringify([(source.geometry as T.SphereGeometry).parameters,material.type,material.userData.surface,material.roughness,material.metalness,material.emissive.getHex(),material.emissiveIntensity,material.envMapIntensity,physical?.clearcoat,physical?.clearcoatRoughness,material.transparent,material.opacity,material.side,material.fog,source.castShadow,source.receiveShadow,source.layers.mask]);
+  const key=JSON.stringify([source.geometry.userData.authoredKit,(source.geometry as T.SphereGeometry).parameters,material.type,material.vertexColors,material.userData.surface,material.roughness,material.metalness,material.emissive.getHex(),material.emissiveIntensity,material.envMapIntensity,physical?.clearcoat,physical?.clearcoatRoughness,material.transparent,material.opacity,material.side,material.fog,source.castShadow,source.receiveShadow,source.layers.mask]);
   const group=groups.get(key)??[];group.push({source,resident});groups.set(key,group);
  }
  const batches=[...groups.values()].filter(group=>group.length>1).map(parts=>{

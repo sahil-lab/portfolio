@@ -1,0 +1,289 @@
+{
+  "version": "scene-ao-v1",
+  "sourceScene": "Kingdom Complete Assembly",
+  "blenderVersion": "5.2.2 LTS",
+  "source": "assets/world-return/world-return.blend",
+  "recipe": "assets/world-return/bake-scene-finish.py",
+  "recipeSha256": "79e55e942fd860eb84d71ce31637d4e32d0f9190e33891908bb12530a8523cae",
+  "planets": [
+    {
+      "planet": "copper",
+      "url": "/assets/planets/blender-final/copper.glb",
+      "bytes": 2432828,
+      "sha256": "4d9871a6413452f1ec5a268c08624a03069de174a1c7df0ab91249983af519e5",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 120,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/copper-scene-ao.png",
+        "bytes": 1355440,
+        "sha256": "a8f2c30ed8360be9db99cddd464acf01c746c308c512821093dbe0b558473b32",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "garden",
+      "url": "/assets/planets/blender-final/garden.glb",
+      "bytes": 2213960,
+      "sha256": "921334acba04636abe15f19bdaf81d2642ca6e682111ed33498107deac93b5d5",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 111,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/garden-scene-ao.png",
+        "bytes": 1153477,
+        "sha256": "366df8de765d6e0325122ed45b1f50f87b3ef3a6e964fb1da4af7b5b294642ce",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "prism",
+      "url": "/assets/planets/blender-final/prism.glb",
+      "bytes": 2350804,
+      "sha256": "bad3b256fcd3dede8d943abf01cfdfbc91fba018195969fffbd1ee90434976f2",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 120,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/prism-scene-ao.png",
+        "bytes": 1274525,
+        "sha256": "4502de900a3d38d915e9a96e7e0916958644580168c29fc7b28720e768b6f691",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "petal",
+      "url": "/assets/planets/blender-final/petal.glb",
+      "bytes": 2399352,
+      "sha256": "9965bc4195556c6aa1a928f63d7e04f5386d2c9eef05f9132711eb7c8369ebef",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 110,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/petal-scene-ao.png",
+        "bytes": 1320950,
+        "sha256": "07c7c7526a9bd03696ca22068aeff8cff2b4ff2607a9e8403928b166676eb140",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "solstice",
+      "url": "/assets/planets/blender-final/solstice.glb",
+      "bytes": 2343572,
+      "sha256": "824b9aa12a1991e6ed91fdf3eff8d4ad76499b55076fa8ac0f6b3026fe759fe6",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 109,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/solstice-scene-ao.png",
+        "bytes": 1264354,
+        "sha256": "e801ca3ceb867e13cbd2616ac8d84bfa640dba131e86e1fd3dbae14a73831d8b",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "cloud",
+      "url": "/assets/planets/blender-final/cloud.glb",
+      "bytes": 2307400,
+      "sha256": "059a3c2e4b7ed063a7217dad60ac833e7a7ca0227001ce5e33e85273bc2b9d63",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 109,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/cloud-scene-ao.png",
+        "bytes": 1242916,
+        "sha256": "1ebccb219c68c01737005ffc6400d1f3a871d897bbb55a5dfed0362901dd6faa",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "ai-research",
+      "url": "/assets/planets/blender-final/ai-research.glb",
+      "bytes": 1769868,
+      "sha256": "5f1176e6570eb1ad906bb8b96a6735b3019253b787e7fb05a7ffca9a2c7ae8e3",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 121,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/ai-research-scene-ao.png",
+        "bytes": 1084880,
+        "sha256": "84052b8c8ef9ec909df2558cf1839fd879ab4870217aff1288cb836d566a70c6",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "project-foundry",
+      "url": "/assets/planets/blender-final/project-foundry.glb",
+      "bytes": 1772140,
+      "sha256": "0a422c3f64c20a2f15d013f98e806a60ccf62192a725ba52832e4bcbbcae3928",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 121,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/project-foundry-scene-ao.png",
+        "bytes": 1083420,
+        "sha256": "65331739ad9985fa0c488b4b84438aada2a43a6d455f49d2b6f9d571192ff786",
+        "width": 2048,
+        "height": 1024
+      }
+    },
+    {
+      "planet": "skills-technology",
+      "url": "/assets/planets/blender-final/skills-technology.glb",
+      "bytes": 1762132,
+      "sha256": "8b01084866aa0a6398ed3c64b2c69dc45183dae61e098a93cbc3d257a300b7a1",
+      "lods": 2,
+      "occlusion": {
+        "embedded": true,
+        "resolution": [
+          2048,
+          1024
+        ],
+        "staticOccluders": 126,
+        "runtimeIntensity": 0.7
+      },
+      "inspectionMap": {
+        "url": "/assets/planets/blender-final/skills-technology-scene-ao.png",
+        "bytes": 1074088,
+        "sha256": "c26e65f5a04fdc73ffc87ab078f59befdd7b7fd6b449558857b64851777d910f",
+        "width": 2048,
+        "height": 1024
+      }
+    }
+  ],
+  "normals": [
+    {
+      "surface": "ceramic",
+      "url": "/assets/world-finish/ceramic-normal.png",
+      "bytes": 354320,
+      "sha256": "d21333abfdc3dbadc61aa955c7de29547e3149fde8c812b0da0cb078bb73287c",
+      "width": 512,
+      "height": 512,
+      "space": "tangent",
+      "runtimeStrength": 0.85
+    },
+    {
+      "surface": "stone",
+      "url": "/assets/world-finish/stone-normal.png",
+      "bytes": 451944,
+      "sha256": "0bb98e31a17bdfe273b9187cfcc691e69fe8c37a9384049dac1329832114bb0b",
+      "width": 512,
+      "height": 512,
+      "space": "tangent",
+      "runtimeStrength": 0.85
+    },
+    {
+      "surface": "timber",
+      "url": "/assets/world-finish/timber-normal.png",
+      "bytes": 463383,
+      "sha256": "a8476ba9312ace1cc9190075c4178ea707e60c04c4896b0cfecb424a3c79bdfa",
+      "width": 512,
+      "height": 512,
+      "space": "tangent",
+      "runtimeStrength": 0.85
+    },
+    {
+      "surface": "brushed",
+      "url": "/assets/world-finish/brushed-normal.png",
+      "bytes": 455380,
+      "sha256": "a9c1329a2dae4b679de16c4502b24a1e0d607e80d72f3bbc3b4134000d9acf8c",
+      "width": 512,
+      "height": 512,
+      "space": "tangent",
+      "runtimeStrength": 0.85
+    }
+  ],
+  "home": {
+    "url": "/assets/world-finish/motherboard-contact.png",
+    "bytes": 616014,
+    "sha256": "938af3ed8167560933d357867165fd5eddb2e0d904d162649bdc837b2a89b366",
+    "width": 1024,
+    "height": 2048,
+    "area": {
+      "x": 0,
+      "z": 79,
+      "width": 1070,
+      "depth": 2560,
+      "y": 0.035
+    },
+    "alphaScale": 0.48,
+    "materialOpacity": 0.65,
+    "inspectionMap": {
+      "url": "/assets/world-finish/motherboard-scene-ao.png",
+      "bytes": 900192,
+      "sha256": "05a149db9cfad7e53940f8bbf0bc00f25222315c7c0c644e6af6ece08a59a335",
+      "width": 1024,
+      "height": 2048
+    }
+  },
+  "browserAssetBytes": 21693097,
+  "loading": "Kits and shared maps at startup; terrain GLBs streamed per planet. Inspection PNGs are not fetched by the runtime.",
+  "limits": [
+    "Scene-aware ambient occlusion and tangent-space normals, not full indirect-light baking.",
+    "Live movement, collision, weather, UI and interaction remain in Three.js.",
+    "Original static export and its archive are unchanged; the multi-gigabyte assembly is not loaded by the website."
+  ]
+}

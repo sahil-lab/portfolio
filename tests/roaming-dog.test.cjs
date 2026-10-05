@@ -117,16 +117,57 @@ test('the solved leg bones hold ground contact during a curved walk, not just th
  }
  assert.ok(contacts>700);assert.ok(maximumDrift<.0008,`planted bone drifted ${maximumDrift} meters per frame`);rig.dispose();
 });
+
+for(const file of ['public/assets/roaming-dog.glb','assets/hero-candidates/dog.glb'])test('authored dog keeps its groom, weights and planted paws: '+file,async()=>{
+ const {parseGlb}=require('../scripts/complete-export-format.cjs'),{GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{document,binary}=parseGlb(fs.readFileSync(file));
+ const stripTextures=value=>{for(const [key,child] of Object.entries(value)){if(key.endsWith('Texture'))delete value[key];else if(child&&typeof child==='object')stripTextures(child)}};for(const material of document.materials)stripTextures(material);delete document.images;delete document.textures;delete document.samplers;
+ document.buffers=[{byteLength:binary.length,uri:'data:application/octet-stream;base64,'+binary.toString('base64')}];global.ProgressEvent??=class{constructor(type,init){this.type=type;Object.assign(this,init)}};
+ const scene=(await new GLTFLoader().parseAsync(JSON.stringify(document),'')).scene,rig=createDogRig(scene);assert.ok(rig.meshes.length>=20,'Imported meshes must reach the rig');assert.equal(rig.legs.length,4);assert.ok(rig.meshes.filter(mesh=>mesh.name.includes('FUR_')).length>=12);
+ for(const mesh of rig.meshes){const weights=mesh.geometry.attributes.skinWeight;for(let index=0;index<weights.count;index++)assert.ok(Math.abs(weights.getX(index)+weights.getY(index)+weights.getZ(index)+weights.getW(index)-1)<.00001,mesh.name)}
+ const fur=rig.meshes.find(mesh=>mesh.name.includes('FUR_BODY')),adjacent=new Map(),indices=fur.geometry.index;
+ for(let offset=0;offset<indices.count;offset+=3){const vertices=[indices.getX(offset),indices.getX(offset+1),indices.getX(offset+2)];for(const vertex of vertices){if(!adjacent.has(vertex))adjacent.set(vertex,new Set());for(const other of vertices)adjacent.get(vertex).add(other)}}
+ const strand=new Set(),pending=[indices.getX(0)];while(pending.length){const vertex=pending.pop();if(strand.has(vertex))continue;strand.add(vertex);pending.push(...adjacent.get(vertex))}assert.ok(strand.size>3&&strand.size<100);
+ const first=[...strand][0];for(const vertex of strand)for(let slot=0;slot<4;slot++){assert.equal(fur.geometry.attributes.skinIndex.getComponent(vertex,slot),fur.geometry.attributes.skinIndex.getComponent(first,slot),'A strand must use its own root joints');assert.ok(Math.abs(fur.geometry.attributes.skinWeight.getComponent(vertex,slot)-fur.geometry.attributes.skinWeight.getComponent(first,slot))<.000001,'A strand must keep the same root weights from base to tip')}
+ const skin=rig.meshes.find(mesh=>mesh.name.includes('DOG_BODY_RETOPO')),legFurs=rig.meshes.filter(mesh=>/FUR_(FRONT_LEGS|REAR_LEGS|PAWS)/.test(mesh.name));assert.ok(legFurs.some(mesh=>mesh.name.includes('REAR_LEGS')));
+ for(const legFur of legFurs){const roots=[];
+ for(let index=0;index<legFur.geometry.attributes.uv.count;index++)if(legFur.geometry.attributes.uv.getY(index)>.99999)roots.push(index);
+ for(let root=0;root<Math.min(roots.length-1,80);root+=2){
+  const position=new T.Vector3().fromBufferAttribute(legFur.geometry.attributes.position,roots[root]).add(new T.Vector3().fromBufferAttribute(legFur.geometry.attributes.position,roots[root+1])).multiplyScalar(.5),sample=new T.Vector3();let nearest=0,distance=Infinity;
+  for(let index=0;index<skin.geometry.attributes.position.count;index++){sample.fromBufferAttribute(skin.geometry.attributes.position,index);const gap=sample.distanceToSquared(position);if(gap<distance){distance=gap;nearest=index}}
+  const influences=geometry=>{const weights=new Map();for(let slot=0;slot<4;slot++){const index=geometry===skin.geometry?nearest:roots[root],joint=geometry.attributes.skinIndex.getComponent(index,slot);weights.set(joint,(weights.get(joint)??0)+geometry.attributes.skinWeight.getComponent(index,slot))}return weights},bodyWeights=influences(skin.geometry),furWeights=influences(legFur.geometry);
+  for(const joint of new Set([...bodyWeights.keys(),...furWeights.keys()]))assert.ok(Math.abs((bodyWeights.get(joint)??0)-(furWeights.get(joint)??0))<.1,legFur.name+' roots must follow the skin directly beneath them');
+ }
+ }
+ const placement=new T.Group(),center=rig.bounds.getCenter(new T.Vector3());rig.root.position.set(-center.x,-rig.bounds.min.y,-center.z);placement.add(rig.root);let previous=[],maximumDrift=0,contacts=0;
+ for(let frame=0;frame<480;frame++){
+  const heading=frame*.18/60,position={x:Math.sin(heading)*.06,z:frame*.045/60};placement.position.set(position.x,0,position.z);placement.rotation.y=heading;placement.updateMatrixWorld(true);rig.update(1/60,{distance:frame*.045/60,speed:.045,activity:'walk',bark:0,look:0,reduced:false,position,heading,turnRate:.18});
+  const feet=rig.legs.map((leg,index)=>({position:leg.foot.getWorldPosition(new T.Vector3()),planted:rig.gait.feet[index].planted}));if(frame>90)feet.forEach((foot,index)=>{if(foot.planted&&previous[index].planted){contacts++;maximumDrift=Math.max(maximumDrift,foot.position.distanceTo(previous[index].position))}});previous=feet;
+ }
+ assert.ok(contacts>500);assert.ok(maximumDrift<.001,`Actual dog paw drift: ${maximumDrift}`);rig.dispose();
+});
 function dogAsset(){const root=new T.Group(),mesh=new T.Mesh(new T.BoxGeometry(.18,.32,.44),new T.MeshStandardMaterial());mesh.name='WEB_L1_DOG_BODY_RETOPO';mesh.position.y=.16;root.add(mesh);return root}
 test('loaded dog matches the requested height, stays visible but frozen at zero time and disposes once',async()=>{
- const scene=new T.Scene(),player=new T.Group();player.position.set(200,.8,200);let barks=0;
- const dog=createRoamingDog(scene,player,{height:16.875,blocked:()=>false,ground:()=>.8,bark:()=>barks++,notice:()=>{},load:async()=>dogAsset(),random:seeded()});await dog.ready;
+ const scene=new T.Scene(),player=new T.Group();player.position.set(200,.8,200);let barks=0,requested;
+ const dog=createRoamingDog(scene,player,{height:16.875,blocked:()=>false,ground:()=>.8,bark:()=>barks++,notice:()=>{},load:async url=>{requested=url;return dogAsset()},random:seeded()});await dog.ready;
+ assert.equal(requested,'/assets/hero-v1/dog.glb');assert.equal(dog.root.userData.asset,requested);
  assert.equal(dog.status,'ready');dog.update(.05,true,false,0);scene.updateMatrixWorld(true);
  assert.ok(Math.abs(new T.Box3().setFromObject(dog.root).getSize(new T.Vector3()).y-16.875)<.01);
  const before={...dog.wander.state};dog.update(0,true,false,0);assert.deepEqual(dog.wander.state,before);assert.equal(dog.root.visible,true);
  dog.update(.1,false,false,0);assert.equal(dog.root.visible,false);assert.deepEqual(dog.wander.state,before);
  player.position.set(dog.root.position.x+dog.clearance+2,.8,dog.root.position.z);dog.update(0,true,false,0);assert.equal(dog.interact(),true);assert.equal(barks,1);
  let released=0;dog.rig.meshes[0].geometry.addEventListener('dispose',()=>released++);dog.dispose();dog.dispose();assert.equal(released,1);assert.equal(dog.root.parent,null);
+});
+test('standalone dog falls back to the original and reports the recovered source',async context=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),requested=[];
+ context.mock.method(GLTFLoader.prototype,'loadAsync',async url=>{requested.push(url);if(url==='/assets/hero-v1/dog.glb')throw new Error('Candidate unavailable');return {scene:dogAsset()}});
+ const dog=createRoamingDog(new T.Scene(),new T.Group(),{height:16.875,blocked:()=>false,ground:()=>.8,bark:()=>{},notice:()=>{}});await dog.ready;
+ assert.deepEqual(requested,['/assets/hero-v1/dog.glb','/assets/roaming-dog.glb']);assert.equal(dog.status,'ready');assert.equal(dog.root.userData.asset,'/assets/roaming-dog.glb');dog.dispose();
+});
+test('standalone dog never starts fallback after disposal',async context=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),requested=[];let reject;
+ context.mock.method(GLTFLoader.prototype,'loadAsync',url=>{requested.push(url);return new Promise((resolve,fail)=>{reject=fail})});
+ const dog=createRoamingDog(new T.Scene(),new T.Group(),{height:16.875,blocked:()=>false,ground:()=>.8,bark:()=>{},notice:()=>{}});dog.dispose();reject(new Error('Request failed'));await dog.ready;
+ assert.deepEqual(requested,['/assets/hero-v1/dog.glb']);assert.equal(dog.root.parent,null);
 });
 test('late-loading dog resources are released after world disposal without attaching an orphan',async()=>{
  let resolve;const asset=dogAsset();let released=0;asset.children[0].geometry.addEventListener('dispose',()=>released++);

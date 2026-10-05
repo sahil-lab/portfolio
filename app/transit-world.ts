@@ -16,6 +16,7 @@ import {moveOnPlanet,resetSurfaceFrame} from './planet-movement';
 import {createPlanetStreamer} from './planet-streaming';
 import {motherboardBounds} from './world-config';
 import {realmDesign} from './realm-layout';
+import {craftedBox} from './crafted-surfaces';
 
 export {emptyTransit,type TransitStatus} from './transit-state';
 import type {TransitStatus} from './transit-state';
@@ -83,14 +84,14 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
    // A circular promenade stays clear for driving; landmarks sit around its outer edge.
    for(const r of [14.5,18]){const road=kit.mesh(fixed,new T.TorusGeometry(r,.06,4,80),kit.cream,x,y+.015,z-3);road.rotation.x=Math.PI/2}
    for(let i=0;i<8;i++){const a=i/8*Math.PI*2,px=x+Math.sin(a)*20,pz=z-3+Math.cos(a)*20;
-    if(realm){kit.box(fixed,kit.surface(realm.stone),px,y+.45,pz,1.1,.9,1.1);const shade=kit.mesh(fixed,stop.worldKind==='research'?new T.ConeGeometry(.8,1.6,4):stop.worldKind==='foundry'?new T.BoxGeometry(1.2,.8,1.2):new T.CylinderGeometry(.85,.4,1.1,6),kit.surface(realm.growth),px,y+1.4,pz);shade.rotation.y=i*.5;obstacles.push({x:px,z:pz,y,r:.55})}
+    if(realm){kit.mesh(fixed,craftedBox(1.3,.65,1.3),kit.surface(realm.stone),px,y+.325,pz);const shade=kit.mesh(fixed,new T.SphereGeometry(.75,12,8),kit.surface(realm.growth),px,y+1.22,pz);shade.scale.set(1,.82,1);shade.rotation.y=i*.5;obstacles.push({x:px,z:pz,y,r:.55})}
     else if(stop.theme==='garden'){kit.mesh(fixed,new T.CylinderGeometry(.17,.27,2.3,8),kit.copper,px,y+1,pz);const crown=kit.mesh(fixed,new T.SphereGeometry(1.3,16,10),kit.surface(stop.id==='petal'?'#eeb6c7':i%2?'#a8c5a0':'#638f80'),px,y+2.9,pz);crown.scale.y=1.45;obstacles.push({x:px,z:pz,y,r:.5})}
-    else if(stop.theme==='prism'){const crystal=kit.mesh(fixed,stop.id==='cloud'?new T.SphereGeometry(1.1,12,8):new T.BoxGeometry(.95,2.4,.95),kit.surface(stop.id==='cloud'?'#e6f1ed':i%2?'#f4f9ff':'#0a66c2',.05,.3),px,y+2,pz);crystal.scale.y=2+i%3*.5;obstacles.push({x:px,z:pz,y,r:1})}
+    else if(stop.theme==='prism'){kit.mesh(fixed,new T.CylinderGeometry(.78,.9,.65,16),kit.surface('#cad4c6'),px,y+.325,pz);const crown=kit.mesh(fixed,new T.SphereGeometry(.83,12,8),kit.surface(stop.id==='cloud'?'#b7d2c4':i%2?'#83ad94':'#628d7a'),px,y+1.42,pz);crown.scale.y=1.08;obstacles.push({x:px,z:pz,y,r:1})}
     else {kit.mesh(fixed,new T.CylinderGeometry(1.1,1.6,.65,16),kit.surface('#9da7b2',0,.6),px,y+.22,pz);const collector=kit.box(fixed,kit.surface('#202731'),px,y+2,pz,2.2,.17,2.8);collector.rotation.x=-.45;kit.mesh(fixed,new T.CylinderGeometry(.12,.2,2,8),kit.cream,px,y+1,pz);obstacles.push({x:px,z:pz,y,r:.8})}
    }
   const signalX=x+resonatorOffset.x,signalZ=z+resonatorOffset.z;
   const tower=kit.mesh(fixed,new T.CylinderGeometry(2.4,3.5,1.6,32),kit.copper,signalX,y+.6,signalZ);
-  const orb=kit.mesh(actors,realm?new T.BoxGeometry(2.4,2.4,2.4):new T.IcosahedronGeometry(1.9,2),kit.surface(stop.color,.3,.2),signalX,y+(realm?2.6:3.6),signalZ);orb.name=stop.id+'_Resonator';planetSignals.push(orb);if(!realm)rotating.push(orb);tower.name='ResonatorPedestal';obstacles.push({x:signalX,z:signalZ,y,r:3.5});
+  const orb=kit.mesh(actors,realm?craftedBox(2.4,2.4,2.4):new T.SphereGeometry(1.9,20,12),kit.surface(stop.color,.3,.2),signalX,y+(realm?2.6:3.6),signalZ);orb.name=stop.id+'_Resonator';planetSignals.push(orb);if(!realm)rotating.push(orb);tower.name='ResonatorPedestal';obstacles.push({x:signalX,z:signalZ,y,r:3.5});
   sign(fixed,stop.name.toUpperCase(),x+10.3,y-.1,z-7,3.1,1.8,'shield');
   }
   kit.box(fixed,kit.cream,x-4,y-.18,z,5.2,.45,17.5);kit.box(fixed,kit.copper,x-1.5,y+.08,z,.12,.12,17.5);

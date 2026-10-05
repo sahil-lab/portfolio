@@ -11,6 +11,11 @@ global.document={createElement:()=>{
   canvas.getContext=()=>context;return canvas;
 }};
 
+test('raised LED lettering fits its facade and keeps bright colored emission through day and night',()=>{
+  const {createFacadeLettering}=require('../app/readable-display.ts'),{createCityLightResponse}=require('../app/world-lighting.ts'),scene=new T.Scene(),letters=createFacadeLettering(scene,'Shop_Nameplate','LOOP & GLAZE DONUT SHOP',8.2,.57,new T.Vector3(0,4,2)),lights=createCityLightResponse(scene),emission=letters.material.emissive.clone(),size=letters.geometry.boundingBox.getSize(new T.Vector3());
+  try{assert.ok(size.x<=8.20001&&size.y<=.57001);assert.ok(size.z>.035);assert.equal(letters.material.map,null);assert.equal(letters.material.toneMapped,false);assert.equal(letters.userData.facadeLettering,'LOOP & GLAZE DONUT SHOP');for(const night of [0,1,.5,0]){lights.update(1,night,0);assert.ok(letters.material.emissiveIntensity>=3.2);assert.ok(letters.material.emissive.equals(emission));assert.ok((emission.r*.2126+emission.g*.7152+emission.b*.0722)*letters.material.emissiveIntensity>1.6)}assert.equal(scene.children.filter(object=>object.isLight).length,0)}finally{lights.dispose();disposeScene(scene)}
+});
+
 test('wooden signs have distinct carved silhouettes, grounded supports and two readable faces',()=>{
   const silhouettes=[];
   for(const shape of ['arch','arrow','shield']){

@@ -2,10 +2,12 @@ import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {addFacadeCraft,type FacadeFloor} from './facade-craft';
 import {architectureRecipe} from './architecture-profiles';
+import {authoredBlock,applyAuthoredArchitecture,architectureKitReady,applyArchitectureSurface} from './architecture-kit';
 
 export const cityPalette={pearl:'#fff5e9',ink:'#30434c',glass:'#279fc7',teal:'#46b9ad',coral:'#f18d83',yellow:'#f1c866',lawn:'#80bd69',steel:'#c2d8da'};
 
 export function cityBlock(width:number,height:number,depth:number,radius=.2){
+  const authored=authoredBlock(width,height,depth,Math.min(width,height,depth)<.1?0:Math.min(radius,Math.min(width,height,depth)*.24));if(authored)return authored;
   return Math.min(width,height,depth)<.1?new T.BoxGeometry(width,height,depth):new RoundedBoxGeometry(width,height,depth,1,Math.min(radius,Math.min(width,height,depth)*.24));
 }
 
@@ -18,6 +20,7 @@ export function cityMaterials(accent:string,glazing=cityPalette.glass){
     metal:new T.MeshStandardMaterial({color:cityPalette.steel,roughness:.32,metalness:.58}),
     lawn:new T.MeshStandardMaterial({color:cityPalette.lawn,roughness:.96}),
   };
+  applyArchitectureSurface(materials.paint,'ceramic');applyArchitectureSurface(materials.pearl,'stone');applyArchitectureSurface(materials.metal,'brushed');
   materials.lawn.userData.surface='natural';materials.glass.userData.surface='glass';materials.paint.userData.surface=materials.pearl.userData.surface='ceramic';return materials;
 }
 
@@ -46,7 +49,7 @@ function profileGeometry(width:number,height:number,depth:number,radius:number,f
 export function createCityBuilding(options:{width?:number;height?:number;depth?:number;accent:string;glass?:string;roofGarden?:boolean;variant?:number;address?:string}){
   const recipe=options.address?architectureRecipe('atelier',options.address):null;
   const width=(options.width??3.7)*(recipe?.width??1),height=options.height??5.7,depth=(options.depth??3.2)*(recipe?.depth??1);
-  const root=new T.Group();root.name='City_SculptedResidence';
+  const root=new T.Group();root.name='City_SculptedResidence';root.userData.authoredArchitecture=architectureKitReady();
   if(recipe)root.userData.architectureRecipe=recipe;
   const material={...cityMaterials(options.accent,options.glass??'#79adb8'),
     wood:new T.MeshStandardMaterial({color:'#b68d69',roughness:.86}),
@@ -62,13 +65,13 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
   const variant=options.variant!==undefined&&Number.isFinite(options.variant)?T.MathUtils.euclideanModulo(Math.trunc(options.variant),buildingProfiles.length):recipe?recipe.massing%buildingProfiles.length:inferred;
   const style=buildingProfiles[variant];root.userData.architectureVariant=variant;root.userData.architectureStyle=style.name;
   const mesh=(name:string,geometry:T.BufferGeometry,finish:T.Material,parent:T.Object3D=root)=>{
-    const object=new T.Mesh(geometry,finish);object.name=name;object.castShadow=object.receiveShadow=true;parent.add(object);return object;
+    const object=new T.Mesh(geometry,finish);object.name=name;applyAuthoredArchitecture(object);object.castShadow=object.receiveShadow=true;parent.add(object);return object;
   };
   const box=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,finish:T.Material)=>{
     const object=mesh(name,cityBlock(w,h,d,.08),finish);object.position.set(x,y,z);return object;
   };
   const slab=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,finish:T.Material,radius:number)=>{
-    const object=mesh(name,profileGeometry(w,d,h,radius,0,style.segments).rotateX(-Math.PI/2),finish);object.position.set(x,y,z);return object;
+    const object=mesh(name,authoredBlock(w,h,d,Math.min(radius,Math.min(w,h,d)*.24))??profileGeometry(w,d,h,radius,0,style.segments).rotateX(-Math.PI/2),finish);object.position.set(x,y,z);return object;
   };
   const window=(frameName:string,paneName:string,x:number,y:number,z:number,w:number,h:number,yaw=0,divided=false,finish:T.Material=material.pearl)=>{
     const bay=new T.Group();bay.name=paneName+'_Bay';bay.position.set(x,y,z);bay.rotation.y=yaw;root.add(bay);

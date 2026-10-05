@@ -2,17 +2,20 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright');
 async function main(){
- const browser=await chromium.launch({channel:'msedge',headless:true,args:['--enable-unsafe-swiftshader']}),output=path.resolve('outputs/playtest/angel-ground');fs.mkdirSync(output,{recursive:true});
+ const candidate=process.env.ANGEL_CANDIDATE,sourceHash=candidate?require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)):null;
+ const browser=await chromium.launch({channel:'msedge',headless:true,args:['--enable-unsafe-swiftshader']}),output=path.resolve(process.env.ANGEL_OUTPUT??'outputs/playtest/angel-ground');fs.mkdirSync(output,{recursive:true});
  let page;const errors=[],captures=[];
  try{
   const context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1});
   await context.addInitScript(()=>{localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,volume:.6,quality:'low',cameraMode:'close',movementMode:'skate',stableCamera:false,reducedMotion:false}}));Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success,error){error({code:1})}}})});
   page=await context.newPage();page.setDefaultTimeout(90000);page.on('pageerror',error=>errors.push(error.message));
+  if(candidate){await context.routeWebSocket(socket=>socket.origin===new URL(process.env.ANGEL_WORLD_URL??'http://localhost:3001').origin.replace(/^http/,'ws'),()=>{});await page.route(/\/assets\/(?:hero-v\d+\/angel|anime-angel)\.glb(?:\?|$)/,route=>route.fulfill({path:path.resolve(candidate),contentType:'model/gltf-binary'}))}
   async function openControls(){const trigger=page.getByRole('button',{name:'Character controls',exact:true});if(await trigger.getAttribute('aria-expanded')!=='true')await trigger.click();await page.getByRole('dialog',{name:'Character',exact:true}).waitFor({state:'visible'})}
   await page.goto(process.env.ANGEL_WORLD_URL??'http://localhost:3001/?angel-ground-check=1',{waitUntil:'domcontentloaded',timeout:120000});
   await page.waitForFunction(()=>{const main=document.querySelector('main');let fiber=main?.[Object.keys(main).find(key=>key.startsWith('__reactFiber$'))];while(fiber){let hook=fiber.memoizedState;while(hook){const world=hook.memoizedState?.current;if(world?.angel?.loaded){globalThis.__world=world;return true}hook=hook.next}fiber=fiber.return}return false});
-  const initial=await page.evaluate(async()=>{const world=globalThis.__world;world.renderer.setPixelRatio(.65);globalThis.__three=await import('/node_modules/three/build/three.module.js');globalThis.__courier={position:world.player.position.toArray(),quaternion:world.player.quaternion.toArray(),up:world.player.up.toArray(),current:world.transport.journey.current};return {status:world.angel.snapshot(),bones:world.angel.rig.bones.length,meshes:world.angel.rig.meshes.length}});
+  const initial=await page.evaluate(async()=>{const world=globalThis.__world;world.renderer.setPixelRatio(.65);globalThis.__three=await import('/node_modules/three/build/three.module.js');globalThis.__courier={position:world.player.position.toArray(),quaternion:world.player.quaternion.toArray(),up:world.player.up.toArray(),current:world.transport.journey.current};return {status:world.angel.snapshot(),bones:world.angel.rig.bones.length,meshes:world.angel.rig.meshes.length,asset:world.angel.root.userData.asset,halo:!!world.angel.root.getObjectByName('ANGEL_Halo')}});
   assert.ok(initial.bones>=16&&initial.meshes>50);
+  if(candidate||process.env.ANGEL_EXPECTED_ASSET)assert.ok(initial.halo);if(process.env.ANGEL_EXPECTED_ASSET)assert.equal(initial.asset,process.env.ANGEL_EXPECTED_ASSET);
   await openControls();
   await page.getByRole('button',{name:'Enter Angel mode',exact:true}).click();
   await page.getByRole('button',{name:'Land angel',exact:true}).click();
@@ -63,15 +66,28 @@ async function main(){
   await capture('mobile-ground',{width:390,height:844});await capture('landscape-ground',{width:844,height:390});
   await page.evaluate(()=>{const world=globalThis.__world;world.angel.look(-470,-20,false);world.setPaused(false)});
   await page.getByRole('button',{name:'Take off',exact:true}).click();await page.waitForFunction(()=>globalThis.__world.angel.locomotion.state.phase==='flying');
-  const planet=await page.evaluate(()=>{
+  await page.evaluate(()=>{
    const world=globalThis.__world,angel=world.angel;world.setPaused(true);if(!angel.navigate(2))throw Error('Planet trip rejected');for(let frame=0;frame<720;frame++)angel.update(1/60,false);world.transport.updateFlightView(0,true,angel.root,2);
+  });
+  assert.equal(await page.evaluate(()=>globalThis.__world.transport.streaming.load(2)),true,'Planet terrain must finish loading before landing');
+  await page.waitForFunction(()=>globalThis.__world.angel.locomotion.canLand(),null,{timeout:90000});
+  const planet=await page.evaluate(()=>{
+    const world=globalThis.__world,angel=world.angel,{Vector3}=globalThis.__three,surface=angel.flight.surfaces[2],ground=angel.locomotion.ground;
+    if(!ground.findLanding(angel.flight.state.position,2)){
+     let found=false;
+     for(let index=0;index<48;index++){
+      const vertical=1-(index+.5)/48*.6,radius=Math.sqrt(1-vertical*vertical),angle=index*2.3999632297,position=new Vector3(Math.cos(angle)*radius,vertical,Math.sin(angle)*radius).multiplyScalar(angel.flight.safeRadius(surface)+20).add(surface.center);
+      if(ground.findLanding(position,2)){angel.flight.state.position.copy(position);angel.flight.state.velocity.set(0,0,0);angel.update(0,true);found=true;break}
+     }
+     if(!found)throw Error('No terrain-cleared landing fixture on the planet');
+    }
    if(!angel.land())throw Error('No clear planet landing');for(let frame=0;frame<400;frame++)angel.update(1/60,false);world.transport.updateFlightView(0,true,angel.root,2);
    if(angel.locomotion.state.phase!=='grounded')throw Error('Planet landing unfinished');const foot=angel.locomotion.ground.state.foot,contact=angel.locomotion.ground.sample(foot,2);
    return {status:angel.snapshot(),contactError:foot.distanceTo(contact.point),up:angel.root.up.toArray()};
   });assert.ok(planet.contactError<.001);await capture('planet-ground',{width:1440,height:960});
   await page.evaluate(()=>globalThis.__world.setPaused(false));await page.getByRole('button',{name:'Return to main character',exact:true}).click();
   const restored=await page.evaluate(()=>{const world=globalThis.__world;return {current:{position:world.player.position.toArray(),quaternion:world.player.quaternion.toArray(),up:world.player.up.toArray(),current:world.transport.journey.current},original:globalThis.__courier,controlled:world.angel.controlled}});assert.deepEqual(restored.current,restored.original);assert.equal(restored.controlled,false);assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,landed,walk,run,planet,restored,captures,errors},null,2)+'\n');console.log('ANGEL_GROUND_OK');
+  if(candidate)assert.equal(require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)),sourceHash);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,landed,walk,run,planet,restored,captures,sourceHash,errors},null,2)+'\n');console.log('ANGEL_GROUND_OK');
  }catch(error){if(page){await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});console.error(await page.evaluate(()=>({status:globalThis.__world?.angel.snapshot(),notice:document.querySelector('.world-notice')?.textContent})).catch(()=>({})))}throw error}
  finally{await browser.close()}
 }

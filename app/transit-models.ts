@@ -2,15 +2,16 @@ import * as T from 'three';
 import {batchScenery} from './static-batching';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 import {metroDimensions,type MetroRig} from './transit-motion';
+import {craftGeometry,type CraftPart} from './craft-kit';
 export function createTransitModels(){
  const surface=createCraftMaterials();
  const cream=surface('#f9f0dd'),copper=surface('#d3b77f',0,.55),navy=surface('#304650',0,.22),rubber=surface('#293638'),glow=surface('#fff0bc',.65),glass=surface('#298fab',0,.3);
  glass.roughness=.18;glass.clearcoat=.9;rubber.roughness=.85;rubber.clearcoat=0;
- const mesh=(g:T.Object3D,geo:T.BufferGeometry,m:T.Material,x=0,y=0,z=0)=>{const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;g.add(o);return o};
- const box=(g:T.Object3D,m:T.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>mesh(g,craftedBox(w,h,d),m,x,y,z);
+ const mesh=(g:T.Object3D,geo:T.BufferGeometry,m:T.Material,x=0,y=0,z=0)=>{const material=m as T.MeshStandardMaterial;if(material.isMeshStandardMaterial&&!material.vertexColors){material.vertexColors=true;material.needsUpdate=true}if(geo.userData.authoredCraft){material.userData.authoredCraft=true;const parts:string[]=g.userData.craftParts??=[];if(!parts.includes(geo.userData.authoredCraft))parts.push(geo.userData.authoredCraft)}if(material.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new T.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;g.add(o);return o};
+ const box=(g:T.Object3D,m:T.Material,x:number,y:number,z:number,w:number,h:number,d:number,part?:CraftPart)=>mesh(g,(part?craftGeometry(part,w,h,d):null)??craftedBox(w,h,d),m,x,y,z);
  function rover(color:string){
   const g=new T.Group();g.name='Rover';const paint=surface(color,0,.07);paint.roughness=.35;paint.clearcoat=.5;paint.clearcoatRoughness=.24;paint.userData.surface='ceramic';
-  box(g,navy,0,.4,0,2.1,.48,3.25);box(g,paint,0,.8,0,2.25,.68,3.5);box(g,cream,0,1.08,.85,2.05,.23,1.42);
+  box(g,navy,0,.4,0,2.1,.48,3.25);box(g,paint,0,.8,0,2.25,.68,3.5,'RoverBody');box(g,cream,0,1.08,.85,2.05,.23,1.42,'RoverBody');
   box(g,navy,0,1.15,-.25,1.7,.18,1.6);box(g,copper,0,.55,1.85,2.35,.23,.18);box(g,copper,0,.55,-1.8,2.35,.23,.18);
   for(const x of [-1.05,1.05]){box(g,paint,x,1.3,-.2,.16,.65,1.8);box(g,copper,x,1.66,.54,.09,.75,.09)}
     box(g,glass,0,1.62,.56,1.95,.64,.08);box(g,copper,0,1.98,.56,2.15,.09,.13);
@@ -22,21 +23,22 @@ export function createTransitModels(){
     const mirror=box(g,cream,side*1.29,1.63,.57,.25,.18,.18);mirror.name='Rover_WingMirror';
     box(g,navy,side*.46,1.32,-.56,.66,.46,.54);box(g,cream,side*.46,1.31,-.275,.51,.27,.035);
   }
-  const wheels:T.Mesh[]=[];for(const x of [-1.15,1.15])for(const z of [-1.1,1.1]){const tire=mesh(g,new T.CylinderGeometry(.51,.51,.34,20),rubber,x,.45,z);tire.rotation.z=Math.PI/2;wheels.push(tire);const hub=mesh(g,new T.CylinderGeometry(.27,.27,.37,16),copper,x,.45,z);hub.rotation.z=Math.PI/2}
+  const wheels:T.Mesh[]=[];for(const x of [-1.15,1.15])for(const z of [-1.1,1.1]){const tire=mesh(g,craftGeometry('Tyre',1.02,.34,1.02)??new T.CylinderGeometry(.51,.51,.34,20),rubber,x,.45,z);tire.rotation.z=Math.PI/2;wheels.push(tire);const hub=mesh(g,new T.CylinderGeometry(.27,.27,.37,16),copper,x,.45,z);hub.rotation.z=Math.PI/2}
   batchScenery(g,{wheels});return {root:g,wheels};
  }
  function train():MetroRig{
   const root=new T.Group();root.name='NeighborMetro';const carriages:MetroRig['carriages']=[],couplers:T.Mesh[]=[];
   for(let index=0;index<metroDimensions.carCount;index++){
    const body=new T.Group();body.name='MetroCar_'+index;root.add(body);
-   box(body,navy,0,.45,0,2.8,.5,4.8);box(body,index===0?copper:cream,0,1,0,2.9,.65,4.6);box(body,navy,0,1.47,0,2.5,.14,4.2);
+  box(body,navy,0,.45,0,2.8,.5,4.8);box(body,index===0?copper:cream,0,1,0,2.9,.65,4.6,'MetroBody');box(body,navy,0,1.47,0,2.5,.14,4.2);
     for(const side of [-1,1]){box(body,cream,side*1.38,1.62,0,.14,1,4.3);for(let window=0;window<3;window++){box(body,copper,side*1.47,1.78,-1.25+window*1.25,.07,.65,.95);box(body,glass,side*1.52,1.78,-1.25+window*1.25,.06,.55,.85)}box(body,copper,side*1.48,1.11,0,.09,.13,4.4);box(body,glow,side*1.5,2.15,0,.03,.025,4.15)}
-   if(index>0)box(body,cream,0,2.34,0,3.03,.2,4.6);else box(body,cream,0,2.34,1.55,3.03,.2,1.35);
+  if(index>0)box(body,cream,0,2.34,0,3.03,.2,4.6,'MetroRoof');else box(body,cream,0,2.34,1.55,3.03,.2,1.35,'MetroRoof');
+  for(const side of [-1,1])for(const forward of index===0?[1.15,1.95]:[-1.75,1.75]){const support=box(body,cream,side*1.33,2.18,forward,.18,.28,.18,'MetroBody');support.name='Metro_RoofSupport'}
    if(index!==1){const end=index===0?1:-1;box(body,navy,0,1.82,end*2.16,2.5,.64,.08);for(const side of [-1,1])mesh(body,new T.SphereGeometry(.19,12,8),glow,side*.92,1.16,end*2.34)}
    const axles:T.Group[]=[],wheels:T.Mesh[]=[];
    for(let axleIndex=0;axleIndex<2;axleIndex++){
     const axle=new T.Group();axle.name=`MetroAxle_${index}_${axleIndex}`;root.add(axle);axles.push(axle);
-    for(const side of [-1,1]){const wheel=mesh(axle,new T.CylinderGeometry(metroDimensions.wheelRadius,metroDimensions.wheelRadius,.2,20),navy,side*metroDimensions.gauge/2,metroDimensions.wheelRadius+metroDimensions.railRadius,0);wheel.rotation.z=Math.PI/2;wheel.name='MetroWheel';wheels.push(wheel)}
+    for(const side of [-1,1]){const wheel=mesh(axle,craftGeometry('Tyre',metroDimensions.wheelRadius*2,.2,metroDimensions.wheelRadius*2)??new T.CylinderGeometry(metroDimensions.wheelRadius,metroDimensions.wheelRadius,.2,20),navy,side*metroDimensions.gauge/2,metroDimensions.wheelRadius+metroDimensions.railRadius,0);wheel.rotation.z=Math.PI/2;wheel.name='MetroWheel';wheels.push(wheel)}
    }
    batchScenery(body,{});carriages.push({body,axles,wheels});
    if(index<metroDimensions.carCount-1){const coupler=mesh(root,new T.CylinderGeometry(.13,.13,1,8),copper);coupler.name='MetroCoupler';couplers.push(coupler)}
@@ -45,14 +47,14 @@ export function createTransitModels(){
  }
  function rocket(color:string){
   const g=new T.Group();g.name='DiagnosticRocket';const paint=surface(color,0,.25);
-  const profile=[[0,0],[.85,0],[1.2,.6],[1.2,3.1],[1.05,4.2],[.65,5.3],[0,6]].map(([x,y])=>new T.Vector2(x,y));mesh(g,new T.LatheGeometry(profile,40),cream);
+  const profile=[[0,0],[.85,0],[1.2,.6],[1.2,3.1],[1.05,4.2],[.65,5.3],[0,6]].map(([x,y])=>new T.Vector2(x,y)),hull=craftGeometry('RocketHull',2.4,6,2.4);mesh(g,hull??new T.LatheGeometry(profile,40),cream,0,hull?3:0,0);
   mesh(g,new T.CylinderGeometry(1.22,1.22,.32,40),paint,0,1,0);mesh(g,new T.CylinderGeometry(1.08,1.08,.22,40),copper,0,4.12,0);
   const rim=mesh(g,new T.TorusGeometry(.55,.1,8,32),copper,0,3.1,1.13);rim.name='Rocket_Porthole';mesh(g,new T.SphereGeometry(.48,20,12),navy,0,3.1,1.12).scale.z=.2;
     mesh(g,new T.TorusGeometry(.43,.025,5,32),glow,0,3.1,1.26);
     for(let rivet=0;rivet<12;rivet++){const angle=rivet/12*Math.PI*2;mesh(g,new T.SphereGeometry(.037,6,4),copper,Math.cos(angle)*.55,3.1+Math.sin(angle)*.55,1.22)}
-  for(let i=0;i<3;i++){const a=i/3*Math.PI*2,fin=box(g,paint,Math.sin(a)*1.25,.75,Math.cos(a)*1.25,.25,1.8,1.45);fin.rotation.y=a}
+  for(let i=0;i<3;i++){const a=i/3*Math.PI*2,fin=box(g,paint,Math.sin(a)*1.25,.75,Math.cos(a)*1.25,.25,1.8,1.45,'RocketFin');fin.rotation.y=a}
   const flame=mesh(g,new T.ConeGeometry(.65,2.5,16),surface('#eeb665',1.4),0,-1.1,0);flame.rotation.z=Math.PI;flame.name='Rocket_Exhaust';flame.visible=false;
-  batchScenery(g,{flame});return {root:g,flame};
+  batchScenery(g,{flame,rim});return {root:g,flame};
  }
  return {rover,train,rocket,surface,mesh,box,cream,copper,navy,glow};
 }

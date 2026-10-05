@@ -33,3 +33,19 @@ test('royal fountain phases change form continuously and cascade from the upper 
  assert.ok(Math.abs(crown[1]-.76)<.001);assert.ok(Math.abs(cascade[1]-3.98)<.001);assert.ok(Math.hypot(cascade[0],cascade[2])<2.55);
  const landing=17*6+3;assert.ok(Math.abs(cascade[landing+1]-.76)<.001);assert.ok(Math.hypot(cascade[landing],cascade[landing+2])>4.8);assert.equal(fountain.jets.geometry.attributes.position.array,positions);disposeScene(fountain.root);
 });
+
+test('native landmark basins preserve open water, sculptural support and fountain choreography',async()=>{
+ const T=require('three'),{GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{installCraftKit}=require('../app/craft-kit.ts'),bytes=fs.readFileSync('assets/world-candidates/craft-kit.glb'),asset=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;
+ assert.equal(installCraftKit(asset),true);
+ for(const kind of ['royal','circuit','garden']){
+    const fountain=createCapitalFountain(kind),fixed=fountain.root.children[0],parts=new Set(fountain.root.userData.craftParts??[]);let triangles=0,lights=0;
+    fountain.root.traverse(object=>{if(object.isLight)lights++;if(object.isMesh){const materials=Array.isArray(object.material)?object.material:[object.material];for(const material of materials)if(material.vertexColors)assert.ok(object.geometry.attributes.color,object.name)}});
+  assert.ok(parts.has('FountainBasin'),kind+' native basin missing');if(kind==='royal'){assert.ok(parts.has('FountainColumn'));assert.ok(parts.has('FountainFinial'))}
+  fixed.traverse(object=>{if(object.isMesh)triangles+=(object.geometry.index?.count??object.geometry.attributes.position.count)/3*(object.isInstancedMesh?object.count:1)});assert.ok(triangles<7000);assert.equal(lights,0);
+  fountain.root.updateMatrixWorld(true);const surfaces=[];fountain.root.traverse(object=>{if(object.isMesh&&object.name.endsWith('_Water'))surfaces.push(object)});
+  for(const surface of surfaces)for(let sample=0;sample<8;sample++){const radius=surface.geometry.parameters.radius,angle=sample*Math.PI/4,point=surface.getWorldPosition(new T.Vector3()).add(new T.Vector3(Math.cos(angle)*(radius-.03),.18,Math.sin(angle)*(radius-.03))),ray=new T.Raycaster(point,new T.Vector3(0,-1,0),0,.4),hit=ray.intersectObject(fountain.root,true).find(hit=>hit.object.isMesh);assert.equal(hit?.object.name,surface.name,'water is hidden beneath the basin rim')}
+  for(const surface of surfaces)for(let sample=0;sample<16;sample++){const radius=surface.geometry.parameters.radius+.23,angle=sample*Math.PI/8,origin=surface.getWorldPosition(new T.Vector3()).add(new T.Vector3(Math.cos(angle)*radius,.4,Math.sin(angle)*radius)),hit=new T.Raycaster(origin,new T.Vector3(0,-1,0),0,.5).intersectObject(fixed,true)[0];assert.ok(hit);const material=Array.isArray(hit.object.material)?hit.object.material[hit.face.materialIndex]:hit.object.material;assert.ok(material.metalness>.5,'Fountain inlay is buried in stone')}
+  const jets=fountain.jets.geometry,positions=jets.attributes.position.array,before=positions.slice();fountain.update(.1,false,1,1);assert.notDeepEqual(positions,before);assert.equal(fountain.jets.geometry,jets);const frozen=positions.slice();fountain.update(.1,true,1,1);assert.deepEqual(positions,frozen);assert.equal(fountain.blocked(0,0,.8),true);assert.equal(fountain.blocked(15,15,.8),false);disposeScene(fountain.root);
+ }
+ disposeScene(asset);
+});

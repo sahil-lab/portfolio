@@ -1,0 +1,12 @@
+{
+  "version": "collectible-angel-v1",
+  "url": "/assets/hero-v1/angel.glb",
+  "bytes": 8329360,
+  "sha256": "6ab1275da54da4ae8d188cc3c04ee0408ca7ba08761346887bf9370d06419747",
+  "originalSha256": "5b2d6a4818d03f8cc51794fc43df8af96b95e44c2393d3101917af76f0c5cb47",
+  "source": "assets/hero-candidates/angel-study-20261003.blend",
+  "reviews": [
+    "outputs/playtest/angel-collectible-candidate-v2/checks.json",
+    "outputs/playtest/angel-collectible-ground-v4/checks.json"
+  ]
+}

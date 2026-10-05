@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {astraPalette} from './astra-lighting';
+import {worldKitGeometry} from './world-kit';
 
 const branchTips=[
   [-4.8,6.4,1.2],[-3.5,8.2,-1.6],[-1.5,9.5,.4],
@@ -27,6 +28,15 @@ export function createAstraCanopy(name:string,scale=1,kind:CanopyKind='tree',det
   const banyan=kind==='banyan',segments=detail==='full'?18:6,sides=detail==='full'?7:5,leavesPerBranch=detail==='full'?42:12;
   const tips=banyan?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
   const trunks=[{x:0,z:0,radius:banyan?.8:.42,height:7}];
+  const prefix='Kit_'+(banyan?'Banyan':'Tree')+'_'+(detail==='full'?'Full':'Distant'),woodGeometry=worldKitGeometry(prefix+'_Wood',true),crownGeometry=worldKitGeometry(prefix+'_Crown',true);
+  if(woodGeometry&&crownGeometry){
+    if(banyan)for(const [horizontal,height,forward] of tips){const spread=Math.max(.72,2.25/Math.hypot(horizontal,forward));trunks.push({x:horizontal*spread,z:forward*spread,radius:.26,height:height-.65})}
+    const wood=new T.Mesh(woodGeometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.92,metalness:.035})),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:.01}),wind={value:0},time={value:0};wood.name='Astra_TreeLivingTrunk';wood.material.userData.surface=leaf.userData.surface='natural';wood.castShadow=wood.receiveShadow=true;root.add(wood);
+    leaf.onBeforeCompile=shader=>{shader.uniforms.astraWind=wind;shader.uniforms.astraTime=time;shader.vertexShader='uniform float astraWind;uniform float astraTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.z+=sin(astraTime*.7+position.x*.8+position.z)*astraWind*clamp(position.y/11.0,0.0,1.0);')};leaf.customProgramCacheKey=()=> 'blender-direct-canopy-v1';
+    const crown=new T.InstancedMesh(crownGeometry,leaf,1);crown.name='Astra_TreeLayeredCanopy';crown.setMatrixAt(0,new T.Matrix4());crown.castShadow=crown.receiveShadow=true;crown.computeBoundingSphere();if(crown.boundingSphere)crown.boundingSphere.radius+=.2;root.add(crown);root.userData.authoredKit=true;
+    return {root,crown,trunks,kind,update:(elapsed:number,reduced:boolean)=>{time.value=reduced?0:elapsed;wind.value=reduced?0:.1}};
+  }
+  woodGeometry?.dispose();crownGeometry?.dispose();
   const bark=new T.MeshStandardMaterial({color:'#544d40',roughness:.92,metalness:.035});
   bark.userData.surface='natural';
   const brass=new T.MeshStandardMaterial({color:astraPalette.brass,roughness:.43,metalness:.65});

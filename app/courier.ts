@@ -1,10 +1,12 @@
 import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {worldKitGeometry,worldKitReady,completeKitColors} from './world-kit';
+import {applyPremiumSurface} from './premium-materials';
 export function capsule(){const g=new T.Group();const outer=new T.MeshStandardMaterial({color:'#acc9ed',roughness:.35,metalness:.2});const shell=new T.Mesh(new T.CapsuleGeometry(.13,.32,4,10),outer);g.add(shell);const ring=new T.Mesh(new T.TorusGeometry(.14,.035,6,16),new T.MeshStandardMaterial({color:'#f9d87c'}));ring.rotation.x=Math.PI/2;g.add(ring);const light=new T.Mesh(new T.SphereGeometry(.09,8,8),new T.MeshStandardMaterial({color:'#d7ffee',emissive:'#7bffd3',emissiveIntensity:1}));light.position.y=.2;g.add(light);return g}
 export function createCourier(color='#769fc5'){
- const root=new T.Group();root.name='Courier';const painted=new T.MeshPhysicalMaterial({color,roughness:.52,metalness:.025,clearcoat:.28,clearcoatRoughness:.42});painted.userData.surface='ceramic';
+ const root=new T.Group();root.name='Courier';root.userData.authoredKit=worldKitReady();const painted=new T.MeshPhysicalMaterial({color,roughness:.52,metalness:.025,clearcoat:.28,clearcoatRoughness:.42});painted.userData.surface='ceramic';applyPremiumSurface(painted,'ceramic');
  const colors=new Map<string,T.MeshStandardMaterial>();
- const shape=(name:string,parent:T.Object3D,x:number,y:number,z:number,sx:number,sy:number,sz:number,color?:string)=>{let material:T.MeshStandardMaterial=painted;if(color){material=colors.get(color)??new T.MeshStandardMaterial({color,roughness:.58});colors.set(color,material)}const m=new T.Mesh(new T.SphereGeometry(1,24,18),material);m.name=name;m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;parent.add(m);return m};
+ const shape=(name:string,parent:T.Object3D,x:number,y:number,z:number,sx:number,sy:number,sz:number,color?:string)=>{let material:T.MeshStandardMaterial=painted;if(color){material=colors.get(color)??new T.MeshStandardMaterial({color,roughness:.58});colors.set(color,material)}const part=name==='body'?'Kit_CourierBody':name==='head paint'?'Kit_CourierHead':name.endsWith('foot')?'Kit_Boot':name.endsWith('arm')?'Kit_Hand':null,geometry=part?worldKitGeometry(part):null;if(geometry)material.vertexColors=true;const m=new T.Mesh(geometry??new T.SphereGeometry(1,24,18),material);m.name=name;m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;parent.add(m);return m};
  const body=shape('body',root,0,.9,0,.78,.87,.63);shape('belly',root,0,.8,.45,.51,.52,.23,'#fff0d7');
  const head=new T.Group();head.name='Courier_Head';head.position.y=1.6;head.scale.setScalar(1.06);root.add(head);shape('head paint',head,0,0,0,.8,.69,.62);
  const face=shape('navy face panel',head,0,-.04,.51,.64,.43,.16);face.material=new T.MeshPhysicalMaterial({color:'#162e4f',roughness:.18,metalness:.2,clearcoat:.9,clearcoatRoughness:.12});const leftEye=shape('left eye',head,-.24,.03,.665,.09,.145,.04,'#eefbff'),rightEye=shape('right eye',head,.24,.03,.665,.09,.145,.04,'#eefbff');
@@ -37,6 +39,7 @@ export function createCourier(color='#769fc5'){
  const cargo:T.Group[]=[];for(let index=0;index<4;index++){const x=(index%2-.5)*.48,z=(Math.floor(index/2)-.5)*.3;const socket=new T.Mesh(new T.TorusGeometry(.155,.018,6,24),metal);socket.name='Courier_CapsuleSocket';socket.rotation.x=Math.PI/2;socket.position.set(x,.112,z);tray.add(socket);const capsuleGroup=capsule();capsuleGroup.name='carried capsule '+(index+1);capsuleGroup.position.set(x,.32,z);tray.add(capsuleGroup);cargo.push(capsuleGroup)}
  let gesture='idle',gestureTime=0;const previous=new T.Vector3();let time=0;
  body.name='Courier_Body';leftArm.name='Courier_Arm_L';rightArm.name='Courier_Arm_R';leftFoot.name='Courier_Foot_L';rightFoot.name='Courier_Foot_R';
+  completeKitColors(root);
  return {root,setColor:(value:string)=>painted.color.set(value),parts:{body,head,leftEye,rightEye,smile,leftArm,rightArm,leftFoot,rightFoot,tray,cargo,skates,wheels},setSkating:(value:boolean)=>{skating=value;skates.forEach(skate=>skate.visible=value)},gesture:(name:string)=>{gesture=name;gestureTime=1.6},update:(dt:number,inventory:number,reduced=false)=>{
   const delta=Number.isFinite(dt)?Math.max(0,dt):0;time+=reduced?0:delta;gestureTime=Math.max(0,gestureTime-delta);
   const travelled=previous.distanceTo(root.position),moving=!reduced&&delta>0&&travelled>.005;previous.copy(root.position);

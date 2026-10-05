@@ -5,20 +5,20 @@ export const planetArrivalCameraView=(aspect:number)=>({yaw:1.05,pitch:.26,zoom:
 type CameraView={yaw?:number;pitch?:number;zoom?:number;focusHeight?:number};
 export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player:T.Group){
   let mode:CameraMode='far';
-  let yaw=.1,pitch=.42,zoom=46,eased=46,distance=46,focusHeight=1.5,stableYaw=.1,stablePitch=.38;
+  let yaw=.1,pitch=.42,zoom=46,zoomLimit=160,eased=46,distance=46,focusHeight=1.5,stableYaw=.1,stablePitch=.38;
   let easedYaw=yaw,easedPitch=pitch;
   let responsiveView:((aspect:number)=>CameraView)|null=null,framedAspect=camera.aspect;
   const target=new T.Vector3(),wanted=new T.Vector3(),direction=new T.Vector3(),ray=new T.Ray(),hit=new T.Vector3();
   const boxes:T.Box3[]=[];const movingBounds:{mesh:T.Mesh;box:T.Box3}[]=[],dynamicBoxes=new WeakMap<T.Mesh,T.Box3>(),candidates=new Set<T.Box3>(),sweep=new T.Box3();let clock=2;
   const bounds=(box:T.Box3)=>({minX:box.min.x,maxX:box.max.x,minZ:box.min.z,maxZ:box.max.z});let index=createSpatialIndex(boxes,bounds,32);
-  function applyView(view:CameraView={}){yaw=view.yaw??.1;pitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.42);zoom=view.zoom??(mode==='far'?46:24);eased=zoom;distance=zoom;focusHeight=view.focusHeight??1.5;stableYaw=yaw;stablePitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.38);easedYaw=yaw;easedPitch=pitch}
+  function applyView(view:CameraView={}){yaw=view.yaw??.1;pitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.42);zoom=view.zoom??(mode==='far'?46:24);zoomLimit=Math.max(160,zoom);eased=zoom;distance=zoom;focusHeight=view.focusHeight??1.5;stableYaw=yaw;stablePitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.38);easedYaw=yaw;easedPitch=pitch}
   return {
     get yaw(){return easedYaw},
     get stableYaw(){return stableYaw},
     get mode(){return mode},
-    setMode:(value:CameraMode)=>{responsiveView=null;yaw=easedYaw;mode=value;pitch=mode==='first-person'?0:mode==='close'?.3:.42;stablePitch=pitch;stableYaw=yaw;zoom=mode==='far'?46:24;eased=zoom;distance=zoom;focusHeight=1.5;easedYaw=yaw;easedPitch=pitch},
+    setMode:(value:CameraMode)=>{responsiveView=null;yaw=easedYaw;mode=value;pitch=mode==='first-person'?0:mode==='close'?.3:.42;stablePitch=pitch;stableYaw=yaw;zoom=mode==='far'?46:24;zoomLimit=160;eased=zoom;distance=zoom;focusHeight=1.5;easedYaw=yaw;easedPitch=pitch},
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;if(x||y)responsiveView=null;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,mode==='first-person'?-1.35:.16,mode==='first-person'?1.35:1.15)},
-    zoom:(amount:number)=>{if(mode!=='first-person'){if(amount)responsiveView=null;zoom=T.MathUtils.clamp(zoom+amount,5,160)}},
+    zoom:(amount:number)=>{if(mode!=='first-person'){if(amount)responsiveView=null;zoom=T.MathUtils.clamp(zoom+amount,5,zoomLimit)}},
     reset:(view:CameraView={},responsive?:(aspect:number)=>CameraView)=>{applyView(view);responsiveView=responsive??null;framedAspect=camera.aspect},
     update:(dt:number,inside:boolean,settings:Settings,vehicle=false,targetHeight=1.5)=>{
       if(responsiveView&&camera.aspect!==framedAspect){applyView(responsiveView(camera.aspect));framedAspect=camera.aspect}

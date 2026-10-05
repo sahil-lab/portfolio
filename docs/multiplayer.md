@@ -75,6 +75,41 @@ For a separately secured hosted guest web relay, set `NEXT_PUBLIC_GUEST_RELAY=ht
 
 No cloud resources are provisioned automatically. No deployment or Git push is part of local setup.
 
+### Render Setup for This Site
+
+The repository's `render.yaml` defines only the multiplayer room service. It
+does not move or rebuild the Vercel website and does not expose the local Linux
+guest relay. Its allowed browser origin is:
+
+```text
+https://portfolio-pied-one-ko0zgnyz2r.vercel.app
+```
+
+The template selects a paid `0.5c-512mb` service and a 1 GB persistent disk.
+Review the current price in Render before approving creation. Render's free
+service cannot attach the persistent disk required to retain the SQLite room
+identities and records across restarts. A local configuration file alone does
+not create an account, deploy a service, or incur hosting charges.
+
+1. Create an account at <https://dashboard.render.com/register>, using GitHub sign-in if convenient. Complete sign-in and any billing steps directly in Render; do not share passwords, tokens, or payment details in chat.
+2. Publish the prepared `render.yaml` to `sahil-lab/portfolio` when ready. Until it is committed and pushed, Render cannot load the local template.
+3. In Render, choose **New > Blueprint**, connect `sahil-lab/portfolio`, select the branch containing the template, and review the service and disk costs. Approve creation only after accepting those costs. Keep one instance; SQLite and active rooms are not shared across multiple server instances.
+4. Wait for the service to become live. Open its actual Render HTTPS address with `/health` appended. It should return `{"ok":true,"capacity":5}`. Use the hostname Render assigns; the template's service name does not guarantee a particular public hostname.
+5. In **Vercel > Project > Settings > Environment Variables**, set `NEXT_PUBLIC_FRIENDS_URL` for Production to that hostname with `wss://` and `/friends`, for example `wss://your-assigned-host.onrender.com/friends`. This example hostname is a placeholder, not a running service.
+6. Redeploy the frontend so the public variable is included in its browser build, then open **World > Friends & games** and test creating a room and joining it from a second browser.
+
+Use the exact origin above, without a trailing slash, for browser testing.
+Other Vercel preview addresses are intentionally not authorized. If the public
+website address changes, update `FRIENDS_ORIGINS` explicitly; do not use a
+wildcard origin. Automatic deploys are disabled in this template because a
+server restart disconnects active games. Deploy backend updates manually from
+Render. Persistent records survive, but in-progress matches are held in memory.
+
+The service runs Node 24, binds on `0.0.0.0:10000`, checks `/health`, and writes
+SQLite files beneath `/var/data`. Render terminates TLS for public WSS traffic.
+Voice on restrictive networks may still need the optional TURN configuration
+described above. This setup does not provision TURN or hosted guest networking.
+
 ## Verification
 
 ```sh

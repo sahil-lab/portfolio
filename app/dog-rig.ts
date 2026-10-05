@@ -4,12 +4,27 @@ import {createDogGait} from './dog-gait';
 import {createLimbIK} from './limb-ik';
 
 export type DogPose={distance:number;speed:number;activity:DogActivity;bark:number;look:number;reduced:boolean;position?:{x:number;z:number};heading?:number;turnRate?:number};
+
+function furRootAnchors(geometry:T.BufferGeometry){
+ const positions=geometry.getAttribute('position'),uv=geometry.getAttribute('uv'),indices=geometry.index;if(!uv||!indices)return null;
+ const parents=Int32Array.from({length:positions.count},(_,index)=>index);
+ function find(index:number){let root=index;while(parents[root]!==root)root=parents[root];while(parents[index]!==index){const next=parents[index];parents[index]=root;index=next}return root}
+ for(let index=0;index<indices.count;index+=3){const first=find(indices.getX(index)),second=find(indices.getX(index+1)),third=find(indices.getX(index+2));parents[second]=first;parents[third]=first}
+ const maximum=new Float32Array(positions.count).fill(-Infinity),sums=new Float64Array(positions.count*4);
+ for(let index=0;index<positions.count;index++){const root=find(index);maximum[root]=Math.max(maximum[root],uv.getY(index))}
+ for(let index=0;index<positions.count;index++){const root=find(index);if(uv.getY(index)<maximum[root]-.00001)continue;const offset=root*4;sums[offset]+=positions.getX(index);sums[offset+1]+=positions.getY(index);sums[offset+2]+=positions.getZ(index);sums[offset+3]++}
+ const anchors=new Float32Array(positions.count*3);
+ for(let index=0;index<positions.count;index++){const offset=find(index)*4,count=sums[offset+3]||1;anchors[index*3]=sums[offset]/count;anchors[index*3+1]=sums[offset+1]/count;anchors[index*3+2]=sums[offset+2]/count}
+ return anchors;
+}
+
 export function createDogRig(asset:T.Object3D){
  asset.updateMatrixWorld(true);
  const root=new T.Group();root.name='CompanionDog_AnimatedModel';
  const inverse=asset.matrixWorld.clone().invert(),meshes:T.Mesh[]=[];
- asset.traverse(object=>{if(object instanceof T.Mesh)meshes.push(object)});
+ asset.traverse(object=>{if((object as T.Mesh).isMesh)meshes.push(object as T.Mesh)});
  const bodyMesh=meshes.find(mesh=>mesh.name.includes('DOG_BODY_RETOPO'));
+ if(bodyMesh){meshes.splice(meshes.indexOf(bodyMesh),1);meshes.unshift(bodyMesh)}
  const bodyBounds=bodyMesh?new T.Box3().setFromObject(bodyMesh):new T.Box3().setFromObject(asset);
  bodyBounds.applyMatrix4(inverse);
  const size=bodyBounds.getSize(new T.Vector3()),height=size.y,width=size.x,front=bodyBounds.max.z,back=bodyBounds.min.z;
@@ -33,14 +48,25 @@ export function createDogRig(asset:T.Object3D){
  const skinned:T.SkinnedMesh[]=[];
  const point=new T.Vector3(),anchor=new T.Vector3();
  const ease=(minimum:number,maximum:number,value:number)=>T.MathUtils.smoothstep(value,minimum,maximum);
+ let skinBody:T.BufferGeometry|undefined;
+ const rootBindings=new Map<string,{indices:number[];weights:number[]}>();
  for(const mesh of meshes){
   const geometry=mesh.geometry.clone().applyMatrix4(inverse.clone().multiply(mesh.matrixWorld));
-  const positions=geometry.getAttribute('position'),uv=geometry.getAttribute('uv'),indices:number[]=[],weights:number[]=[];
-  const name=mesh.name,isFur=name.includes('FUR_'),isEar=name.includes('EAR_'),isTail=name.includes('TAIL'),isFace=/EYE_|EYELID_|PUPIL_|CORNEA_|NOSE|MOUTH/.test(name),isHeadFur=/FUR_(HEAD|BROWS|MUZZLE)/.test(name);
+  const positions=geometry.getAttribute('position'),indices:number[]=[],weights:number[]=[];
+  const name=mesh.name,isFur=name.includes('FUR_'),isEar=/(?:^|_)EAR_/.test(name),isTail=name.includes('TAIL'),isFace=/EYE_|EYELID_|PUPIL_|CORNEA_|NOSE|MOUTH/.test(name),isHeadFur=/FUR_(HEAD|BROWS|MUZZLE)/.test(name);
+  const furAnchors=isFur?furRootAnchors(geometry):null;
   for(let index=0;index<positions.count;index++){
    point.fromBufferAttribute(positions,index);
-   if(!isFur)anchor.copy(point);
-   else if(!index||uv?.getY(index)===0){anchor.copy(point);if(index+1<positions.count&&uv?.getY(index+1)===0)anchor.add(new T.Vector3().fromBufferAttribute(positions,index+1)).multiplyScalar(.5)}
+  if(furAnchors)anchor.fromArray(furAnchors,index*3);else anchor.copy(point);
+  if(isFur&&!isEar&&!isTail&&skinBody){
+   const key=`${anchor.x},${anchor.y},${anchor.z}`;let binding=rootBindings.get(key);
+   if(!binding){
+    const vertices=skinBody.getAttribute('position'),bodyIndices=skinBody.getAttribute('skinIndex'),bodyWeights=skinBody.getAttribute('skinWeight');let nearest=0,distance=Infinity;
+    for(let vertex=0;vertex<vertices.count;vertex++){const horizontal=vertices.getX(vertex)-anchor.x,vertical=vertices.getY(vertex)-anchor.y,forward=vertices.getZ(vertex)-anchor.z,gap=horizontal*horizontal+vertical*vertical+forward*forward;if(gap<distance){distance=gap;nearest=vertex}}
+    binding={indices:[0,1,2,3].map(slot=>bodyIndices.getComponent(nearest,slot)),weights:[0,1,2,3].map(slot=>bodyWeights.getComponent(nearest,slot))};rootBindings.set(key,binding);
+   }
+   indices.push(...binding.indices);weights.push(...binding.weights);continue;
+  }
    const vertexIndices=[0,0,0,0],vertexWeights=[1,0,0,0];
    if(isEar){vertexIndices[0]=bones.indexOf(ears[name.includes('EAR_R')?0:1])}
    else if(isTail){vertexIndices[0]=bones.indexOf(tail)}
@@ -51,8 +77,8 @@ export function createDogRig(asset:T.Object3D){
     const legRegion=/FUR_(FRONT_LEGS|REAR_LEGS|PAWS)/.test(name);
     const legWeight=legRegion?1:(1-ease(height*.30,height*.51,anchor.y))*ease(width*.10,width*.27,Math.abs(anchor.x))* (1-ease(size.z*.08,size.z*.19,Math.abs(anchor.z-leg.hip.z)));
     if(legWeight>.001){
-     const lowerWeight=1-ease(leg.hip.y-leg.upperLength-.018,leg.hip.y-leg.upperLength+.025,point.y);
-     const pawWeight=(1-ease(height*.055,height*.12,point.y))*lowerWeight;
+    const skinHeight=isFur?anchor.y:point.y,lowerWeight=1-ease(leg.hip.y-leg.upperLength-.018,leg.hip.y-leg.upperLength+.025,skinHeight);
+    const pawWeight=(1-ease(height*.055,height*.12,skinHeight))*lowerWeight;
      vertexIndices.splice(0,4,0,bones.indexOf(leg.upper),bones.indexOf(leg.lower),bones.indexOf(leg.foot));
      vertexWeights.splice(0,4,1-legWeight,legWeight*(1-lowerWeight),legWeight*(lowerWeight-pawWeight),legWeight*pawWeight);
     }else{vertexIndices[1]=bones.indexOf(head);vertexWeights[0]=1-headWeight;vertexWeights[1]=headWeight}
@@ -60,6 +86,7 @@ export function createDogRig(asset:T.Object3D){
    indices.push(...vertexIndices);weights.push(...vertexWeights);
   }
   geometry.setAttribute('skinIndex',new T.Uint16BufferAttribute(indices,4));geometry.setAttribute('skinWeight',new T.Float32BufferAttribute(weights,4));
+  if(mesh===bodyMesh)skinBody=geometry;
   const animated=new T.SkinnedMesh(geometry,mesh.material);animated.name=mesh.name;animated.userData={...mesh.userData};animated.castShadow=!isFur;animated.receiveShadow=true;animated.frustumCulled=false;
   root.add(animated);animated.bind(skeleton,new T.Matrix4());skinned.push(animated);mesh.geometry.dispose();
  }

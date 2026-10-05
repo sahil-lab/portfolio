@@ -19,26 +19,31 @@ export function createPacketPress(parent: T.Object3D) {
   const stock: T.Object3D[] = [];
   const lights: T.MeshStandardMaterial[] = [];
   let chamber: T.MeshStandardMaterial | undefined;
-  new GLTFLoader().load('/assets/packet-press.glb', gltf => {
+  const sources=['/assets/collectible-v1/packet-press.glb','/assets/packet-press.glb'],loader=new GLTFLoader();
+  const load=(index:number):void=>loader.load(sources[index], gltf => {
     if (disposed) { disposeObject(gltf.scene); return; }
+    if(index===0&&!gltf.scene.getObjectByName('PacketPress_CollectibleAssembly')){disposeObject(gltf.scene);load(index+1);return}
     root.add(gltf.scene);
-    crafted=refinePacketPress(gltf.scene,root);
     root.updateMatrixWorld(true);
-    gltf.scene.traverse(o => {
-      if (o.name.startsWith('Collision_')) { bounds.setFromObject(o); o.visible = false;o.userData.cameraSolid=true; }
-      if (o instanceof T.Mesh) {
-        o.castShadow = !o.name.startsWith('Collision_');
-        o.receiveShadow = true;
-        if (o.name.startsWith('PacketPress_Indicator_')) {
-          o.material = (o.material as T.MeshStandardMaterial).clone();
-          lights[Number(o.name.split('_').at(-1))] = o.material;
+    gltf.scene.traverse(object => {
+      if (object.name.startsWith('Collision_')) { bounds.setFromObject(object); object.visible = false;object.userData.cameraSolid=true; }
+      const mesh=object as T.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = !mesh.name.startsWith('Collision_');
+        mesh.receiveShadow = true;
+        if (mesh.name.startsWith('PacketPress_Indicator_')) {
+          const material=(mesh.material as T.MeshStandardMaterial).clone();
+          mesh.material=material;
+          lights[Number(mesh.name.split('_').at(-1))] = material;
         }
-        if (o.name === 'PacketPress_Chamber') {
-          o.material = (o.material as T.MeshStandardMaterial).clone();
-          chamber = o.material;
+        if (mesh.name === 'PacketPress_Chamber') {
+          const material=(mesh.material as T.MeshStandardMaterial).clone();
+          mesh.material=material;
+          chamber = material;
         }
       }
     });
+    crafted=refinePacketPress(gltf.scene,root);
     for (let i = 0; i < 4; i++) stock.push(gltf.scene.getObjectByName(`PacketPress_Capsule_${i}`)!);
     clip = gltf.animations.find(c => c.name === 'PacketPress_Prepare');
     if (clip) {
@@ -46,7 +51,12 @@ export function createPacketPress(parent: T.Object3D) {
       action = mixer.clipAction(clip);
       action.setLoop(T.LoopOnce, 1); action.clampWhenFinished = true; action.play();
     }
-  }, undefined, error => console.error('Packet Press asset could not load', error));
+  }, undefined, error => {
+    if(disposed)return;
+    if(index+1<sources.length){load(index+1);return}
+    console.error('Packet Press asset could not load', error);
+  });
+  load(0);
   return {
     blocked: (x: number, z: number) => x > bounds.min.x - .4 && x < bounds.max.x + .4 && z > bounds.min.z - .4 && z < bounds.max.z + .4,
     update: (state: DeliverySnapshot, progress: number) => {
@@ -67,7 +77,9 @@ export function createPacketPress(parent: T.Object3D) {
 }
 
 function disposeObject(root: T.Object3D) {
-  root.traverse(o => { if (o instanceof T.Mesh) { o.geometry.dispose(); const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { (m as T.MeshStandardMaterial).map?.dispose(); m.dispose(); }); } });
+  const textures=new Set<T.Texture>(),materials=new Set<T.Material>(),geometries=new Set<T.BufferGeometry>();
+  root.traverse(object=>{const mesh=object as T.Mesh;if(!mesh.isMesh)return;geometries.add(mesh.geometry);for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){materials.add(material);for(const value of Object.values(material))if((value as T.Texture|undefined)?.isTexture)textures.add(value as T.Texture)}});
+  textures.forEach(texture=>texture.dispose());materials.forEach(material=>material.dispose());geometries.forEach(geometry=>geometry.dispose());
 }
 
 export function addWorkshopMural(scene: T.Scene) {

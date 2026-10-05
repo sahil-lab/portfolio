@@ -5,13 +5,14 @@ import {transitStops} from './transit-config';
 import type {AngelFlightStatus} from './angel-flight';
 
 function HoldControl({label,children,disabled,onHold,pressed}:{label:string;children:ReactNode;disabled:boolean;onHold:(active:boolean)=>void;pressed?:boolean}){
- const callback=useRef(onHold);useEffect(()=>{callback.current=onHold},[onHold]);
- useEffect(()=>{const release=()=>callback.current(false);addEventListener('blur',release);return()=>{release();removeEventListener('blur',release)}},[]);
- useEffect(()=>{if(disabled)callback.current(false)},[disabled]);
+ const callback=useRef(onHold),held=useRef(false);useEffect(()=>{callback.current=onHold},[onHold]);
+ const change=(active:boolean)=>{if(held.current===active)return;held.current=active;callback.current(active)};
+ useEffect(()=>{const release=()=>{if(!held.current)return;held.current=false;callback.current(false)};addEventListener('blur',release);return()=>{release();removeEventListener('blur',release)}},[]);
+ useEffect(()=>{if(disabled&&held.current){held.current=false;callback.current(false)}},[disabled]);
  return <button type="button" title={label} aria-label={label} aria-pressed={pressed} disabled={disabled}
-  onPointerDown={event=>{event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);callback.current(true)}}
-  onPointerUp={()=>callback.current(false)} onPointerCancel={()=>callback.current(false)} onLostPointerCapture={()=>callback.current(false)} onBlur={()=>callback.current(false)}
-  onKeyDown={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();event.stopPropagation();callback.current(true)}}} onKeyUp={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();callback.current(false)}}}>{children}</button>;
+  onPointerDown={event=>{event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);change(true)}}
+  onPointerUp={()=>change(false)} onPointerCancel={()=>change(false)} onLostPointerCapture={()=>change(false)} onBlur={()=>change(false)}
+  onKeyDown={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();event.stopPropagation();change(true)}}} onKeyUp={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();change(false)}}}>{children}</button>;
 }
 function keepButtonActivation(event:KeyboardEvent<HTMLButtonElement>){if(event.key===' '||event.key==='Enter')event.stopPropagation()}
 export function AngelControls({status,disabled,canEnter,switchMode,lift,boost,roam,travel,land,takeoff,groundMode,destination,setDestination}:{status:AngelFlightStatus;disabled:boolean;canEnter:boolean;switchMode:(enabled:boolean)=>void;lift:(value:number)=>void;boost:(enabled:boolean)=>void;roam:(enabled:boolean)=>void;travel:(destination:number)=>void;land:()=>void;takeoff:()=>void;groundMode:(mode:'walk'|'run')=>void;destination:number;setDestination:(destination:number)=>void}){

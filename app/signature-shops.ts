@@ -1,11 +1,20 @@
 import * as T from 'three';
 import {craftedBox} from './crafted-surfaces';
-import {createReadableDisplay} from './readable-display';
-import {signatureShops,type ShopTheme} from './everyday-config';
+import {createFacadeLettering} from './readable-display';
+import {signatureShops,signatureShopScale,type ShopTheme} from './everyday-config';
+import {createCopperBakery} from './copper-bakery';
+import {createAuthoredSignatureShop} from './signature-shop-asset';
 export {signatureShops,type ShopTheme} from './everyday-config';
 export function signatureShopForPlanet(planet:string){return signatureShops.find(shop=>shop.planet===planet)??signatureShops[0]}
 
 export function createSignatureShop(name='Loop & Glaze',theme:ShopTheme='donut'){
+  const fallback=createProceduralSignatureShop(name,theme),shop=theme==='pretzel'?createCopperBakery(fallback):createAuthoredSignatureShop(fallback,name,theme);
+  shop.root.scale.setScalar(signatureShopScale);shop.root.userData.signatureScale=signatureShopScale;
+  const scale=new T.Matrix4().makeScale(signatureShopScale,signatureShopScale,signatureShopScale);for(const solid of shop.solids)solid.applyMatrix4(scale);
+  return shop;
+}
+
+function createProceduralSignatureShop(name:string,theme:ShopTheme){
   const design=signatureShops.find(shop=>shop.theme===theme)!,root=new T.Group(),hero=new T.Group();root.name='Signature_'+theme;root.userData.shopTheme=theme;hero.name=theme==='donut'?'Donut_RooftopSculpture':'Shop_Rooftop_'+theme;hero.position.set(0,7.75,-2);root.add(hero);
   const paint=new T.MeshPhysicalMaterial({color:design.paint,roughness:.62,clearcoat:.18}),ceramic=new T.MeshPhysicalMaterial({color:'#f3ead1',roughness:.55,clearcoat:.25});
   const dough=new T.MeshStandardMaterial({color:'#c99658',roughness:.86}),icing=new T.MeshPhysicalMaterial({color:design.accent,roughness:.36,clearcoat:.55});
@@ -79,13 +88,16 @@ export function createSignatureShop(name='Loop & Glaze',theme:ShopTheme='donut')
   }
   features['Shop_Signature_'+theme]=1;
   hero.updateWorldMatrix(true,true);
+  const roofBounds=new T.Box3();for(const object of root.children)if(object!==hero)roofBounds.expandByObject(object);const sculptureBounds=new T.Box3().setFromObject(hero),gap=sculptureBounds.min.y-roofBounds.max.y;
+  if(gap>.3){hero.position.y-=gap-.3;hero.updateWorldMatrix(true,true)}
   const supportSpan=theme==='donut'||theme==='pretzel'?1.1:theme==='tea'||theme==='tart'?.8:theme==='coffee'?.65:.18,supportForward=theme==='prism'?-1.8:-2;
-  for(const side of [-1,1]){const horizontal=side*supportSpan,contact=new T.Raycaster(new T.Vector3(horizontal,0,supportForward),new T.Vector3(0,1,0)).intersectObject(hero,true)[0],top=contact?.point.y??5.5;box('Shop_SculptureSupport',horizontal,(5.08+top)/2,supportForward,.14,Math.max(.3,top-5.08+.1),.2,trim)}
+  box('Shop_SculptureMountPlinth',0,5.23,supportForward,supportSpan*2+.72,.3,.9,ceramic);
+  for(const side of [-1,1]){const horizontal=side*supportSpan,contact=new T.Raycaster(new T.Vector3(horizontal,0,supportForward),new T.Vector3(0,1,0)).intersectObject(hero,true)[0],top=contact?.point.y??5.5;box('Shop_SculptureSupport',horizontal,(5.08+top)/2,supportForward,.24,Math.max(.3,top-5.08+.1),.3,trim)}
   for(const side of [-1,1])for(let pastry=0;pastry<4;pastry++){
     const item=mesh('Shop_DisplayProduct',productGeometry,theme==='donut'||theme==='pretzel'?dough:icing,new T.Vector3(side*3.05-.95+pastry*.63,1.36,1.87));item.scale.setScalar(.115);
   }
-  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=192;const context=canvas.getContext('2d')!;context.fillStyle='#f3ead1';context.fillRect(0,0,1024,192);context.fillStyle='#63344b';context.textAlign='center';context.textBaseline='middle';context.font='700 86px "Space Grotesk", sans-serif';context.fillText(name.toUpperCase(),512,98,940);
-  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;createReadableDisplay(root,'Shop_Nameplate',texture,8.2,1.15,.2,new T.Vector3(0,4.46,1.7));
+  const lettering=createFacadeLettering(root,'Shop_Nameplate',name.toUpperCase(),8.2,.57,new T.Vector3(0,4.46,1.525));lettering.userData.displaySide=1;
+  const rearLettering=lettering.clone();rearLettering.name='Shop_Nameplate_Back';rearLettering.position.z=-5.525;rearLettering.rotation.y=Math.PI;rearLettering.userData.displaySide=-1;root.add(rearLettering);
   for(const object of root.children)if(object!==hero){object.position.x*=design.width;object.position.y*=design.height;object.scale.x*=design.width;object.scale.y*=design.height}
   for(const solid of solids)solid.applyMatrix4(new T.Matrix4().makeScale(design.width,design.height,1));hero.position.y*=design.height;hero.scale.set(design.width,design.height,1);
   let selection=0,time=0;const flavors=[{name:'strawberry circuit',color:design.accent},{name:'mint cloud',color:'#86caba'},{name:'sunrise lemon',color:'#ecd078'}];

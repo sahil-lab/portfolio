@@ -1,0 +1,12 @@
+{
+  "version": "crafted-miniature-v1",
+  "status": "candidate-unpublished",
+  "surfaces": {
+    "ceramic": {"roughness": 0.55, "metalness": 0.02, "clearcoat": 0.14, "clearcoatRoughness": 0.4, "normalStrength": 0.55},
+    "stone": {"roughness": 0.76, "metalness": 0.02, "clearcoat": 0.04, "clearcoatRoughness": 0.6, "normalStrength": 0.65},
+    "timber": {"roughness": 0.58, "metalness": 0.01, "clearcoat": 0.12, "clearcoatRoughness": 0.4, "normalStrength": 0.45},
+    "brushed": {"roughness": 0.4, "metalness": 0.45, "clearcoat": 0.04, "clearcoatRoughness": 0.4, "normalStrength": 0.4}
+  },
+  "palettePolicy": "Preserve object and district colors; add surface character without replacing the palette.",
+  "geometryPolicy": "Preserve placement bounds, holes, named parts, animation pivots and collision authority."
+}

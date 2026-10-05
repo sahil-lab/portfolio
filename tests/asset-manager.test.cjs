@@ -18,3 +18,14 @@ test('world asset queue shares downloads but leaves each parsed scene owned by i
  const assets=createWorldAssets({fetch:async()=>{downloads++;return new Response(new Uint8Array([1,2,3]))},parse:async()=>{const scene=new T.Group(),geometry=new T.BoxGeometry();geometry.addEventListener('dispose',()=>released++);scene.add(new T.Mesh(geometry,new T.MeshStandardMaterial()));return {scene}}});
  const first=assets.model('monument'),second=assets.model('monument');assert.equal(downloads,0);assets.start();const [one,two]=await Promise.all([first,second]);assert.equal(downloads,1);assert.notEqual(one,two);assert.equal(assets.manager.snapshot().resources,0);assets.dispose();assert.equal(released,0);disposeScene(one);disposeScene(two);assert.equal(released,2);
 });
+
+for(const failure of ['fetch','parse'])test('world model fallback preserves ownership after '+failure+' failure',async()=>{
+ const T=require('three'),{createWorldAssets}=require('../app/world-assets.ts'),{assetManifest}=require('../app/asset-manifest.ts'),requests=[],parsed=[];
+ const assets=createWorldAssets({fetch:async url=>{requests.push(url);return new Response(new Uint8Array([1,2,3]),{status:failure==='fetch'&&url===assetManifest.angel.url?404:200})},parse:async(_bytes,url)=>{parsed.push(url);if(failure==='parse'&&url===assetManifest.angel.url)throw new Error('Invalid candidate');return {scene:new T.Group()}}});
+ const pending=assets.model('angel');assets.start();const scene=await pending;assert.deepEqual(requests,[assetManifest.angel.url,assetManifest.angel.fallbackUrl]);assert.equal(scene.userData.assetUrl,assetManifest.angel.fallbackUrl);assert.equal(parsed.at(-1),assetManifest.angel.fallbackUrl);assert.equal(assets.manager.snapshot().resources,0);assets.dispose();
+});
+
+test('disposed world assets do not start a fallback request',async()=>{
+ const {createWorldAssets}=require('../app/world-assets.ts');let finish,requests=0;
+ const assets=createWorldAssets({fetch:()=>{requests++;return new Promise(resolve=>finish=resolve)}}),pending=assets.model('angel'),rejected=assert.rejects(pending,{name:'AbortError'});assets.start();await Promise.resolve();assets.dispose();finish(new Response(new Uint8Array([1,2,3])));await rejected;assert.equal(requests,1);assert.equal(assets.manager.snapshot().resources,0);
+});

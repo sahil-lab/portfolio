@@ -7,10 +7,10 @@ import {createRealmDemo,type RealmDemoSnapshot} from './realm-demos';
 
 const vertical=new T.Vector3(0,1,0);
 export function realmRoofGeometry(kind:'research'|'foundry'|'skills',width=5.2,depth=5.2){
-  if(kind==='research')return new T.ConeGeometry(width*.73,2.8,4).rotateY(Math.PI/4).translate(0,1.2,0);
-  if(kind==='skills')return new T.ConeGeometry(width*.74,1.8,4).rotateY(Math.PI/4).translate(0,.75,0);
+  if(kind==='research')return new T.SphereGeometry(1,16,8,0,Math.PI*2,0,Math.PI/2).scale(width*.53,2.8,depth*.53).translate(0,-.12,0);
+  if(kind==='skills')return new T.CylinderGeometry(width*.53,width*.53,depth*1.08,16,1,false,-Math.PI/2,Math.PI).rotateX(-Math.PI/2).scale(1,1.8/(width*.53),1).translate(0,-.12,0);
   const shape=new T.Shape();shape.moveTo(-width/2,0);shape.lineTo(width/2,0);shape.lineTo(width/2,2.1);shape.lineTo(0,.6);shape.lineTo(0,2.1);shape.lineTo(-width/2,.6);shape.closePath();
-  return new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false,steps:1}).translate(0,0,-depth/2);
+  return new T.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelSegments:1,bevelSize:.045,bevelThickness:.035,steps:1}).translate(0,0,-depth/2);
 }
 
 export function createRealmWorld(parent:T.Object3D,surface:PlanetSurface){
@@ -141,11 +141,11 @@ export function createRealmWorld(parent:T.Object3D,surface:PlanetSurface){
     return mesh(hall,name,shape,material,0,0,0);
   }
   if(kind==='research'){
-    const folded=new T.Shape();folded.moveTo(-1.4,-1);folded.lineTo(1.4,-1);folded.lineTo(2,18);folded.lineTo(-.5,30);folded.lineTo(-2.2,24);folded.closePath();
-    const fin=geometry('observatory-fold',()=>new T.ExtrudeGeometry(folded,{depth:6,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.12,bevelThickness:.12}).translate(0,0,-3));
+    const folded=new T.Shape();folded.moveTo(-1.4,-1);folded.lineTo(1.4,-1);folded.lineTo(1.9,17.5);folded.quadraticCurveTo(2,19,1.3,21);folded.lineTo(.45,28.2);folded.quadraticCurveTo(.2,29.4,-.6,29.4);folded.quadraticCurveTo(-1.6,29.2,-1.8,27.8);folded.lineTo(-2.1,24);folded.quadraticCurveTo(-2.2,23,-2.08,21);folded.closePath();
+    const fin=geometry('observatory-fold',()=>new T.ExtrudeGeometry(folded,{depth:6,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.12,bevelThickness:.12,curveSegments:4}).translate(0,0,-3));
     for(const side of [-1,1])for(let index=0;index<3;index++){
-      const wing=mesh(hall,'Observatory_FoldedCeramicWing',fin,index%2?rock:stone,side*(7.5+index*2.6),0,-6+index*3);wing.scale.y=1-index*.17;wing.rotation.y=side*.23;
-      solid(main,side*(7.5+index*2.6),-6+index*3,4.8,7,31);
+      const wing=mesh(hall,'Observatory_FoldedCeramicWing',fin,index%2?rock:stone,side*(7.5+index*2.6),0,-6+index*3);wing.scale.y=.68*(1-index*.12);wing.rotation.y=side*.23;
+      solid(main,side*(7.5+index*2.6),-6+index*3,4.8,7,31*wing.scale.y);
       const distant=outline(main.distant,fin,wing.material,wing.position.x,0,wing.position.z);distant.scale.copy(wing.scale);distant.rotation.copy(wing.rotation);
       box(hall,'ResearchDetail_SteppedSockle',plinth,wing.position.x,-.45,wing.position.z,4.6,2.6,6.8);
       box(hall,'ResearchDetail_StoneBaseCap',rock,wing.position.x,.94,wing.position.z,4.5,.18,6.7);

@@ -8,6 +8,7 @@ import {createResidentInstances} from './resident-instances';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 import {createLanternArcade} from './lantern-arcade';
 import {createGroundOcclusion} from './ground-occlusion';
+import {craftGeometry,type CraftPart} from './craft-kit';
 
 export const citySquare={x:150,z:79};
 export function createCityLandmarks(parent:T.Object3D){
@@ -23,10 +24,12 @@ export function createCityLandmarks(parent:T.Object3D){
   const pavement=new T.MeshStandardMaterial({map:pavingTexture,bumpMap:pavingTexture,bumpScale:.025,roughness:.9}),road=new T.MeshStandardMaterial({color:'#586c74',roughness:.91});pavement.userData.surface=road.userData.surface='natural';
   pavement.userData.cityPaving=road.userData.cityPaving=true;
   const solids:{x:number;z:number;width:number;depth:number;height:number}[]=[];
+  const nativeParts=new Set<CraftPart>(),profiles:Partial<Record<string,CraftPart>>={Quarter_BenchSlat:'BenchSlat',Quarter_BenchBack:'BenchBack',Quarter_BenchLeg:'BenchFoot',Quarter_Planter:'FlowerBedRim',Cafe_TerraceSeat:'BenchSlat',Cafe_TerraceBack:'BenchBack'};
   function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x:number,y:number,z:number,group:T.Object3D=root){
+    if(geometry.userData.authoredCraft){nativeParts.add(geometry.userData.authoredCraft);material.userData.authoredCraft=true;(material as T.MeshStandardMaterial).vertexColors=true}
     const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;group.add(object);return object;
   }
-  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material,group:T.Object3D=root){return mesh(name,cityBlock(width,height,depth,.32),material,x,y,z,group)}
+  function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material,group:T.Object3D=root){const part=name.endsWith('_Housing')?'PlaqueBacking':profiles[name];return mesh(name,(part?craftGeometry(part,width,height,depth):null)??cityBlock(width,height,depth,.32),material,x,y,z,group)}
   function sign(name:string,text:string,x:number,y:number,z:number,width:number,color:string,group:T.Object3D=root){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=256;const context=canvas.getContext('2d')!;
     context.fillStyle=color;context.fillRect(0,0,1024,256);context.fillStyle='#fff9ea';context.textAlign='center';context.textBaseline='middle';
@@ -61,7 +64,7 @@ export function createCityLandmarks(parent:T.Object3D){
   sign('Cafe_Name','PACKET POST',-21,5.9,-7.3,7.6,'#8e6353');
   const cup=new T.Group();cup.name='Dispatch_SortingTower';cup.position.set(-21,13,-14);root.add(cup);
   const sorterProfile=[[0,0],[2.4,0],[2.75,.28],[2.75,1],[2.2,1.4],[2.2,5.7],[1.9,6.1],[1.9,6.6],[0,6.6]].map(([radius,height])=>new T.Vector2(radius,height));
-  mesh('Dispatch_TurnedCeramicHousing',new T.LatheGeometry(sorterProfile,36),finish.pearl,0,0,0,cup);
+  const sorting=craftGeometry('SorterHousing',5.5,6.6,5.5);if(sorting)sorting.translate(0,3.3,0);mesh('Dispatch_TurnedCeramicHousing',sorting??new T.LatheGeometry(sorterProfile,36),finish.pearl,0,0,0,cup);
   for(const level of [1.55,2.6,3.65,4.7,5.75]){
     mesh('Dispatch_BrassSeparator',new T.CylinderGeometry(2.46,2.46,.13,32),gold,0,level,0,cup);
     box('Dispatch_RoutingSlot',0,level+.39,2.19,2.3,.35,.18,finish.ink,cup);
@@ -81,7 +84,7 @@ export function createCityLandmarks(parent:T.Object3D){
   const bulbs=new T.InstancedMesh(cityBlock(.42,.52,.18,.06),new T.MeshStandardMaterial({color:'#ffe9a5',emissive:'#ffc96b',emissiveIntensity:.55,roughness:.4}),42),dummy=new T.Object3D();bulbs.name='MusicHall_MarqueeLights';
   for(let index=0;index<42;index++){const angle=index/42*Math.PI*2;dummy.position.set(Math.sin(angle)*7.55,6.28,Math.cos(angle)*7.55);dummy.rotation.y=angle;dummy.updateMatrix();bulbs.setMatrixAt(index,dummy.matrix)}music.add(bulbs);
   const clockProfile=[[0,-3.3],[2.8,-3.3],[4.6,-2.7],[4.9,-1.8],[4.9,1.8],[4.6,2.7],[2.8,3.3],[0,3.3]].map(([radius,height])=>new T.Vector2(radius,height));
-  const mirrorBall=mesh('SignalHouse_ClockDrum',new T.LatheGeometry(clockProfile,40),finish.pearl,0,10.7,0,music);
+  const mirrorBall=mesh('SignalHouse_ClockDrum',craftGeometry('ClockDrum',9.8,6.6,9.8)??new T.LatheGeometry(clockProfile,40),finish.pearl,0,10.7,0,music);
   mesh('SignalHouse_GalleryBand',new T.CylinderGeometry(4.35,4.75,.18,40),blue.paint,0,7.75,0,music);
   mesh('SignalHouse_GalleryEdge',new T.TorusGeometry(4.75,.09,6,48).rotateX(Math.PI/2),gold,0,7.78,0,music);
   for(let support=0;support<8;support++){const angle=support/8*Math.PI*2;mesh('SignalHouse_SupportPier',new T.CylinderGeometry(.13,.17,1.7,10),finish.ink,Math.sin(angle)*3.8,7.3,Math.cos(angle)*3.8,music)}
@@ -90,7 +93,13 @@ export function createCityLandmarks(parent:T.Object3D){
   }
   mesh('SignalHouse_ClockFace',new T.CircleGeometry(2.55,48),finish.ink,0,10.7,5.05,music);
   mesh('SignalHouse_ClockBezel',new T.TorusGeometry(2.62,.115,8,64),gold,0,10.7,5.02,music);
-  const clockHand=box('SignalHouse_ClockHand',0,11.4,5.085,.12,1.64,.08,finish.pearl,music);clockHand.rotation.z=-.48;
+  for(let hour=0;hour<12;hour++){
+    const angle=hour/12*Math.PI*2,major=hour%3===0,marker=box('SignalHouse_HourMarker',Math.sin(angle)*2.18,10.7+Math.cos(angle)*2.18,5.085,major?.16:.1,major?.38:.22,.08,gold,music);marker.rotation.z=-angle;
+  }
+  for(const [name,length,width,angle,material] of [['SignalHouse_ClockHand',1.86,.12,Math.PI/3,finish.pearl],['SignalHouse_ClockHourHand',1.25,.2,-Math.PI*11/36,gold]] as const){
+    const hand=box(name,Math.sin(angle)*length/2,10.7+Math.cos(angle)*length/2,5.095,width,length,.08,material,music);hand.rotation.z=-angle;
+  }
+  mesh('SignalHouse_ClockHub',new T.SphereGeometry(.19,12,8),gold,0,10.7,5.16,music).scale.z=.65;
   sign('MusicHall_Name','CLOCKHOUSE',0,3.3,7.24,6.2,'#326768',music);
   solids.push({x:2,z:-15,width:15,depth:15,height:17});
   building('MintWindmillResidence',25,-15,'#4fa98b',8.5,1.6);
@@ -99,7 +108,7 @@ export function createCityLandmarks(parent:T.Object3D){
   const rotor=new T.Group();rotor.name='Studio_Windmill';rotor.position.set(25,19.3,-14.65);root.add(rotor);
   mesh('Studio_TurbineHub',new T.SphereGeometry(.55,16,10),mint.paint,0,0,0,rotor);
   for(let blade=0;blade<3;blade++){
-    const angle=blade/3*Math.PI*2,wing=mesh('Studio_TurbineBlade',new T.CapsuleGeometry(.24,2.9,3,8),finish.pearl,Math.sin(angle)*2,Math.cos(angle)*2,0,rotor);wing.rotation.z=-angle;
+    const angle=blade/3*Math.PI*2,wing=mesh('Studio_TurbineBlade',craftGeometry('TurbineBlade',.48,3.38,.48)??new T.CapsuleGeometry(.24,2.9,3,8),finish.pearl,Math.sin(angle)*2,Math.cos(angle)*2,0,rotor);wing.rotation.z=-angle;
   }
   const flowerShop=building('BloomFlowerShop',-25,19,'#e6b34f',3.4,1.5);
   sign('Florist_Name','SEED BANK',-25,4.7,23.75,5.8,'#85655c');
@@ -111,14 +120,15 @@ export function createCityLandmarks(parent:T.Object3D){
   const treeShape=createCanopyAsset('tree','distant'),treeMaterials=createCanopyMaterials();
   root.userData.canopyStyle='astra-layered-leaf';root.userData.layeredTreeCount=6;
   for(const [x,z] of [[-32,-33],[32,-33],[-31,4],[30,7],[24,31],[-12,33]]){
-    box('Quarter_Planter',x,.42,z,2.8,.85,2.8,finish.pearl);
+    const planter=box('Quarter_Planter',x,.42,z,2.8,.85,2.8,finish.pearl);if(planter.geometry.userData.authoredCraft)box('Quarter_PlanterSoil',x,.78,z,2.04,.045,2.04,finish.ink);
     const trunk=mesh('Quarter_BranchingTree',treeShape.wood,treeMaterials.wood,x,.83,z),crown=mesh('Quarter_LayeredLeafCanopy',treeShape.crown,treeMaterials.leaf,x,.83,z);
     for(const object of [trunk,crown]){object.scale.set(.32,.44,.32);object.rotation.y=(x+z)*.13}
     solids.push({x,z,width:2.8,depth:2.8,height:5.5});
   }
   for(const [x,z] of [[14,20],[13,33],[-9,19]]){
     for(let slat=0;slat<4;slat++)box('Quarter_BenchSlat',x,1,z-.5+slat*.32,3.4,.16,.23,gold);
-    for(const side of [-1,1]){box('Quarter_BenchLeg',x+side*1.25,.5,z,.18,1,1.15,finish.ink);box('Quarter_BenchBack',x,1.72,z-.61,3.4,.23,.14,finish.paint)}
+    for(const side of [-1,1]){box('Quarter_BenchLeg',x+side*1.25,.5,z,.18,1,1.15,finish.ink);box('Quarter_BenchBackPost',x+side*1.25,1.36,z-.61,.12,.72,.14,finish.ink)}
+    box('Quarter_BenchBack',x,1.72,z-.61,3.4,.23,.14,finish.paint);
   }
   const garden=new T.MeshStandardMaterial({color:'#5ca369',roughness:1});garden.userData.surface='natural';
   for(const [x,z,width,depth] of [[-14,5,13,9],[23,20,12,9],[-24,34,12,7]]){
@@ -132,7 +142,7 @@ export function createCityLandmarks(parent:T.Object3D){
     solids.push({x,z,width:width+.7,depth:depth+.7,height:.9});
   }
   for(const [x,z] of [[-27,-3],[-17,-2]]){
-    mesh('Cafe_TerraceTable',new T.CylinderGeometry(1.15,1.15,.15,20),finish.pearl,x,1.4,z);
+    mesh('Cafe_TerraceTable',craftGeometry('TableTop',2.3,.15,2.3)??new T.CylinderGeometry(1.15,1.15,.15,20),finish.pearl,x,1.4,z);
     mesh('Cafe_TablePedestal',new T.CylinderGeometry(.15,.33,1.4,10),gold,x,.72,z);
     for(const side of [-1,1]){
       box('Cafe_TerraceSeat',x+side*1.75,.82,z,.9,.18,.95,mint.paint);
@@ -147,8 +157,8 @@ export function createCityLandmarks(parent:T.Object3D){
   }
   for(const side of [-1,1])for(const z of [-30,12,37]){
     const x=side*34;mesh('Quarter_LampStem',new T.CylinderGeometry(.085,.15,5.5,8),finish.ink,x,2.75,z);
-    const lamp=mesh('Quarter_LampLantern',new T.SphereGeometry(.47,12,8),new T.MeshStandardMaterial({color:'#fff3d6',emissive:'#ffdfac',emissiveIntensity:.32,roughness:.4}),x,5.5,z);lamp.scale.y=1.22;
-    mesh('Quarter_LampCap',new T.CylinderGeometry(.36,.54,.2,12),gold,x,6.1,z);
+    const lamp=mesh('Quarter_LampLantern',craftGeometry('Lantern',.94,.94,.94)??new T.SphereGeometry(.47,12,8),new T.MeshStandardMaterial({color:'#fff3d6',emissive:'#ffdfac',emissiveIntensity:.32,roughness:.4}),x,5.5,z);lamp.scale.y=1.22;
+    mesh('Quarter_LampCap',craftGeometry('LanternCap',1.08,.2,1.08)??new T.CylinderGeometry(.36,.54,.2,12),gold,x,6.1,z);
   }
   const arcade=createLanternArcade(root,{structure:finish.ink,trim:gold});solids.push(...arcade.solids);
   root.add(createGroundOcclusion('Quarter_ContactShading',{x:0,z:3,width:88,depth:104,y:.036},solids.map(solid=>({x:solid.x,z:solid.z,width:solid.width,depth:solid.depth,round:solid.x===2&&solid.z===-15,strength:solid.height>4?.34:.23})),1.8));
@@ -160,6 +170,7 @@ export function createCityLandmarks(parent:T.Object3D){
   const traffic=['#f293a7','#f0cd79','#7dbbc8'].map((color,index)=>{const car=kit.rover(color);car.root.name='Quarter_CityCar';car.root.scale.setScalar(1.3);car.root.position.copy(path.getPointAt(index/3));root.add(car.root);return {...car,progress:index/3}});
   root.updateMatrixWorld(true);root.userData.staticCameraBounds=solids.map(solid=>new T.Box3(new T.Vector3(solid.x-solid.width/2,0,solid.z-solid.depth/2),new T.Vector3(solid.x+solid.width/2,solid.height,solid.z+solid.depth/2)).translate(root.position));
   const displays:T.Object3D[]=[];root.traverse(object=>{if(object.userData.readableDisplay)displays.push(object)});
+  root.userData.craftParts=[...nativeParts];root.traverse(object=>{const mesh=object as T.Mesh;if(!mesh.isMesh||mesh.geometry.attributes.color)return;if((Array.isArray(mesh.material)?mesh.material:[mesh.material]).some(material=>(material as T.MeshStandardMaterial).vertexColors))mesh.geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(mesh.geometry.attributes.position.count*3).fill(1),3))});
   batchScenery(root,{mirrorBall,rotor,actors:actors.map(actor=>actor.root),traffic:traffic.map(car=>car.root),displays});
   const instances=createResidentInstances(root,actors);
   let clock=0;

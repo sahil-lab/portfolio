@@ -2,6 +2,7 @@ import * as T from 'three';
 import {batchScenery} from './static-batching';
 import {cacheStaticTransforms} from './static-transforms';
 import {createSurfaceRelief} from './crafted-surfaces';
+import {craftGeometry,type CraftPart} from './craft-kit';
 
 export type FountainKind='royal'|'circuit'|'garden';
 export function createCapitalFountain(kind:FountainKind='royal'){
@@ -14,13 +15,14 @@ export function createCapitalFountain(kind:FountainKind='royal'){
  const water=new T.MeshPhysicalMaterial({color:'#6dbac4',roughness:.14,metalness:.28,clearcoat:.95,transparent:true,opacity:.8,emissive:'#458b91',emissiveIntensity:.05,depthWrite:false});water.userData.surface='water';
  const glow=new T.MeshBasicMaterial({color:'#ffd7a0',transparent:true,opacity:.1,depthWrite:false,toneMapped:false}),jetMaterial=new T.LineBasicMaterial({color:'#bee9ed',transparent:true,opacity:.67,depthWrite:false});
  const radius=kind==='royal'?6.4:kind==='circuit'?4.2:3.1;
- function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,y=0,parent:T.Object3D=fixed){const object=new T.Mesh(geometry,material);object.name=name;object.position.y=y;object.castShadow=object.receiveShadow=true;parent.add(object);return object}
+ const nativeParts=new Set<CraftPart>();
+ function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,y=0,parent:T.Object3D=fixed){const surface=material as T.MeshStandardMaterial;if(surface.isMeshStandardMaterial)surface.vertexColors=true;if(surface.vertexColors&&!geometry.attributes.color)geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(1),3));if(geometry.userData.authoredCraft){nativeParts.add(geometry.userData.authoredCraft);material.userData.authoredCraft=true}const object=new T.Mesh(geometry,material);object.name=name;object.position.y=y;object.castShadow=object.receiveShadow=true;parent.add(object);return object}
  function bowl(name:string,span:number,y:number){
   const profile=[[0,0],[span*.84,0],[span*.84,.075],[span*.935,.075],[span*.965,.16],[span*.958,.3],[span,.49],[span,.65],[span-.08,.76],[span-.25,.76],[span-.34,.63],[span-.39,.34],[0,.34]].map(([width,height])=>new T.Vector2(width,height));
-  const basin=mesh(name,new T.LatheGeometry(profile,48),stone,y);basin.userData.cameraSolid=true;
+  const authored=craftGeometry('FountainBasin',span*2,.76,span*2),basin=mesh(name,authored??new T.LatheGeometry(profile,48),stone,y+(authored?.38:0));basin.userData.cameraSolid=true;
   const surface=mesh(name+'_Water',new T.CircleGeometry(span-.39,48),water,y+.48,root);surface.rotation.x=-Math.PI/2;
-  const rim=mesh(name+'_Inlay',new T.TorusGeometry(span-.07,.036,6,64),metal,y+.68);rim.rotation.x=Math.PI/2;
-  const joint=mesh(name+'_CopingJoint',new T.TorusGeometry(span-.12,.028,4,48),dark,y+.735);joint.rotation.x=Math.PI/2;
+  const rim=mesh(name+'_Inlay',new T.TorusGeometry(span-.16,.022,6,64),metal,y+.782);rim.rotation.x=Math.PI/2;
+  const joint=mesh(name+'_CopingJoint',new T.TorusGeometry(span-.225,.012,4,48),dark,y+.771);joint.rotation.x=Math.PI/2;
   const light=mesh(name+'_Underlight',new T.TorusGeometry(span-.46,.065,6,48),glow,y+.36,root);light.rotation.x=Math.PI/2;
  }
  if(kind==='circuit'){
@@ -36,10 +38,10 @@ export function createCapitalFountain(kind:FountainKind='royal'){
   if(kind==='royal'){
   const column=new T.LatheGeometry([[0,0],[1.1,0],[1.35,.22],[1.18,.34],[.7,.72],[.62,.88],[.55,2.55],[.68,2.7],[1.05,3],[0,3]].map(([span,height])=>new T.Vector2(span,height)),48),vertices=column.attributes.position;
   for(let vertex=0;vertex<vertices.count;vertex++){const height=vertices.getY(vertex);if(height<.72||height>2.7)continue;const horizontal=vertices.getX(vertex),forward=vertices.getZ(vertex),relief=1-.11*(.5+.5*Math.cos(Math.atan2(forward,horizontal)*12));vertices.setX(vertex,horizontal*relief);vertices.setZ(vertex,forward*relief)}column.computeVertexNormals();
-  mesh('Fountain_FlutedColumn',column,metal,.8);
+  const nativeColumn=craftGeometry('FountainColumn',2.7,3,2.7);if(nativeColumn)column.dispose();mesh('Fountain_FlutedColumn',nativeColumn??column,metal,nativeColumn?2.3:.8);
    bowl('Fountain_UpperBasin',2.55,3.5);
   mesh('Fountain_FinialSupport',new T.CylinderGeometry(.13,.24,1.12,12),metal,4.62);
-   mesh('Fountain_CeramicFinial',new T.OctahedronGeometry(.64,1),stone,5.7);
+  mesh('Fountain_CeramicFinial',craftGeometry('FountainFinial',1.28,1.28,1.28)??new T.OctahedronGeometry(.64,1),stone,5.7);
   }
  }
  const jetCount=kind==='royal'?16:8,segments=18,positions=new Float32Array(jetCount*segments*6),geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));
@@ -55,7 +57,7 @@ export function createCapitalFountain(kind:FountainKind='royal'){
  for(let index=0;index<4;index++){const ripple=mesh('Fountain_Ripple',new T.TorusGeometry(1,.012,4,48),new T.MeshBasicMaterial({color:'#ddf4e4',transparent:true,opacity:.17,depthWrite:false}),.735,root);ripple.rotation.x=Math.PI/2;ripples.push(ripple)}
  const mistGeometry=new T.BufferGeometry(),mistPositions=new Float32Array(64*3);mistGeometry.setAttribute('position',new T.BufferAttribute(mistPositions,3));
  const mist=new T.Points(mistGeometry,new T.PointsMaterial({color:'#e6f5ec',size:.22,transparent:true,opacity:.15,depthWrite:false}));mist.name='Fountain_Mist';mist.frustumCulled=false;root.add(mist);
- batchScenery(fixed,{});
+ root.userData.craftParts=[...nativeParts];batchScenery(fixed,{});
  cacheStaticTransforms(fixed);
  const dummy=new T.Object3D(),firstPoint=new T.Vector3(),secondPoint=new T.Vector3(),tangent=new T.Vector3(),ribbonSide=new T.Vector3(),ribbonUp=new T.Vector3();let clock=0,lastPhase=-1;
  const forms=[

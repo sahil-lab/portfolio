@@ -46,6 +46,75 @@ longer imposes the previous solid ceiling on orbital camera movement.
 - Far-away discovery labels fade; full labels return on approach. Existing
   artwork and machine emissions are not recolored by the finishing pass.
 
+## Planted Miniature World Pass, 2 October 2026
+
+This pass addresses the bare surroundings, pointed ornament and disconnected
+props visible in the fifty-photo review. It is a concrete art-direction change,
+not a claim of a numerical visual-quality multiplier.
+
+### Grounding And Planting
+
+- Public venues gain irregular pocket gardens with matte textured turf, low
+  rounded shrubs, flowers, pebbles and rounded edging. Shops also have deliberate
+  side and rear planting. Fixtures, ramps and entry aisles remain clear.
+- Each satellite has 23-26 larger planted islands around venues, outposts and
+  groves, plus terrain-following lawn borders around its public spaces. Borders
+  leave the entrance corridor, roads, rivers and water open. Garden surfaces use
+  interior vertices as well as edge vertices so they follow curved terrain.
+  Lawn borders use rounded outline geometry with bounded tessellation, not
+  grid-cut edges. The Forge's seven borders total 9,486 triangles and share one
+  material; distant borders are culled.
+- Planting uses shared material sets and instanced foliage. A planet's planted
+  islands are capped at 32 and tested below 75,000 triangles; nearby patches are
+  visible within 115 local units and hide when the planet is inactive.
+- City street trees gain instanced planted courts in the near detail level.
+  Their geometry is reused between neighborhoods; distant city models retain
+  their existing lightweight silhouettes.
+
+### Softer Construction
+
+- Shared civic props and building bodies reuse bounded bevels. Street and park
+  lamps are shorter, lamp fins become rounded crowns, and entry plaques are
+  compact arches rather than pointed arrows.
+- Market and playground canopies use rounded surfaces. Citadel spires become
+  low lanterns, rooftop solar fins become fitted panels, and thin shade slats
+  become joined shade roofs. Chimneys and rooftop instruments are more compact.
+- Outpost signals are short capped fixtures. Landing-station crystal columns
+  become grounded topiary, while interactive resonators keep their behavior.
+- Research landmark wings are shortened and rounded, with matching collision
+  heights and distant forms. Small realm roofs become domes or barrel roofs.
+  Working demonstrations, galleries, wheel mechanisms and approaches remain.
+- Shop sculptures sit closer to their roofs on wider, fitted mounts and plinths;
+  the donut opening, display interactions and distinct shop identities remain.
+
+### Planetary Atmosphere
+
+A local-gravity sky and distance haze connect planetary subjects to a horizon
+instead of a flat space backdrop. The existing day, sunset, night and cycle
+controls now also drive planetary key/fill and venue lighting. No real-time
+lights are added. The sky is a sub-800-triangle mesh and is disabled for orbital
+observation and views far from the surface. Motherboard lighting, HDR, tone
+mapping, AO, FXAA, adaptive quality and context recovery remain in place.
+
+### Planted World Verification
+
+Focused tests cover planted-area clearance, curved-ground raycasts, material
+sharing, count and triangle budgets, reduced/inactive behavior, architectural
+identity, sculpture supports, transit, local gravity and light-count invariants.
+The existing browser tour accepts `--shops --premium` to check all shop arrivals,
+desktop/mobile framing, planted borders, planetary sunset/night and orbital
+visibility. The full Node regression suite and 32-capture world tour passed
+before the final lawn-edge refinement. That refinement then passed the
+all-nine-planet terrain tests and a five-capture day/sunset/night/orbital check.
+Reports are under `outputs/playtest/premium-final-checks.json` and
+`outputs/playtest/premium-smooth-checks.json`, both with no browser errors.
+The existing mobile camera and forced context-recovery check also passed,
+preserving the page, canvas, scene and player position. TypeScript and scoped
+feature-module lint checks pass. Existing unrelated lint findings are not part
+of this visual pass. Physical-phone performance and hosted deployment are not
+certified by desktop browser captures. Individual bespoke assets and scene
+compositions remain candidates for further art review.
+
 ## Signature Shops And Scenic Streets
 
 World > Signature shops now visits ten sculpted storefronts. Existing public

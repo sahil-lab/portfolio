@@ -12,17 +12,20 @@ async function main(){
    const NativeAudioContext=globalThis.AudioContext;globalThis.__dogAudio={contexts:[],sources:0};
    globalThis.AudioContext=class extends NativeAudioContext{constructor(...args){super(...args);globalThis.__dogAudio.contexts.push(this)}createBufferSource(){globalThis.__dogAudio.sources++;return super.createBufferSource()}};
   });
-  const page=await context.newPage(),errors=[],captures=[],output=path.resolve('outputs/playtest/roaming-dog');fs.mkdirSync(output,{recursive:true});page.setDefaultTimeout(90000);
+  const candidate=process.env.DOG_CANDIDATE,sourceHash=candidate?require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)):null,rigHash=require('./complete-export-format.cjs').hash(fs.readFileSync('app/dog-rig.ts'));
+  const page=await context.newPage(),errors=[],captures=[],output=path.resolve(process.env.DOG_OUTPUT??'outputs/playtest/roaming-dog');fs.mkdirSync(output,{recursive:true});page.setDefaultTimeout(90000);
+  if(candidate){await context.routeWebSocket(socket=>socket.origin===new URL(process.env.DOG_WORLD_URL??'http://localhost:3001').origin.replace(/^http/,'ws'),()=>{});await page.route(/\/assets\/(?:hero-v\d+\/dog|roaming-dog)\.glb(?:\?|$)/,route=>route.fulfill({path:path.resolve(candidate),contentType:'model/gltf-binary'}))}
   page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'&&/THREE|Shader|WebGL|roaming dog/.test(message.text()))errors.push(message.text())});
   await page.goto(process.env.DOG_WORLD_URL??'http://localhost:3001/?dog-review=1',{waitUntil:'domcontentloaded',timeout:120000});
-  await page.locator('.loading').waitFor({state:'hidden',timeout:120000});
+  await page.locator('.loading').waitFor({state:'hidden',timeout:120000}).catch(async error=>{await page.screenshot({path:path.join(output,'startup-failure.png')});const state=await page.evaluate(()=>({hidden:document.hidden,readyState:document.readyState,body:document.body.innerText.slice(0,4000),canvases:[...document.querySelectorAll('canvas')].map(canvas=>[canvas.width,canvas.height])}));fs.writeFileSync(path.join(output,'startup-failure.json'),JSON.stringify({error:error.message,errors,...state},null,2));console.error('DOG_STARTUP_FAILURE',JSON.stringify({errors,...state}));throw error});
   await page.waitForFunction(()=>{
    const main=document.querySelector('main');if(!main)return false;let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber$'))];
    while(fiber){let hook=fiber.memoizedState;while(hook){const world=hook.memoizedState?.current;if(world?.scene&&world?.dog){globalThis.__dogWorld=world;return true}hook=hook.next}fiber=fiber.return}return false;
   });
   await page.evaluate(async()=>{const world=globalThis.__dogWorld;world.renderer.setPixelRatio(.75);await world.dog.ready;world.setPaused(true)});
-  const initial=await page.evaluate(()=>{const world=globalThis.__dogWorld,dog=world.dog;return {status:dog.status,position:dog.root.position.toArray(),height:dog.height,clearance:dog.clearance,modelSize:dog.rig?.size.toArray(),bones:dog.rig?.skeleton.bones.length,triangles:dog.rig?.meshes.reduce((sum,mesh)=>sum+mesh.geometry.index.count/3,0),state:dog.wander?{...dog.wander.state}:null,asset:dog.root.userData.asset}});
+  const initial=await page.evaluate(()=>{const world=globalThis.__dogWorld,dog=world.dog;return {status:dog.status,position:dog.root.position.toArray(),height:dog.height,clearance:dog.clearance,modelSize:dog.rig?.size.toArray(),bones:dog.rig?.skeleton.bones.length,triangles:dog.rig?.meshes.reduce((sum,mesh)=>sum+mesh.geometry.index.count/3,0),state:dog.wander?{...dog.wander.state}:null,asset:dog.root.userData.asset,collar:!!dog.root.getObjectByName('WEB_L1_DOG_COLLAR')}});
   console.log('DOG_INITIAL '+JSON.stringify(initial));assert.equal(initial.status,'ready');assert.equal(initial.bones,17);assert.equal(initial.height,16.875);assert.ok(initial.triangles<100000);
+  if(candidate||process.env.DOG_EXPECTED_ASSET)assert.ok(initial.collar);if(process.env.DOG_EXPECTED_ASSET)assert.equal(initial.asset,process.env.DOG_EXPECTED_ASSET);
   const movement=await page.evaluate(()=>{
    const world=globalThis.__dogWorld,dog=world.dog;world.home();world.player.position.set(0,.8,24);
   const start=dog.root.position.clone(),samples=[],activities=new Set();let frames=0,maximumSidewaysError=0,turningFrames=0,steppingTurns=0;
@@ -52,10 +55,12 @@ async function main(){
   const gesture=await page.evaluate(()=>{const world=globalThis.__dogWorld,dog=world.dog;world.player.position.set(dog.root.position.x+dog.clearance+2,.8,dog.root.position.z);dog.update(0,true,false,0);const mutedBefore=globalThis.__dogAudio.sources,interacted=dog.interact(0);return {interacted,mutedSources:globalThis.__dogAudio.sources-mutedBefore,prompt:dog.prompt()}});
   assert.equal(gesture.interacted,true);assert.equal(gesture.mutedSources,0);assert.match(gesture.prompt,/Greet/);
     await page.evaluate(()=>globalThis.__dogWorld.setPaused(false));
+  if(!await page.getByRole('button',{name:'Enable sound',exact:true}).isVisible())await page.getByRole('button',{name:'System controls',exact:true}).click();
   await page.getByRole('button',{name:'Enable sound',exact:true}).click();
   const bark=await page.evaluate(async()=>{const world=globalThis.__dogWorld;await Promise.all(globalThis.__dogAudio.contexts.map(context=>context.resume()));const before=globalThis.__dogAudio.sources;world.dog.interact(0);return {sources:globalThis.__dogAudio.sources-before,contexts:globalThis.__dogAudio.contexts.length}});
   console.log('DOG_BARK '+JSON.stringify(bark));assert.ok(bark.sources>=2,'Bark did not produce audio sources');
   await page.getByRole('button',{name:'Mute sound',exact:true}).click();
+  const system=page.getByRole('button',{name:'System controls',exact:true});if(await system.getAttribute('aria-expanded')==='true')await system.click();
     await page.evaluate(()=>globalThis.__dogWorld.setPaused(true));
   async function capture(name,viewport,walkPhase=null){
    if(viewport)await page.setViewportSize(viewport);
@@ -69,17 +74,27 @@ async function main(){
     for(const horizontal of [box.min.x,box.max.x])for(const vertical of [box.min.y,box.max.y])for(const depth of [box.min.z,box.max.z]){const projected=new Vector3(horizontal,vertical,depth).project(world.camera);extent=Math.max(extent,Math.abs(projected.x),Math.abs(projected.y))}
     if(extent<.86)break;distance*=extent/.85;
    }
-   world.renderer.shadowMap.needsUpdate=true;world.renderer.render(world.scene,world.camera);
+  const probe=document.createElement('canvas');probe.width=120;probe.height=80;const probeContext=probe.getContext('2d');let bestPixels=-1,bestPosition=world.camera.position.clone();
+  for(const elevation of [.35,.65])for(let view=0;view<8;view++){
+   const angle=view*Math.PI/4;world.camera.position.copy(target).addScaledVector(new Vector3(Math.sin(angle),elevation,Math.cos(angle)).normalize(),distance);world.camera.lookAt(target);world.camera.updateMatrixWorld(true);
+   dog.root.visible=false;world.renderer.render(world.scene,world.camera);probeContext.drawImage(world.renderer.domElement,0,0,120,80);const absent=probeContext.getImageData(0,0,120,80).data;
+   dog.root.visible=true;world.renderer.render(world.scene,world.camera);probeContext.drawImage(world.renderer.domElement,0,0,120,80);const present=probeContext.getImageData(0,0,120,80).data;let contribution=0;
+   for(let offset=0;offset<present.length;offset+=4)if(Math.abs(present[offset]-absent[offset])+Math.abs(present[offset+1]-absent[offset+1])+Math.abs(present[offset+2]-absent[offset+2])>30)contribution++;
+   if(contribution>bestPixels){bestPixels=contribution;bestPosition.copy(world.camera.position)}
+  }
+  world.camera.position.copy(bestPosition);world.camera.lookAt(target);world.camera.updateMatrixWorld(true);extent=0;
+  for(const horizontal of [box.min.x,box.max.x])for(const vertical of [box.min.y,box.max.y])for(const depth of [box.min.z,box.max.z]){const projected=new Vector3(horizontal,vertical,depth).project(world.camera);extent=Math.max(extent,Math.abs(projected.x),Math.abs(projected.y))}
+  world.renderer.shadowMap.needsUpdate=true;world.renderer.render(world.scene,world.camera);
     const source=world.renderer.domElement,canvas=document.createElement('canvas');canvas.width=120;canvas.height=80;const context=canvas.getContext('2d');context.drawImage(source,0,0,120,80);const data=context.getImageData(0,0,120,80).data,colors=new Set();let hash=0;
     for(let index=0;index<data.length;index+=4){colors.add(`${data[index]>>3},${data[index+1]>>3},${data[index+2]>>3}`);hash=(Math.imul(hash,31)+data[index]*3+data[index+1]*5+data[index+2]*7)>>>0}
-    const image=source.toDataURL('image/png').split(',')[1];return {image,colors:colors.size,hash,viewport:[innerWidth,innerHeight],overflow:document.documentElement.scrollWidth>innerWidth,position:dog.root.position.toArray(),visible:dog.root.visible,framingExtent:extent,legs:dog.rig.legs.map(leg=>[leg.upper.rotation.x,leg.lower.rotation.x]),plantedPaws:dog.rig.gait.feet.filter(foot=>foot.planted).length,turnRate:dog.wander.state.turnRate};
+    const image=source.toDataURL('image/png').split(',')[1];return {image,colors:colors.size,hash,viewport:[innerWidth,innerHeight],overflow:document.documentElement.scrollWidth>innerWidth,position:dog.root.position.toArray(),visible:dog.root.visible,visibleDogPixels:bestPixels,framingExtent:extent,legs:dog.rig.legs.map(leg=>[leg.upper.rotation.x,leg.lower.rotation.x]),plantedPaws:dog.rig.gait.feet.filter(foot=>foot.planted).length,turnRate:dog.wander.state.turnRate};
    },walkPhase);
-   assert.ok(report.colors>60,name+' blank scene');assert.equal(report.overflow,false);assert.ok(report.visible);
+  assert.ok(report.colors>60,name+' blank scene');assert.equal(report.overflow,false);assert.ok(report.visible);assert.ok(report.visibleDogPixels>150,name+' dog is occluded');
   assert.ok(report.framingExtent<.90,name+' crops the dog');fs.writeFileSync(path.join(output,name+'-scene.png'),Buffer.from(report.image,'base64'));await page.screenshot({path:path.join(output,name+'.png')});const {image:_image,...summary}=report;captures.push({name,...summary});console.log('DOG_CAPTURE '+JSON.stringify({name,...summary}));return summary;
   }
   await capture('desktop-dog');const gaitA=await capture('desktop-walk-a',undefined,.15),gaitB=await capture('desktop-walk-b',undefined,.55);assert.notDeepEqual(gaitA.legs,gaitB.legs);assert.notEqual(gaitA.hash,gaitB.hash);await capture('mobile-dog',{width:390,height:844},.35);
   const offworld=await page.evaluate(()=>{const world=globalThis.__dogWorld,dog=world.dog,position=dog.root.position.toArray();dog.update(.1,false,false,0);return {hidden:!dog.root.visible,position:dog.root.position.toArray(),before:position}});assert.ok(offworld.hidden);assert.deepEqual(offworld.position,offworld.before);
-  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,movement,size,gesture,bark,captures,errors},null,2)+'\n');console.log('ROAMING_DOG_BROWSER_OK');
+  assert.deepEqual(errors,[]);if(candidate)assert.equal(require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)),sourceHash);assert.equal(require('./complete-export-format.cjs').hash(fs.readFileSync('app/dog-rig.ts')),rigHash);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,movement,size,gesture,bark,captures,sourceHash,rigHash,errors},null,2)+'\n');console.log('ROAMING_DOG_BROWSER_OK');
  }finally{await browser.close()}
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

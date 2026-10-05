@@ -5,6 +5,8 @@ import type {WorkScheduler} from './work-scheduler';
 import {cacheStaticTransforms} from './static-transforms';
 
 export type BuildingPlacement={address:string;position:T.Vector3;rotation:T.Quaternion;width:number;height:number;depth:number;accent?:string;scale?:number};
+const exportBuilders=new WeakMap<T.Object3D,()=>T.Group>();
+export function rebuildArchitectureForExport(root:T.Object3D){return exportBuilders.get(root)?.()??null}
 export function releaseArchitectureGeometry(root:T.Object3D){const geometries=new Set<T.BufferGeometry>();root.traverse(object=>{if(object instanceof T.Mesh)geometries.add(object.geometry)});geometries.forEach(geometry=>geometry.dispose());root.clear()}
 export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler;prepare?:(root:T.Object3D)=>Promise<void>}){
  const root=new T.Group();root.name='Architecture_Neighborhood_'+style;root.userData.architectureStyle=style;parent.add(root);
@@ -16,6 +18,7 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
   const options:BuildingCraftOptions={...placement,style,materials:{...shared,wall}};
   return {...placement,options,recipe:architectureRecipe(style,placement.address)};
  });
+ exportBuilders.set(root,()=>{const result=new T.Group();result.name=root.name;result.matrix.copy(root.matrix);result.matrixAutoUpdate=false;result.userData={architectureStyle:style,buildingAddresses:records.map(record=>record.address),exportRebuilt:true};for(const record of records){const building=createCraftedBuilding(record.options);building.root.position.copy(record.position);building.root.quaternion.copy(record.rotation);building.root.scale.setScalar(record.scale??1);result.add(building.root)}return result});
  function batch(target:T.Group){
   const skins=bakeArchitecture(target);
   for(const skin of skins){const mesh=new T.Mesh(skin.geometry,skin.material);mesh.name='Architecture_MaterialBatch';mesh.castShadow=mesh.receiveShadow=true;target.add(mesh)}

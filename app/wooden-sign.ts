@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {craftGeometry} from './craft-kit';
 
 export type WoodenSignShape = 'arch' | 'arrow' | 'shield';
 type SignOptions = {width?:number;height?:number;postHeight?:number;shape?:WoodenSignShape};
@@ -66,18 +67,19 @@ export function createWoodenSign(text:string,{width=2.6,height=1.75,postHeight=.
   const root=new T.Group();root.name='WoodenSign: '+text;
   root.userData.woodenSign=true;root.userData.signShape=shape;
   const grain=woodGrain();
-  const timber=new T.MeshStandardMaterial({color:'#a97845',map:grain,bumpMap:grain,bumpScale:.018,roughness:.88,metalness:0});
-  const edge=new T.MeshStandardMaterial({color:'#48301e',map:grain,roughness:.9,metalness:0});
+  const timber=new T.MeshStandardMaterial({color:'#a97845',map:grain,bumpMap:grain,bumpScale:.018,roughness:.88,metalness:0,vertexColors:true});
+  const edge=new T.MeshStandardMaterial({color:'#48301e',map:grain,roughness:.9,metalness:0,vertexColors:true});
   const face=new T.MeshStandardMaterial({color:'#f2d49b',bumpMap:grain,bumpScale:.002,emissive:'#f2d49b',emissiveIntensity:.18,roughness:.92,metalness:0});
   const centerY=postHeight+height/2,depth=.18,bevel=.035,faceDepth=depth/2+bevel;
   function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x:number,y:number,z:number){
+    if((material as T.MeshStandardMaterial).vertexColors&&!geometry.attributes.color)geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(1),3));if(geometry.userData.authoredCraft)material.userData.authoredCraft=true;
     const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);
     object.castShadow=true;object.receiveShadow=true;root.add(object);return object;
   }
   for(const position of width>3?[-width*.32,width*.32]:[0]){
-    mesh('TimberFoot',new T.BoxGeometry(.68,.14,.78),edge,position,.07,0);
-    mesh('TimberPost',new T.BoxGeometry(.19,centerY,.2),timber,position,centerY/2,-.02);
-    mesh('PostCollar',new T.BoxGeometry(.29,.15,.3),edge,position,postHeight*.6,0);
+    mesh('TimberFoot',craftGeometry('LanternCap',.68,.14,.78)??new T.BoxGeometry(.68,.14,.78),edge,position,.07,0);
+    mesh('TimberPost',craftGeometry('BenchBack',.19,centerY,.2)??new T.BoxGeometry(.19,centerY,.2),timber,position,centerY/2,-.02);
+    mesh('PostCollar',craftGeometry('FlowerBedRim',.29,.15,.3)??new T.BoxGeometry(.29,.15,.3),edge,position,postHeight*.6,0);
   }
   const boardGeometry=new T.ExtrudeGeometry(outline(width,height,shape),{depth,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:bevel,bevelThickness:bevel,curveSegments:16});
   boardGeometry.translate(0,0,-depth/2);

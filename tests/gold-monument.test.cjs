@@ -67,3 +67,54 @@ test('the monument becomes visible only after optional shader preparation comple
  let finish,started;const preparing=new Promise(resolve=>{started=resolve}),world=new T.Scene(),monument=createGoldMonument(world,{bulletinHeight:referenceModelHeight,load:async()=>fixture(),prepare:root=>{assert.equal(root.visible,false);started();return new Promise(resolve=>{finish=resolve})}});
  await preparing;assert.equal(monument.status,'loading');assert.equal(monument.root.visible,false);finish();await monument.ready;assert.equal(monument.root.visible,true);assert.equal(monument.status,'ready');monument.dispose();
 });
+
+for(const file of ['public/assets/sah-suited-figure.glb','assets/hero-candidates/monument.glb','public/assets/hero-v1/monument.glb'])test('authored portrait preserves figure, podium and world placement: '+file,async()=>{
+ const {parseGlb}=require('../scripts/complete-export-format.cjs'),{GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{document,binary}=parseGlb(fs.readFileSync(file));
+ const stripTextures=value=>{for(const [key,child] of Object.entries(value)){if(key.endsWith('Texture'))delete value[key];else if(child&&typeof child==='object')stripTextures(child)}};for(const material of document.materials)stripTextures(material);delete document.images;delete document.textures;delete document.samplers;
+ document.buffers=[{byteLength:binary.length,uri:'data:application/octet-stream;base64,'+binary.toString('base64')}];global.ProgressEvent??=class{constructor(type,init){this.type=type;Object.assign(this,init)}};
+ const asset=(await new GLTFLoader().parseAsync(JSON.stringify(document),'')).scene,sourceBounds=new T.Box3().setFromObject(asset),sourceSize=sourceBounds.getSize(new T.Vector3()),{monument,world}=await setup(asset);
+ assert.equal(monument.status,'ready');const bounds=new T.Box3().setFromObject(monument.visual);assert.ok(Math.abs(bounds.min.y)<.00001);assert.ok(Math.abs(bounds.max.y-referenceModelHeight*goldMonumentRatio*world.scale.y)<.00001);assert.ok(bounds.getSize(new T.Vector3()).distanceTo(sourceSize.multiplyScalar(referenceModelHeight*goldMonumentRatio*world.scale.y/sourceSize.y))<.0001);
+ const names=[];let triangles=0;asset.traverse(object=>{if(object.isMesh){names.push(object.name);triangles+=(object.geometry.index?.count??object.geometry.attributes.position.count)/3;assert.equal(object.userData.cameraSolid,true);for(const material of Array.isArray(object.material)?object.material:[object.material]){assert.equal(material.fog,false);assert.equal(material.envMapIntensity,1.15)}}});
+ for(const prefix of ['FIG_Body_Fitted','FIG_Jacket','FIG_Trousers','FIG_Podium'])assert.ok(names.some(name=>name.startsWith(prefix)),prefix);assert.ok(triangles>50000&&triangles<180000);assert.ok(monument.blocked(goldMonumentSite.x,goldMonumentSite.z,1));
+ if(file!=='public/assets/sah-suited-figure.glb'){
+  const pin=asset.getObjectByName('FIG_Lapel_Pin');assert.ok(pin);
+  const center=new T.Box3().setFromObject(pin).getCenter(new T.Vector3()),ray=new T.Raycaster(center.clone().add(new T.Vector3(0,0,monument.height*2)),new T.Vector3(0,0,-1));
+    assert.equal(ray.intersectObject(asset,true)[0]?.object.name,pin.name,'The pin must be visible in front of the lapel');
+ }
+ monument.dispose();
+});
+
+test('standalone portrait falls back to the original and reports the recovered source',async context=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{assetManifest}=require('../app/asset-manifest.ts'),calls=[],asset=fixture();
+ context.mock.method(GLTFLoader.prototype,'loadAsync',async url=>{calls.push(url);if(url===goldMonumentAsset)throw new Error('Missing revision');return {scene:asset}});
+ const monument=createGoldMonument(new T.Scene(),{bulletinHeight:referenceModelHeight});await monument.ready;
+ assert.equal(monument.status,'ready');assert.deepEqual(calls,[goldMonumentAsset,assetManifest.monument.fallbackUrl]);assert.equal(monument.root.userData.asset,assetManifest.monument.fallbackUrl);monument.dispose();
+});
+
+test('standalone portrait never starts fallback after disposal',async context=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),calls=[];let reject;
+ context.mock.method(GLTFLoader.prototype,'loadAsync',url=>{calls.push(url);return new Promise((_resolve,fail)=>{reject=fail})});
+ const world=new T.Scene(),monument=createGoldMonument(world,{bulletinHeight:referenceModelHeight});monument.dispose();reject(new Error('Closed world'));await monument.ready;
+ assert.deepEqual(calls,[goldMonumentAsset]);assert.equal(monument.status,'disposed');assert.equal(world.children.length,0);
+});
+
+test('five project bulletins retain the supplied HTTPS links and independent statue-side approaches',()=>{
+ const {createProjectBulletins,projectBulletins}=require('../app/project-bulletins.ts'),{disposeScene}=require('../app/scene-resources.ts'),previous=global.document,draws=[];global.document={createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},measureText:text=>({width:text.length*35}),fillText(text,x,y,width){draws.push({text,x,y,width})}})})};
+ const scene=new T.Scene(),player=new T.Group(),opened=[];scene.scale.setScalar(2);const gallery=createProjectBulletins(scene,player,project=>opened.push(project.url));
+ try{assert.equal(gallery.entries.length,5);assert.deepEqual(projectBulletins.map(project=>project.url),['https://portfolio-resume-lake.vercel.app/','https://ecofusion.vercel.app/','https://cosmic-wellness.vercel.app/','https://mindful-goal-seven.vercel.app/','https://3d-code-pad-jp5m.vercel.app/']);assert.ok(projectBulletins.every(project=>project.destination==='Live project'));
+  for(const [index,entry] of gallery.entries.entries()){player.position.copy(entry.approach);assert.equal(gallery.blocked(player.position.x,player.position.z,player.position.y),false);assert.equal(gallery.blocked(gallery.root.position.x+entry.group.position.x,gallery.root.position.z+entry.group.position.z,10),true);assert.match(gallery.prompt(),new RegExp(entry.project.name));assert.equal(gallery.interact(),true);assert.equal(opened.at(-1),entry.project.url);assert.equal(entry.bounds.intersectsBox(new T.Box3(new T.Vector3(-14,0,-14),new T.Vector3(14,51,14))),false);for(const other of gallery.entries.slice(index+1))assert.equal(entry.bounds.intersectsBox(other.bounds),false);assert.equal(entry.faces.front.material.map.uuid,entry.faces.back.material.map.uuid);assert.equal(entry.faces.front.material.toneMapped,false);assert.equal(entry.faces.front.geometry.parameters.width,27);assert.equal(entry.faces.front.geometry.parameters.height,12);assert.ok(draws.some(draw=>draw.text===entry.project.name));assert.equal(entry.group.userData.previewState,'fallback');}
+  assert.ok(draws.every(draw=>draw.x>=0&&draw.y>0&&draw.y<640&&draw.width<=1344));gallery.setEnabled(false);assert.equal(gallery.prompt(),null);assert.equal(gallery.interact(),false);
+ }finally{disposeScene(scene);global.document=previous}
+});
+
+test('project bulletin selection opens only the visible nearby target and respects scene occlusion',()=>{
+ const {createProjectBulletins}=require('../app/project-bulletins.ts'),{disposeScene}=require('../app/scene-resources.ts'),previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},measureText:text=>({width:text.length*35}),fillText(){}})})};
+ const scene=new T.Scene(),player=new T.Group(),opened=[],gallery=createProjectBulletins(scene,player,project=>opened.push(project.id)),entry=gallery.entries[2];scene.scale.setScalar(2);scene.updateMatrixWorld(true);player.position.copy(entry.approach);const target=entry.faces.front.getWorldPosition(new T.Vector3()),normal=new T.Vector3(0,0,1).transformDirection(entry.faces.front.matrixWorld),ray=new T.Raycaster(target.clone().addScaledVector(normal,10),normal.clone().negate());
+ try{assert.equal(gallery.select(ray),true);assert.deepEqual(opened,['cosmic-wellness']);const blocker=new T.Mesh(new T.BoxGeometry(8,6,1),new T.MeshBasicMaterial());blocker.position.copy(scene.worldToLocal(target.clone().addScaledVector(normal,4)));scene.add(blocker);scene.updateMatrixWorld(true);assert.equal(gallery.select(ray),false);blocker.visible=false;gallery.root.visible=false;assert.equal(gallery.select(ray),false);gallery.root.visible=true;player.position.set(0,.8,0);assert.equal(gallery.select(ray),false)}finally{disposeScene(scene);global.document=previous}
+});
+
+test('project gallery arrival frames all five boards on desktop and narrow phones',()=>{
+ const {createProjectBulletins,projectBulletinArrival,projectBulletinCameraView}=require('../app/project-bulletins.ts'),{createGameCamera}=require('../app/game-camera.ts'),{disposeScene}=require('../app/scene-resources.ts'),previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},measureText:text=>({width:text.length*35}),fillText(){}})})};
+ const scene=new T.Scene(),player=new T.Group(),gallery=createProjectBulletins(scene,player,()=>{}),building=new T.Mesh(new T.BoxGeometry(20,22,24),new T.MeshBasicMaterial());building.position.set(projectBulletinArrival.x,11,projectBulletinArrival.z+55);building.userData.cameraSolid=true;scene.add(player,building);scene.scale.setScalar(2);player.position.set(projectBulletinArrival.x,projectBulletinArrival.y,projectBulletinArrival.z);scene.updateMatrixWorld(true);
+ try{for(const aspect of [1440/960,390/844,320/926]){const camera=new T.PerspectiveCamera(50,aspect,.1,18000),rig=createGameCamera(camera,scene,player);rig.reset(projectBulletinCameraView(aspect));rig.update(0,false,{reducedMotion:true,stableCamera:false},false,18);camera.updateMatrixWorld(true);for(const entry of gallery.entries){const bounds=new T.Box3().setFromObject(entry.group);for(const horizontal of [bounds.min.x,bounds.max.x])for(const vertical of [bounds.min.y,bounds.max.y])for(const depth of [bounds.min.z,bounds.max.z]){const point=new T.Vector3(horizontal,vertical,depth).project(camera);assert.ok(Math.abs(point.x)<.95&&Math.abs(point.y)<.95,entry.project.id+' outside '+aspect)}}}}finally{disposeScene(scene);global.document=previous}
+});

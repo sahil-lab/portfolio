@@ -1,0 +1,133 @@
+{
+  "status": "candidate-awaiting-review",
+  "terrainRevision": "sculpted-v2",
+  "geographyHash": "8e61682d8dee71991d88e76d4b76f3915933ef46d37c5c6b3d2ac2933919797c",
+  "models": [
+    {
+      "planet": "copper",
+      "bytes": 3091856,
+      "sha256": "1673df2e89dd0dad23b7f52c89e97718167389a27e4d97c3de2743a90fc7179a",
+      "inheritedContactSha256": "a8f2c30ed8360be9db99cddd464acf01c746c308c512821093dbe0b558473b32",
+      "selfOcclusionResolution": [
+        2048,
+        1024
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "garden",
+      "bytes": 2872152,
+      "sha256": "0511a9e0d3cdb46d843402864fe8c5a5e8ba022ae06f8155c218b719eec0b1c4",
+      "inheritedContactSha256": "366df8de765d6e0325122ed45b1f50f87b3ef3a6e964fb1da4af7b5b294642ce",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "prism",
+      "bytes": 3003232,
+      "sha256": "e081ffeeaca4b926405c941d29c6e41e537283ebf217cc9810070bcc14635c1a",
+      "inheritedContactSha256": "4502de900a3d38d915e9a96e7e0916958644580168c29fc7b28720e768b6f691",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "petal",
+      "bytes": 3058884,
+      "sha256": "0a82ff9e923d175e7fb40af2e9fa78f0957509c9b0e656f332076e170143ffbb",
+      "inheritedContactSha256": "07c7c7526a9bd03696ca22068aeff8cff2b4ff2607a9e8403928b166676eb140",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "solstice",
+      "bytes": 2995996,
+      "sha256": "e7bfa853913f872332963ba41c3fefdb82668125128ebb057b7b4e4e77321601",
+      "inheritedContactSha256": "e801ca3ceb867e13cbd2616ac8d84bfa640dba131e86e1fd3dbae14a73831d8b",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "cloud",
+      "bytes": 2968292,
+      "sha256": "57f7a00027196d2178adb25d3990ffef6d77d26f6df6e014409cb58f89b2b896",
+      "inheritedContactSha256": "1ebccb219c68c01737005ffc6400d1f3a871d897bbb55a5dfed0362901dd6faa",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "ai-research",
+      "bytes": 2374472,
+      "sha256": "e75718e25c73daea1641e14661203ffcbb2415ca43574272cac4d72939770fec",
+      "inheritedContactSha256": "84052b8c8ef9ec909df2558cf1839fd879ab4870217aff1288cb836d566a70c6",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "project-foundry",
+      "bytes": 2368452,
+      "sha256": "8ecc568bc865359dfcee1773e952c9d9e6e77cd7ca83c0a53c3da5c489f062fe",
+      "inheritedContactSha256": "65331739ad9985fa0c488b4b84438aada2a43a6d455f49d2b6f9d571192ff786",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    },
+    {
+      "planet": "skills-technology",
+      "bytes": 2361680,
+      "sha256": "9905c55f7b69f6969e7ea3d6cfa2bf74c384363094521ea7da5ef4c333f3b2f2",
+      "inheritedContactSha256": "c26e65f5a04fdc73ffc87ab078f59befdd7b7fd6b449558857b64851777d910f",
+      "selfOcclusionResolution": [
+        1024,
+        512
+      ],
+      "contactResolution": [
+        2048,
+        1024
+      ]
+    }
+  ]
+}

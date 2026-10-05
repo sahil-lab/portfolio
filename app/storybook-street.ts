@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {craftedBox} from './crafted-surfaces';
+import {signatureShopScale} from './everyday-config';
 
 export function createTetheredBalloon(accent:string,seed=0){
   const root=new T.Group(),airship=new T.Group();root.name='Storybook_TetheredBalloon';airship.name='Balloon_Airship';root.add(airship);
@@ -27,14 +28,15 @@ export function createTetheredBalloon(accent:string,seed=0){
 
 export function createScenicStreet(mirrored=false){
   const root=new T.Group();root.name=mirrored?'Storybook_NorthRibbonRoad':'Storybook_SouthRibbonRoad';
-  const controls=[[-50,.02,12],[-35,.45,14],[-20,1.4,16],[0,2.2,16],[20,1.1,13],[35,.4,13],[50,.02,12]].map(([horizontal,height,forward])=>new T.Vector3(horizontal,height*(mirrored?.72:1),forward*(mirrored?-1:1)));
+  const widening=(signatureShopScale-1)*10;
+  const controls=[[-50,.02,12],[-35,.45,14],[-20,1.4,16],[0,2.2,16],[20,1.1,13],[35,.4,13],[50,.02,12]].map(([horizontal,height,forward])=>new T.Vector3(horizontal,height*(mirrored?.72:1),(forward+widening*(1-Math.abs(horizontal)/50))*(mirrored?-1:1)));
   const curve=new T.CatmullRomCurve3(controls,false,'centripetal'),samples=Array.from({length:97},(_,index)=>{const position=curve.getPointAt(index/96),tangent=curve.getTangentAt(index/96),side=new T.Vector3(-tangent.z,0,tangent.x).normalize();return {position,tangent,side}});
   const asphalt=new T.MeshStandardMaterial({color:mirrored?'#657177':'#58676d',roughness:.94}),earth=new T.MeshStandardMaterial({color:'#84a584',roughness:1}),stone=new T.MeshStandardMaterial({color:'#d6d9ca',roughness:.88});earth.userData.surface='natural';asphalt.userData.cityPaving=true;
   const shoulderMidpoint=1-T.MathUtils.smoothstep(6,3.2,9);
   const grade=(height:number,distance:number)=>height*(distance<=3.2?1:distance<6?T.MathUtils.lerp(1,shoulderMidpoint,(distance-3.2)/2.8):T.MathUtils.lerp(shoulderMidpoint,0,Math.min(1,(distance-6)/3)));
   function ribbon(name:string,crossSection:number[],material:T.Material,lift:number){
     const positions:number[]=[],uvs:number[]=[],indices:number[]=[];
-    samples.forEach(({position,side},row)=>{crossSection.forEach((offset,column)=>{positions.push(position.x+side.x*offset,grade(position.y,Math.abs(offset))+lift,position.z+side.z*offset);uvs.push(row/12,column/(crossSection.length-1));if(row<96&&column<crossSection.length-1){const vertex=row*crossSection.length+column;indices.push(vertex,vertex+1,vertex+crossSection.length,vertex+1,vertex+crossSection.length+1,vertex+crossSection.length)}})});
+    samples.forEach(({position,side,tangent},row)=>{const overlap=row===0?-.03:row===96?.03:0;crossSection.forEach((offset,column)=>{positions.push(position.x+side.x*offset+tangent.x*overlap,grade(position.y,Math.abs(offset))+lift,position.z+side.z*offset+tangent.z*overlap);uvs.push(row/12,column/(crossSection.length-1));if(row<96&&column<crossSection.length-1){const vertex=row*crossSection.length+column;indices.push(vertex,vertex+1,vertex+crossSection.length,vertex+1,vertex+crossSection.length+1,vertex+crossSection.length)}})});
     const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,material);mesh.name=name;mesh.receiveShadow=true;root.add(mesh);return mesh;
   }
   const surface=ribbon('Road_CurvedAsphalt',[-3.2,0,3.2],asphalt,.025);ribbon('Road_GradedShoulders',[-9,-6,-3.2,0,3.2,6,9],earth,.006);
@@ -42,7 +44,7 @@ export function createScenicStreet(mirrored=false){
   const dashes=new T.InstancedMesh(new T.BoxGeometry(.15,.014,1.45),stone,32),pose=new T.Object3D();dashes.name='Road_CenterDashes';
   for(let index=0;index<32;index++){const sample=samples[index*3+1];pose.position.copy(sample.position).add(new T.Vector3(0,.038,0));pose.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),sample.tangent);pose.updateMatrix();dashes.setMatrixAt(index,pose.matrix)}dashes.computeBoundingSphere();root.add(dashes);
   return {root,curve,surface,samples,height(horizontal:number,forward:number,previous:number){
-    if(horizontal< -60||horizontal>60||Math.abs(forward)>30)return null;
+    if(horizontal< -60||horizontal>60||Math.abs(forward)>30+widening)return null;
     let distance=Infinity,elevation=0;
     for(let index=1;index<samples.length;index++){const start=samples[index-1].position,end=samples[index].position,across=end.x-start.x,along=end.z-start.z,length=across*across+along*along,progress=T.MathUtils.clamp(((horizontal-start.x)*across+(forward-start.z)*along)/length,0,1),separation=Math.hypot(horizontal-start.x-across*progress,forward-start.z-along*progress);if(separation<distance){distance=separation;elevation=T.MathUtils.lerp(start.y,end.y,progress)}}
     if(distance>9)return null;const height=.8+grade(elevation,distance)+(distance<=3.2?.025:.006);return Math.abs(previous-height)<.65?height:null;

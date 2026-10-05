@@ -1,0 +1,13 @@
+{
+  "version": "collectible-dog-v1",
+  "url": "/assets/hero-v1/dog.glb",
+  "bytes": 6117224,
+  "sha256": "a094dccb299a683e6e34c3245763805b1ce16f891e54926998ce10ed55a31e9c",
+  "originalSha256": "fd6caf91202250e078d32ea03f47a4ba41c679cad37cb9dd9b34bc0fc7ed7f5c",
+  "source": "assets/hero-candidates/dog-study-20261003.blend",
+  "sourceBytes": 1153225883,
+  "rigHash": "025e79a69c63fb0d08e46e66aa83a7499266fc0c7dd319dd790c022f0c2a2bc2",
+  "reviews": [
+    "outputs/playtest/dog-collectible-candidate-v6/checks.json"
+  ]
+}

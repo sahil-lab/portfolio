@@ -30,6 +30,24 @@ test('the landmark quarter has sculpted destination buildings, clear arrival and
   const angle=quarter.rotor.rotation.z;quarter.update(.1,true,player);assert.equal(quarter.rotor.rotation.z,angle);disposeScene(scene);delete global.document;
 });
 
+test('native landmark quarter retains readable signs, clock and turbine motion and its clear promenade',async()=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{installCraftKit}=require('../app/craft-kit.ts'),bytes=fs.readFileSync('assets/world-candidates/craft-kit.glb'),asset=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;assert.equal(installCraftKit(asset),true);
+ const previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*55})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
+ const {createCityLandmarks}=require('../app/city-landmarks.ts'),scene=new T.Scene(),quarter=createCityLandmarks(scene),player=new T.Group();player.position.set(150,.8,95);
+ try{
+  const parts=new Set(quarter.root.userData.craftParts??[]);let faces=0;quarter.root.traverse(object=>{if(object.userData.readableDisplay)faces++;if(object.isMesh)for(const material of Array.isArray(object.material)?object.material:[object.material])if(material.vertexColors)assert.ok(object.geometry.attributes.color,object.name)});
+  for(const part of ['ClockDrum','SorterHousing','TurbineBlade','PlaqueBacking','BenchSlat','BenchBack','BenchFoot','TableTop'])assert.ok(parts.has(part),part+' missing from native quarter');assert.ok(faces>=10);
+  quarter.root.updateMatrixWorld(true);
+  const dialHit=(radius,angle)=>{const origin=quarter.root.localToWorld(new T.Vector3(2+Math.sin(angle)*radius,10.7+Math.cos(angle)*radius,-15+5.6));return new T.Raycaster(origin,new T.Vector3(0,0,-1),0,1).intersectObject(quarter.root,true)[0]?.point.z-citySquare.z+15};
+  const {citySquare}=require('../app/city-landmarks.ts');
+  for(let hour=0;hour<12;hour++)assert.ok(dialHit(2.18,hour/12*Math.PI*2)>5.06,'hour marker '+hour+' must sit visibly above the dial');
+  assert.ok(dialHit(0,0)>5.2,'clock hub must cover the shared hand pivot');
+  for(const [length,angle] of [[1.86,Math.PI/3],[1.25,-Math.PI*11/36]])for(const radius of [.22,length*.9])assert.ok(dialHit(radius,angle)>5.06,'both hands must extend continuously from the hub');
+  assert.equal(quarter.mirrorBall.geometry.userData.authoredCraft,'ClockDrum');const clock=quarter.mirrorBall.rotation.y,rotor=quarter.rotor.rotation.z;quarter.update(.1,false,player);assert.notEqual(quarter.mirrorBall.rotation.y,clock);assert.notEqual(quarter.rotor.rotation.z,rotor);const frozen=[quarter.mirrorBall.rotation.y,quarter.rotor.rotation.z];quarter.update(.1,true,player);assert.deepEqual([quarter.mirrorBall.rotation.y,quarter.rotor.rotation.z],frozen);
+  for(let forward=-3;forward<=30;forward++)assert.equal(quarter.blocked(150,79+forward,.8),false);assert.equal(quarter.actors.length,8);assert.equal(quarter.traffic.length,3);
+ }finally{global.document=previous;disposeScene(scene);disposeScene(asset)}
+});
+
 test('Lantern arrival frames the clockhouse above the courier with less empty sky',()=>{
   const {cityArrival,cityCameraView}=require('../app/world-config.ts');
   for(const aspect of [946/764,390/844,320/740]){

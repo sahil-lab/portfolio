@@ -10,7 +10,9 @@ async function main(){
    localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,volume:.6,quality:'low',cameraMode:'far',movementMode:'skate',stableCamera:false,reducedMotion:false}}));
    Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success,error){error({code:1})}}});
   });
-  const page=await context.newPage(),errors=[],captures=[],output=path.resolve('outputs/playtest/angel');fs.mkdirSync(output,{recursive:true});page.setDefaultTimeout(120000);
+  const candidate=process.env.ANGEL_CANDIDATE,sourceHash=candidate?require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)):null;
+  const page=await context.newPage(),errors=[],captures=[],output=path.resolve(process.env.ANGEL_OUTPUT??'outputs/playtest/angel');fs.mkdirSync(output,{recursive:true});page.setDefaultTimeout(120000);
+  if(candidate){await context.routeWebSocket(socket=>socket.origin===new URL(process.env.ANGEL_WORLD_URL??'http://localhost:3001').origin.replace(/^http/,'ws'),()=>{});await page.route(/\/assets\/(?:hero-v\d+\/angel|anime-angel)\.glb(?:\?|$)/,route=>route.fulfill({path:path.resolve(candidate),contentType:'model/gltf-binary'}))}
   async function openControls(category='Character'){const trigger=page.getByRole('button',{name:category+' controls',exact:true});if(await trigger.getAttribute('aria-expanded')!=='true')await trigger.click();await page.getByRole('dialog',{name:category,exact:true}).waitFor({state:'visible'})}
   async function closeControls(){const trigger=page.locator('.hud-category-trigger[aria-expanded="true"]');if(await trigger.count())await trigger.click();await page.evaluate(()=>document.activeElement?.blur())}
   page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'&&/THREE|Shader|WebGL|angel/i.test(message.text()))errors.push(message.text())});
@@ -24,9 +26,10 @@ async function main(){
    const world=globalThis.__angelWorld;world.renderer.setPixelRatio(.65);await world.angel.ready;await world.dog.ready;
    const library=await import('/node_modules/three/build/three.module.js');globalThis.__angelThree=library;
    const {angel}=world;globalThis.__courierPosition=world.player.position.toArray();globalThis.__courierJourney=world.transport.journey.current;globalThis.__angelStart=angel.root.position.clone();
-   return {loaded:angel.loaded,bodyHeight:angel.height,dogHeight:world.dog.height,ratio:angel.height/world.dog.height,wingCount:angel.wings.length,position:angel.root.position.toArray(),mode:angel.snapshot(),asset:angel.root.userData.asset};
+  return {loaded:angel.loaded,bodyHeight:angel.height,dogHeight:world.dog.height,ratio:angel.height/world.dog.height,wingCount:angel.wings.length,position:angel.root.position.toArray(),mode:angel.snapshot(),asset:angel.root.userData.asset,halo:!!angel.root.getObjectByName('ANGEL_Halo'),mapped:angel.rig.meshes.filter(mesh=>mesh.material.normalMap).length};
   });
   assert.ok(initial.loaded);assert.equal(initial.ratio,1.4);assert.equal(initial.wingCount,2);assert.ok(initial.position[1]>70);assert.equal(initial.mode.controlled,false);
+  if(candidate||process.env.ANGEL_EXPECTED_ASSET){assert.ok(initial.halo);assert.ok(initial.mapped>5)}if(process.env.ANGEL_EXPECTED_ASSET)assert.equal(initial.asset,process.env.ANGEL_EXPECTED_ASSET);
   await page.waitForFunction(()=>globalThis.__angelWorld.angel.root.position.distanceTo(globalThis.__angelStart)>2);
   await openControls();const angelEntry=page.getByRole('button',{name:'Enter Angel mode',exact:true});
   const entryLayouts=[];
@@ -114,8 +117,15 @@ async function main(){
   await page.getByRole('button',{name:'Main character mode',exact:true}).click();await page.waitForFunction(()=>!globalThis.__angelWorld.angel.controlled);
   const restored=await page.evaluate(()=>({position:globalThis.__angelWorld.player.position.toArray(),journey:globalThis.__angelWorld.transport.journey.current,roaming:globalThis.__angelWorld.angel.flight.state.roaming}));assert.deepEqual(restored.position,held.original);assert.equal(restored.journey,held.journey);assert.ok(restored.roaming);
   await page.getByRole('button',{name:'Angel mode',exact:true}).click();await capture('mobile-flight',{width:390,height:844});
-  const climb=page.getByRole('button',{name:'Ascend',exact:true}),buttonBox=await climb.boundingBox();const beforeClimb=await page.evaluate(()=>globalThis.__angelWorld.angel.root.position.y);
-  await page.mouse.move(buttonBox.x+buttonBox.width/2,buttonBox.y+buttonBox.height/2);await page.mouse.down();await page.waitForFunction(height=>globalThis.__angelWorld.angel.root.position.y>height+3,beforeClimb);await page.mouse.up();
+  const climb=page.getByRole('button',{name:'Ascend',exact:true});await climb.scrollIntoViewIfNeeded();const buttonBox=await climb.boundingBox();
+  const beforeClimb=await page.evaluate(()=>{const angel=globalThis.__angelWorld.angel,update=angel.update;globalThis.__ascendOriginalUpdate=update;angel.update=function(delta,reduced,input){globalThis.__ascendLastInput={delta,input};return update(delta,reduced,input)};return angel.root.position.y});
+  await page.getByRole('button',{name:'Descend',exact:true}).focus();
+  await page.mouse.move(buttonBox.x+buttonBox.width/2,buttonBox.y+buttonBox.height/2);await page.mouse.down();
+  await page.getByRole('button',{name:'Descend',exact:true}).evaluate(element=>element.blur());
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.equal(await page.evaluate(()=>globalThis.__ascendLastInput?.input?.lift),1,'An idle Descend control must not cancel the held Ascend control');
+  await page.waitForFunction(height=>globalThis.__angelWorld.angel.root.position.y>height+3,beforeClimb).catch(async error=>{const state=await page.evaluate(()=>{const angel=globalThis.__angelWorld.angel;return {status:angel.snapshot(),position:angel.root.position.toArray(),velocity:angel.flight.state.velocity.toArray(),lastInput:globalThis.__ascendLastInput,hidden:document.hidden}});console.error('ANGEL_ASCEND_FAILURE',JSON.stringify({beforeClimb,buttonBox,...state}));await page.screenshot({path:path.join(output,'ascend-failure.png')});throw error});
+  await page.mouse.up();await page.evaluate(()=>{globalThis.__angelWorld.angel.update=globalThis.__ascendOriginalUpdate});
   await page.getByRole('button',{name:'Main character mode',exact:true}).click();
   await closeControls();
   const click=await page.evaluate(()=>{
@@ -128,7 +138,7 @@ async function main(){
   await page.mouse.click(click.x,click.y);assert.ok(await page.evaluate(()=>globalThis.__angelWorld.angel.controlled),'Clicking angel did not select it');
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'))});
   await capture('mobile-landscape',{width:844,height:390});
-  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,manual,paused,destinations,restored,captures,clickToControl:true,errors},null,2)+'\n');console.log('ANGEL_WORLD_OK');
+  assert.deepEqual(errors,[]);if(candidate)assert.equal(require('./complete-export-format.cjs').hash(fs.readFileSync(candidate)),sourceHash);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({initial,manual,paused,destinations,restored,captures,clickToControl:true,sourceHash,errors},null,2)+'\n');console.log('ANGEL_WORLD_OK');
  }finally{await browser.close()}
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

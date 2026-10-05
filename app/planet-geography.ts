@@ -2,7 +2,9 @@ import * as T from 'three';
 import type {TransitStop} from './transit-config';
 import {realmApproachDistance,realmRelief,realmSiteDistance} from './realm-layout';
 
-export type PlanetSurface={stop:TransitStop;radius:number;center:T.Vector3;capHeight:number};
+export const terrainRevision='sculpted-v2';
+export const legacyTerrainRevision='legacy-v1';
+export type PlanetSurface={stop:TransitStop;radius:number;center:T.Vector3;capHeight:number;terrainRevision?:typeof terrainRevision|typeof legacyTerrainRevision};
 export const roadLatitudes=[.46,0,-.48];
 export const roadLongitudes=[0,Math.PI/3,Math.PI*2/3];
 export const mountainDirections=[
@@ -35,6 +37,10 @@ export function planetGeography(surface:PlanetSurface,direction:T.Vector3){
     mountain+=ridge*ridge*(surface.stop.theme==='prism'?23:surface.stop.theme==='garden'?19:16);
   });
   if(surface.stop.worldKind)mountain=realmRelief(surface.stop.worldKind,direction)*T.MathUtils.smoothstep(realmSiteDistance(surface.stop,surface.radius,direction),2,13);
+  if((surface.terrainRevision??terrainRevision)!==legacyTerrainRevision){
+    const contour=Math.sin(direction.x*11+direction.z*3+surface.radius*.07)*Math.cos(direction.y*9-direction.z*7);
+    mountain+=2.6*T.MathUtils.smoothstep(mountain,3,9)*(.62+.38*contour);
+  }
   const bank=1-T.MathUtils.smoothstep(river,2.2,6),water=river<2.7&&road>3.7&&direction.y<.8;
   const height=(mountain*clearance*T.MathUtils.smoothstep(river,3.5,19)-bank*1.65*T.MathUtils.smoothstep(road,3.5,5))*landing;
   return {height,road,river,water,mountain};
@@ -42,7 +48,7 @@ export function planetGeography(surface:PlanetSurface,direction:T.Vector3){
 
 export function createPlanetSurface(stop:TransitStop,radius=82):PlanetSurface{
   const capHeight=Math.sqrt(radius*radius-28*28);
-  return {stop,radius,capHeight,center:new T.Vector3(stop.x,stop.y-capHeight,stop.z-3)};
+  return {stop,radius,capHeight,center:new T.Vector3(stop.x,stop.y-capHeight,stop.z-3),terrainRevision};
 }
 export function planetPoint(surface:PlanetSurface,direction:T.Vector3,target=new T.Vector3()){
   const normal=direction.clone().normalize(),blend=T.MathUtils.smoothstep(normal.y,(surface.capHeight-2)/surface.radius,surface.capHeight/surface.radius);

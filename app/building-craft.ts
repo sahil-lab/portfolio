@@ -3,10 +3,13 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {architectureProfiles,architectureRecipe,type ArchitectureStyle} from './architecture-profiles';
 import {addFacadeCraft,type FacadeFloor} from './facade-craft';
 import {createWindowInteriorAtlas,mapWindowRoom,windowRoom} from './window-interiors';
+import {craftedBox} from './crafted-surfaces';
+import {applyAuthoredArchitecture,completeArchitectureAttributes,architectureKitReady,applyArchitectureSurface} from './architecture-kit';
 
 export function architectureMaterials(style:ArchitectureStyle,accent?:string){
- const palette=architectureProfiles[style],finish=(color:string,roughness=.74,metalness=.06)=>new T.MeshStandardMaterial({color,roughness,metalness});
+ const palette=architectureProfiles[style],finish=(color:string,roughness=.74,metalness=.06):T.MeshStandardMaterial=>new T.MeshPhysicalMaterial({color,roughness,metalness});
  const materials={wall:finish(accent??palette.wall),stone:finish(palette.stone),rail:finish('#293f46',.58,.15),metal:finish(palette.metal,.4,.55),wood:finish(palette.wood,.87),glass:finish(palette.glass,.22,.22),leaf:finish(palette.leaf,.96)};
+ applyArchitectureSurface(materials.wall,'ceramic');applyArchitectureSurface(materials.stone,'stone');applyArchitectureSurface(materials.metal,'brushed');applyArchitectureSurface(materials.wood,'timber');
  const interior=createWindowInteriorAtlas();materials.glass.aoMap=interior.occlusion;materials.glass.aoMapIntensity=.75;materials.glass.emissiveMap=interior.emission;
  materials.leaf.userData.surface=materials.wood.userData.surface='natural';materials.wall.userData.surface=materials.stone.userData.surface='ceramic';materials.glass.userData.surface='glass';return materials;
 }
@@ -14,16 +17,16 @@ export type ArchitectureMaterials=ReturnType<typeof architectureMaterials>;
 export type BuildingCraftOptions={style:ArchitectureStyle;address:string;width?:number;height?:number;depth?:number;materials?:ArchitectureMaterials;detail?:boolean;stairs?:boolean;distant?:boolean};
 export const architectureStoreys=(height:number,rhythm:number)=>Math.max(1,Math.min(5,Math.ceil(height/(2.8+rhythm*.85))));
 function roofProfile(points:[number,number][],depth:number){
- const shape=new T.Shape(points.map(point=>new T.Vector2(...point)));shape.closePath();return new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:4}).translate(0,0,-depth/2);
+ const shape=new T.Shape(points.map(point=>new T.Vector2(...point)));shape.closePath();return new T.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:true,bevelSegments:1,bevelSize:.045,bevelThickness:.035,curveSegments:4}).translate(0,0,-depth/2);
 }
 export function createCraftedBuilding(options:BuildingCraftOptions){
  const {style,address}=options,recipe=architectureRecipe(style,address),profile=architectureProfiles[style],materials=options.materials??architectureMaterials(style),detailed=options.detail!==false;
  const width=(options.width??4.8)*recipe.width,depth=(options.depth??4.8)*recipe.depth,height=(options.height??7.2)*recipe.height;
- const root=new T.Group();root.name='CraftedBuilding_'+address;root.userData.architectureStyle=style;root.userData.architectureRecipe=recipe;root.userData.architectureStandard='crafted';root.userData.roofProfile=profile.roof;
+ const root=new T.Group();root.name='CraftedBuilding_'+address;root.userData.architectureStyle=style;root.userData.architectureRecipe=recipe;root.userData.architectureStandard='crafted';root.userData.roofProfile=profile.roof;root.userData.authoredArchitecture=architectureKitReady();
  const envelope=new T.Group(),details=new T.Group();envelope.name='Architecture_Envelope';details.name='Architecture_Details';root.add(envelope,details);
  const counts:Record<string,number>={};
- function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x=0,y=0,z=0,detail=false){const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;(detail?details:envelope).add(object);counts[name]=(counts[name]??0)+1;return object}
- function box(name:string,x:number,y:number,z:number,w:number,h:number,d:number,material:T.Material,detail=false){return mesh(name,new T.BoxGeometry(w,h,d),material,x,y,z,detail)}
+ function mesh(name:string,geometry:T.BufferGeometry,material:T.Material,x=0,y=0,z=0,detail=false){const object=new T.Mesh(geometry,material);object.name=name;object.position.set(x,y,z);applyAuthoredArchitecture(object);object.castShadow=object.receiveShadow=true;(detail?details:envelope).add(object);counts[name]=(counts[name]??0)+1;return object}
+ function box(name:string,x:number,y:number,z:number,w:number,h:number,d:number,material:T.Material,detail=false){return mesh(name,!options.distant&&Math.min(w,h,d)>=.24?craftedBox(w,h,d):new T.BoxGeometry(w,h,d),material,x,y,z,detail)}
  function beam(name:string,from:T.Vector3,to:T.Vector3,material:T.Material,size=.07,detail=true){const direction=to.clone().sub(from),object=mesh(name,new T.BoxGeometry(size,direction.length(),size),material,0,0,0,detail);object.position.copy(from).add(to).multiplyScalar(.5);object.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.normalize());return object}
  const storeys=architectureStoreys(height,recipe.rhythm),floors:FacadeFloor[]=[];
  const doorWidth=Math.min(1.1,width*.24),doorX=width*recipe.entry;
@@ -65,7 +68,7 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
   mesh('Forge_ButterflyRoof',roofProfile([[-roofWidth/2,0],[0,.48*pitch],[roofWidth/2,0],[roofWidth/2,.22],[0,.7*pitch],[-roofWidth/2,.22]],roofDepth),materials.metal,roofX,roofY,roofZ);
   for(const side of [-1,1]){
    for(const along of [-.3,.3])box('Forge_ExternalButtress',side*(width/2+.07),height*.5,along*depth,.14,height,.25,materials.rail);
-   const chimney=mesh('Forge_CappedChimney',new T.CylinderGeometry(.18,.26,1.3+recipe.rhythm*.65,10),materials.rail,side*width*.28,roofY+.75,-depth*.24);box('Forge_ChimneyCap',chimney.position.x,roofY+1.46+recipe.rhythm*.32,chimney.position.z,.6,.14,.6,materials.stone);
+  const chimney=mesh('Forge_CappedChimney',new T.CylinderGeometry(.27,.32,.82,12),materials.rail,side*width*.28,roofY+.46,-depth*.24);box('Forge_ChimneyCap',chimney.position.x,roofY+.9,chimney.position.z,.7,.22,.7,materials.stone);
   }
   if(detailed)for(let fin=0;fin<6;fin++)box('Forge_StandingSeam',-width*.4+fin*width*.16,roofY+.72*pitch,0,.028,.035,depth*.9,materials.rail,true);
  }else if(style==='conservatory'){
@@ -78,8 +81,8 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
   if(detailed)for(const side of [-1,1])for(let post=0;post<4;post++)box('Conservatory_Trellis',side*(width/2+.12),height*.57,-depth*.36+post*depth*.24,.05,height*.75,.05,materials.wood,true);
  }else if(style==='citadel'){
   for(let level=0;level<3+recipe.attachment%2;level++)box('Citadel_SteppedCrown',roofX,roofY+.16+level*.22,roofZ,top.width*(.88-level*.16),.23,top.depth*(.88-level*.16),level%2?materials.metal:materials.stone);
-  for(const side of [-1,1])for(const fraction of [-.31,0,.31]){box('Citadel_VerticalFin',side*(width/2+.055),height*.49,fraction*depth,.07,height*.93,.065,materials.metal);box('Citadel_VerticalFin',fraction*width,height*.49,side*(depth/2+.055),.065,height*.93,.07,materials.metal)}
-  mesh('Citadel_Spire',new T.ConeGeometry(.17,pitch*.85,6),materials.metal,roofX+recipe.roofOffset,roofY+1.15,roofZ);
+  for(const floor of floors)for(const side of [-1,1])for(const fraction of [-.31,.31]){const middle=(floor.top+floor.bottom)/2,tall=floor.top-floor.bottom-.28,horizontal=floor.x??0,forward=floor.z??0;box('Citadel_FacadePilaster',horizontal+side*(floor.width/2+.03),middle,forward+fraction*floor.depth,.08,tall,.16,materials.stone);box('Citadel_FacadePilaster',horizontal+fraction*floor.width,middle,forward+side*(floor.depth/2+.03),.16,tall,.08,materials.stone)}
+  mesh('Citadel_RooftopLantern',new T.CylinderGeometry(.24,.3,.34,12),materials.stone,roofX+recipe.roofOffset,roofY+.96,roofZ);mesh('Citadel_LanternCap',new T.SphereGeometry(.3,12,6,0,Math.PI*2,0,Math.PI/2),materials.metal,roofX+recipe.roofOffset,roofY+1.13,roofZ);
  }else if(style==='petal'){
   for(let tier=0;tier<2;tier++){
    const span=roofWidth*(1-tier*.24),points:[number,number][]=[[-span/2,.22],[-span*.34,.08],[recipe.roofOffset,pitch],[span*.34,.08],[span/2,.22],[span/2,.38],[span*.34,.24],[recipe.roofOffset,pitch+.19],[-span*.34,.24],[-span/2,.38]];
@@ -88,9 +91,8 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
   }
  }else if(style==='solstice'||style==='atelier'){
   const terraceY=roofY+.24,shadeWidth=top.width*(.5+recipe.rhythm*.28),offset=recipe.roofOffset*top.width;
-  for(const side of [-1,1])for(const back of [-1,1])box(style==='solstice'?'Solstice_PergolaPost':'Atelier_RoofPavilionPost',roofX+offset+side*shadeWidth/2,terraceY+.6,roofZ+back*top.depth*.28,.1,1.26,.1,materials.wood);
-  if(options.distant)box('Terrace_ShadeSilhouette',roofX+offset,terraceY+1.23,roofZ,shadeWidth*1.2,.09,top.depth*.76,materials.wood);
-  else for(let slat=0;slat<5+recipe.attachment;slat++)box('Terrace_ShadeSlat',roofX+offset-shadeWidth*.6+slat*shadeWidth*1.2/(4+recipe.attachment),terraceY+1.23,roofZ,.075,.09,top.depth*.76,materials.wood);
+  for(const side of [-1,1])for(const back of [-1,1])box(style==='solstice'?'Solstice_PergolaPost':'Atelier_RoofPavilionPost',roofX+offset+side*shadeWidth/2,terraceY+.47,roofZ+back*top.depth*.28,.18,.94,.18,materials.wood);
+  box('Terrace_RoundedShade',roofX+offset,terraceY+1.02,roofZ,shadeWidth*1.2,.24,top.depth*.76,materials.wood);
   if(style==='solstice'){mesh('Solstice_StairLantern',new T.CylinderGeometry(.4,.4,.65,10),materials.stone,roofX-width*.24,roofY+.55,roofZ-depth*.24);mesh('Solstice_LanternDome',new T.SphereGeometry(.44,12,6,0,Math.PI*2,0,Math.PI/2),materials.metal,roofX-width*.24,roofY+.88,roofZ-depth*.24)}
   else box('Atelier_RoofStudio',roofX-width*.24,roofY+.45,roofZ-depth*.22,width*.3,.55,depth*.32,materials.wall);
  }else if(style==='cloud'){
@@ -102,9 +104,9 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
   for(const side of [-1,1])mesh('Cloud_PorticoRing',new T.TorusGeometry(.36,.065,5,16),materials.stone,side*width*.31,1.35,depth/2+.2).scale.y=1.25;
  }else if(style==='research'){
   mesh('Research_FoldedInstrumentRoof',roofProfile([[-roofWidth/2,0],[-roofWidth*.12,1.6*pitch],[roofWidth*.22,.25],[roofWidth/2,.9*pitch],[roofWidth/2,.66*pitch],[roofWidth*.22,.05],[-roofWidth*.12,1.32*pitch],[-roofWidth/2,-.1]],roofDepth),materials.stone,roofX,roofY,roofZ);
-  for(let fin=0;fin<3+recipe.attachment;fin++)box('Research_SolarFin',roofX+width*.22,roofY+.65,roofZ-depth*.3+fin*.2,.85,.035,.12,materials.metal).rotation.z=-.55;
-  const telescope=mesh('Research_Telescope',new T.CylinderGeometry(.15,.23,1.1,10),materials.metal,roofX-width*.2,roofY+1.35,roofZ+depth*.24);telescope.rotation.x=.75+recipe.rhythm*.3;telescope.rotation.z=recipe.roofOffset;
-  box('Research_InstrumentMount',roofX-width*.2,roofY+.6,roofZ+depth*.24,.18,.85,.18,materials.rail);
+  box('Research_SolarMount',roofX+width*.22,roofY+.48,roofZ-depth*.12,.72,.28,.65,materials.rail);box('Research_FittedSolarPanel',roofX+width*.22,roofY+.7,roofZ-depth*.12,1.05,.12,.85,materials.metal).rotation.z=-.22;
+  const telescope=mesh('Research_Telescope',new T.CylinderGeometry(.24,.28,.75,12),materials.metal,roofX-width*.2,roofY+.98,roofZ+depth*.24);telescope.rotation.x=.48;telescope.rotation.z=recipe.roofOffset;
+  box('Research_InstrumentMount',roofX-width*.2,roofY+.46,roofZ+depth*.24,.32,.76,.32,materials.rail);
  }else if(style==='workshop'){
   const teeth=2+recipe.attachment%2,span=roofWidth/teeth,points:[number,number][]=[[-roofWidth/2,0]];
   for(let tooth=0;tooth<teeth;tooth++)points.push([-roofWidth/2+tooth*span,pitch],[-roofWidth/2+(tooth+1)*span,.22]);points.push([roofWidth/2,0]);
@@ -131,6 +133,7 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
 
 export type ArchitectureSkin={geometry:T.BufferGeometry;material:T.Material};
 export function bakeArchitecture(root:T.Object3D):ArchitectureSkin[]{
+ completeArchitectureAttributes(root);
  root.updateWorldMatrix(true,true);const inverse=root.matrixWorld.clone().invert(),groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
  root.traverse(object=>{
   if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;

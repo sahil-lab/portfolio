@@ -10,5 +10,5 @@ test('each planet has a distinct coherent biome with deterministic finite terrai
 });
 test('authored planetary daylight preserves local gravity and does not allocate additional lights',()=>{
  const scene=new T.Scene(),sun=new T.DirectionalLight(),fill=new T.HemisphereLight(),player=new T.Group();scene.add(sun,fill);const lighting=createPlanetLighting(scene,sun);player.up.set(0,-1,0);player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),player.up);
- for(const stop of transitStops.slice(1)){lighting.apply(player,stop);const biome=planetBiome(stop);assert.equal(fill.intensity,biome.fill);assert.equal(scene.environmentIntensity,biome.environment);assert.ok(sun.position.dot(player.up)>50);assert.ok(sun.intensity/fill.intensity>3.5);assert.equal(scene.children.length,2);assert.equal(sun.color.getHexString(),new T.Color(biome.sun).getHexString())}
+ for(const stop of transitStops.slice(1)){lighting.apply(player,stop);const biome=planetBiome(stop);assert.equal(fill.intensity,biome.fill);assert.equal(scene.environmentIntensity,biome.environment);assert.ok(sun.position.dot(player.up)>50);assert.ok(sun.intensity/fill.intensity>3.5);assert.equal(scene.children.filter(object=>object.isLight).length,2);assert.equal(sun.color.getHexString(),new T.Color(biome.sun).getHexString())}
 });

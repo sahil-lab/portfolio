@@ -1,0 +1,121 @@
+{
+  "status": "roundtrip-verified-unpublished",
+  "baselineSha256": "0e30c43f8e94d6c674bc3abb79611dcded91a0963a1d5ed66f494e973e5172d0",
+  "candidateSha256": "c42edb4f7758b9eb366d613209eb9d0ef8ef7b8e33ef021520952ee846181933",
+  "candidateBytes": 116020,
+  "parts": [
+    {
+      "name": "Architecture_Block",
+      "triangles": 92,
+      "originalTriangles": 60,
+      "boundsError": 0,
+      "normalError": 4.370552697530172e-8
+    },
+    {
+      "name": "Architecture_ConservatoryRoof",
+      "triangles": 132,
+      "originalTriangles": 132,
+      "boundsError": 0,
+      "normalError": 1.0358554547451604e-7
+    },
+    {
+      "name": "Architecture_Cylinder",
+      "triangles": 60,
+      "originalTriangles": 60,
+      "boundsError": 0,
+      "normalError": 3.961241046290809e-8
+    },
+    {
+      "name": "Architecture_CylinderHigh",
+      "triangles": 252,
+      "originalTriangles": 252,
+      "boundsError": 0,
+      "normalError": 8.203369028514373e-8
+    },
+    {
+      "name": "Architecture_DetailSphere",
+      "triangles": 528,
+      "originalTriangles": 80,
+      "boundsError": 0,
+      "normalError": 1.0963435248534381e-7
+    },
+    {
+      "name": "Architecture_Dome",
+      "triangles": 480,
+      "originalTriangles": 160,
+      "boundsError": 0,
+      "normalError": 1.1921543086046427e-7
+    },
+    {
+      "name": "Architecture_ForgeRoof",
+      "triangles": 20,
+      "originalTriangles": 20,
+      "boundsError": 0,
+      "normalError": 1.8921953559569715e-8
+    },
+    {
+      "name": "Architecture_GuildRoof",
+      "triangles": 20,
+      "originalTriangles": 20,
+      "boundsError": 0,
+      "normalError": 6.150085574141428e-8
+    },
+    {
+      "name": "Architecture_PetalRoof",
+      "triangles": 36,
+      "originalTriangles": 36,
+      "boundsError": 0,
+      "normalError": 9.473941897653049e-8
+    },
+    {
+      "name": "Architecture_PlainBlock",
+      "triangles": 12,
+      "originalTriangles": 12,
+      "boundsError": 0,
+      "normalError": 0
+    },
+    {
+      "name": "Architecture_ResearchRoof",
+      "triangles": 28,
+      "originalTriangles": 28,
+      "boundsError": 0,
+      "normalError": 6.150085574141428e-8
+    },
+    {
+      "name": "Architecture_Sphere",
+      "triangles": 80,
+      "originalTriangles": 80,
+      "boundsError": 0,
+      "normalError": 8.495401937480551e-8
+    },
+    {
+      "name": "Architecture_Torus",
+      "triangles": 384,
+      "originalTriangles": 384,
+      "boundsError": 0,
+      "normalError": 9.122645505676985e-8
+    },
+    {
+      "name": "Architecture_Vault",
+      "triangles": 196,
+      "originalTriangles": 196,
+      "boundsError": 0,
+      "normalError": 6.116228457031525e-8
+    },
+    {
+      "name": "Architecture_WorkshopRoof",
+      "triangles": 20,
+      "originalTriangles": 20,
+      "boundsError": 0,
+      "normalError": 6.150085574141428e-8
+    }
+  ],
+  "triangles": 2340,
+  "worldKit": {
+    "parts": 21,
+    "bytes": 717608,
+    "triangles": 22898,
+    "baselineSha256": "33351a5037323b54b3b4e48bcb74f44e6a07687da013361b6c71dbd9c3031e65",
+    "candidateSha256": "eb7343dedfb018b8aface701e4f7d3b51ef14198559de03e0947b034f672bf9d"
+  }
+}

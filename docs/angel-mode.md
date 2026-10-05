@@ -1,6 +1,17 @@
 # Angel Mode
 
-The photo-guided anime character now has a separate winged derivative, loaded from `public/assets/anime-angel.glb`. The original anime figure, gold statue and main courier remain separate. The angel's body is 1.4 times the roaming dog's height: 23.625 local units / 47.25 world units. Wing span is additional, not used to inflate the body-height comparison.
+The photo-guided anime character has a separate winged derivative, now loaded from
+[the reviewed hero asset](../public/assets/hero-v1/angel.glb), with the original
+model retained as a fallback. The original anime figure, gold statue and main
+courier remain separate. The angel's body is 1.4 times the roaming dog's height:
+23.625 local units / 47.25 world units. Wing span is additional, not used to inflate
+the body-height comparison.
+
+The collectible revision adds a fuller head/hair silhouette, curved feathers,
+surface detail, a halo and a fitted badge without changing rig dimensions. Its
+editable source, matched renders and live verification are in the
+[hero remodel handoff](../assets/hero-candidates/README.md). Held flight controls
+track their own pressed state so an idle button cannot clear another active hold.
 
 Two shoulder-blade hinges animate 42 layered feathers per wing. The winged Blender master is `outputs/angel/angel_master.blend`, with save/reopen and export evidence in `outputs/angel/package-status.json`. The original body retains 13,378 MakeHuman CC0 quads in the editable master. The web GLB evaluates the display mesh; it contains no personal photographs, studio, display base or hidden source helpers.
 

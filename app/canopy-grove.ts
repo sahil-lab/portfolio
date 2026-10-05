@@ -3,10 +3,19 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createAstraCanopy,type CanopyKind,type CanopyDetail} from './astra-canopy';
 import {disposeScene} from './scene-resources';
 import {createSpatialIndex} from './spatial-index';
+import {worldKitGeometry,worldKitReady} from './world-kit';
 
 export type CanopyPlacement={id:string;kind:CanopyKind;position:T.Vector3;rotation:T.Quaternion;scale:number;stretch?:number;patch:string};
 export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='full'){
  const source=createAstraCanopy('Canopy_Source',1,kind,detail),woodParts:T.BufferGeometry[]=[];source.root.updateMatrixWorld(true);
+ const prefix='Kit_'+(kind==='tree'?'Tree':'Banyan')+'_'+(detail==='full'?'Full':'Distant'),authoredWood=worldKitGeometry(prefix+'_Wood',true),authoredCrown=worldKitGeometry(prefix+'_Crown',true);
+ if(authoredWood&&authoredCrown){
+  const positions=authoredCrown.attributes.position,weights=new Float32Array(positions.count),phases=new Float32Array(positions.count);let radius=0;
+  for(let index=0;index<positions.count;index++){weights[index]=T.MathUtils.clamp((positions.getY(index)-3)/8,0,1);phases[index]=positions.getX(index)*.8+positions.getZ(index);radius=Math.max(radius,Math.hypot(positions.getX(index),positions.getZ(index)))}
+  authoredCrown.setAttribute('canopyWeight',new T.BufferAttribute(weights,1));authoredCrown.setAttribute('canopyPhase',new T.BufferAttribute(phases,1));authoredCrown.computeBoundingBox();authoredCrown.computeBoundingSphere();if(authoredCrown.boundingSphere)authoredCrown.boundingSphere.radius+=.2;
+  const trunks=source.trunks.map(trunk=>({...trunk})),height=authoredCrown.boundingBox!.max.y;disposeScene(source.root);return {wood:authoredWood,crown:authoredCrown,trunks,radius:radius+.2,height,kind};
+ }
+ authoredWood?.dispose();authoredCrown?.dispose();
  source.root.traverse(object=>{
   if(!(object instanceof T.Mesh)||object instanceof T.InstancedMesh)return;
   const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(object.matrixWorld);
@@ -47,7 +56,7 @@ export function createCanopyMaterials(){
  return {wood,leaf,update:(elapsed:number,reduced:boolean)=>{time.value=elapsed;wind.value=reduced?0:.1}};
 }
 export function createCanopyGrove(placements:CanopyPlacement[],ground?:(point:T.Vector3)=>T.Vector3,assets=new Map<string,ReturnType<typeof createCanopyAsset>>()){
- const root=new T.Group();root.name='Astra_LayeredLeafGrove';root.userData.canopyStyle='astra-layered-leaf';
+ const root=new T.Group();root.name='Astra_LayeredLeafGrove';root.userData.canopyStyle='astra-layered-leaf';root.userData.authoredKit=worldKitReady();
  const materials=createCanopyMaterials();
  const asset=(kind:CanopyKind,detail:CanopyDetail)=>{const key=kind+'/'+detail;let value=assets.get(key);if(!value){value=createCanopyAsset(kind,detail);assets.set(key,value)}return value};
  const patches=new Map<string,CanopyPlacement[]>();for(const placement of placements){const key=placement.patch+'/'+placement.kind,bucket=patches.get(key);if(bucket)bucket.push(placement);else patches.set(key,[placement])}

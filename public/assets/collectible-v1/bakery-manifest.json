@@ -1,0 +1,20 @@
+{
+  "version": "cute-collectible-bakery-v1",
+  "assets": [
+    {
+      "url": "/assets/collectible-v1/copper-bakery.glb",
+      "bytes": 5355996,
+      "sha256": "cd431a8765459b1984b58f9338ec2b3e5cf83a6ee2df99dcffd5f3a1895a648f"
+    },
+    {
+      "url": "/assets/collectible-v1/copper-bakery-ao.png",
+      "bytes": 963052,
+      "sha256": "670a3899cedf6ee99673b5f83730596f9f5450d9ffa5a3ddc32f57525ab2bc54"
+    }
+  ],
+  "triangles": 57272,
+  "source": "assets/premium-candidates/collectible-bakery.py",
+  "baseline": "outputs/playtest/collectible-bakery-baseline-v2-checks.json",
+  "review": "outputs/playtest/collectible-bakery-candidate-v3-checks.json",
+  "originalFilesUnchanged": true
+}

@@ -2,9 +2,15 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {createAngelRig}=require('../app/angel-rig.ts');
 const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js');
-async function rigAsset(){const bytes=fs.readFileSync('public/assets/anime-angel.glb');return createAngelRig((await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene)}
-test('angel runtime skeleton preserves the real body, shoes and wing hinges with normalized skin weights',async()=>{
- const rig=await rigAsset();assert.equal(rig.legs.length,2);assert.equal(rig.arms.length,2);assert.ok(rig.bones.length>=16);assert.ok(rig.root.getObjectByName('ANGEL_Wing_L'));assert.ok(rig.root.getObjectByName('ANGEL_Wing_R'));
+async function rigAsset(file){
+ const {parseGlb}=require('../scripts/complete-export-format.cjs'),{document,binary}=parseGlb(fs.readFileSync(file));
+ const stripTextures=value=>{for(const [key,child] of Object.entries(value)){if(key.endsWith('Texture'))delete value[key];else if(child&&typeof child==='object')stripTextures(child)}};
+ for(const material of document.materials)stripTextures(material);delete document.images;delete document.textures;delete document.samplers;document.buffers=[{byteLength:binary.length,uri:'data:application/octet-stream;base64,'+binary.toString('base64')}];global.ProgressEvent??=class{constructor(type,init){this.type=type;Object.assign(this,init)}};
+ return createAngelRig((await new GLTFLoader().parseAsync(JSON.stringify(document),'')).scene);
+}
+for(const file of ['public/assets/anime-angel.glb','assets/hero-candidates/angel.glb']){
+test('angel body, shoes, hinges and normalized skin weights: '+file,async()=>{
+ const rig=await rigAsset(file);assert.equal(rig.legs.length,2);assert.equal(rig.arms.length,2);assert.ok(rig.bones.length>=16);assert.ok(rig.root.getObjectByName('ANGEL_Wing_L'));assert.ok(rig.root.getObjectByName('ANGEL_Wing_R'));
  assert.ok(rig.meshes.length>50);assert.ok(rig.meshes.some(mesh=>mesh.name==='ANGEL_Body'&&mesh.geometry.getAttribute('position').count>40000));
  for(const mesh of rig.meshes){const weights=mesh.geometry.getAttribute('skinWeight');for(let index=0;index<weights.count;index++){const total=weights.getX(index)+weights.getY(index)+weights.getZ(index)+weights.getW(index);assert.ok(Math.abs(total-1)<.00001,mesh.name)}}
  const body=rig.meshes.find(mesh=>mesh.name==='ANGEL_Body'),positions=body.geometry.getAttribute('position'),weights=body.geometry.getAttribute('skinWeight'),indices=body.geometry.getAttribute('skinIndex');let wristVertices=0;
@@ -15,8 +21,8 @@ test('angel runtime skeleton preserves the real body, shoes and wing hinges with
  assert.ok(wristVertices>100);
  assert.ok(rig.meshes.some(mesh=>mesh.name==='ANGEL_Slide_Sole_1'));rig.dispose();
 });
-test('angel solved feet remain planted through walking and turning and stop on paused time',async()=>{
- const rig=await rigAsset(),placement=new T.Group();placement.add(rig.root);const matrix=new T.Matrix4(),sample=point=>({point:new T.Vector3(point.x,rig.sole,point.z),normal:new T.Vector3(0,1,0),stop:0});
+test('angel feet remain planted through walking, turning and pause: '+file,async()=>{
+ const rig=await rigAsset(file),placement=new T.Group();placement.add(rig.root);const matrix=new T.Matrix4(),sample=point=>({point:new T.Vector3(point.x,rig.sole,point.z),normal:new T.Vector3(0,1,0),stop:0});
  let previous=[],maximumDrift=0,contacts=0,swings=0;
  for(let frame=0;frame<600;frame++){
   const yaw=frame*.18/60;placement.rotation.y=yaw;placement.position.x+=Math.sin(yaw)*rig.height*.45/60;placement.position.z+=Math.cos(yaw)*rig.height*.45/60;placement.updateMatrixWorld(true);matrix.copy(placement.matrix);
@@ -27,3 +33,4 @@ test('angel solved feet remain planted through walking and turning and stop on p
  assert.ok(contacts>200);assert.ok(swings>200);assert.ok(maximumDrift<.003,'Solved stance feet drifted '+maximumDrift);
  const pose=rig.bones.map(bone=>bone.quaternion.toArray());rig.update(0,{grounded:true,speed:2,run:true,turnRate:1,matrix,sample,reduced:false,landing:0});assert.deepEqual(rig.bones.map(bone=>bone.quaternion.toArray()),pose);rig.dispose();
 });
+}

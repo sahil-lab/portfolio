@@ -92,7 +92,7 @@ export function createPlanetPopulation(parent:T.Object3D,surface:PlanetSurface,t
   const speech=createSpeechBubble('Every road has a story.',{width:5.2,height:0});root.add(speech.sprite);
   const nearest=(position:T.Vector3,distance=4)=>residents.filter(resident=>resident.position.distanceToSquared(position)<distance*distance).sort((first,second)=>first.position.distanceToSquared(position)-second.position.distanceToSquared(position))[0];
   function say(resident:Resident){talking=resident;until=clock+6;nextTalk=clock+13;speech.setText(resident.dialogue.next());return resident.name+': '+speech.text}
-  function update(dt:number,reduced:boolean,player:T.Group,active:boolean){
+  function update(dt:number,reduced:boolean,player:T.Group,active:boolean,blocked?:(position:T.Vector3,padding:number)=>boolean){
     root.visible=active;
     const step=Number.isFinite(dt)?Math.max(0,Math.min(dt,.1)):0;clock+=step;
     if(active){
@@ -101,12 +101,12 @@ export function createPlanetPopulation(parent:T.Object3D,surface:PlanetSurface,t
         resident.moving=false;
         if(resident.position.distanceToSquared(player.position)<2.8**2)continue;
         const phase=resident.phase+resident.speed*step,position=residentPoint(resident,phase);
-        if(traffic.some(vehicle=>vehicle.position.distanceToSquared(position)<3.4**2))continue;
+        if(blocked?.(position,.4)||traffic.some(vehicle=>vehicle.position.distanceToSquared(position)<3.4**2))continue;
         resident.moving=step>0;resident.phase=phase;orient(resident,position,residentPoint(resident,phase+.002));
       }
       for(const vehicle of traffic){
         const phase=vehicle.phase+vehicle.speed*step,position=trafficPoint(vehicle,phase);
-        if(position.distanceToSquared(player.position)<5**2||residents.some(resident=>position.distanceToSquared(resident.position)<3.1**2))continue;
+        if(blocked?.(position,2.05)||position.distanceToSquared(player.position)<5**2||residents.some(resident=>position.distanceToSquared(resident.position)<3.1**2))continue;
         vehicle.phase=phase;orient(vehicle,position,trafficPoint(vehicle,phase+.002));
       }
       draw(reduced,player.position);const neighbour=nearest(player.position,8);if(neighbour&&clock>=nextTalk&&!speech.sprite.visible)say(neighbour);

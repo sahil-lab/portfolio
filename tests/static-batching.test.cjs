@@ -2,6 +2,10 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{batchScenery}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('batching retains distinct returned normals and incompatible vertex layouts',()=>{
+ const scene=new T.Group(),first=new T.MeshStandardMaterial({color:'#88aaaa',normalMap:new T.Texture()}),second=first.clone();second.normalMap=new T.Texture();const plain=new T.BoxGeometry(),colored=new T.BoxGeometry();colored.setAttribute('color',new T.BufferAttribute(new Float32Array(colored.attributes.position.count*3).fill(.8),3));scene.add(new T.Mesh(plain,first),new T.Mesh(plain.clone(),second),new T.Mesh(colored,first));batchScenery(scene,{});assert.equal(scene.children.length,3);assert.equal(new Set(scene.children.map(mesh=>mesh.material.normalMap)).size,2);disposeScene(scene);
+});
+
 test('batching preserves distinct ceramic and glass finishes of the same color',()=>{
   const scene=new T.Scene();
   for(const clearcoat of [.1,.9])for(let index=0;index<3;index++){

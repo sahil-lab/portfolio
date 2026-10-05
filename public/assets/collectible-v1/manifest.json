@@ -1,0 +1,17 @@
+{
+  "version": "cute-collectible-v1",
+  "scope": [
+    "packet-press"
+  ],
+  "source": "assets/premium-candidates/collectible-press.py",
+  "assets": [
+    {
+      "url": "/assets/collectible-v1/packet-press.glb",
+      "bytes": 2008320,
+      "sha256": "0940969a7198049df9e3b72c7e73ea6e905bf9fce99bcc20e5876db7e8d2d352",
+      "originalSha256": "e3682fd2169ca3f108587898199fd0773d83deac8fc2b697843ba4625780e506"
+    }
+  ],
+  "review": "outputs/playtest/collectible-press-study-v2-checks.json",
+  "originalFilesUnchanged": true
+}

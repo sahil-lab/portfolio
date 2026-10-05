@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {TessellateModifier} from 'three/addons/modifiers/TessellateModifier.js';
 import {createCanopyAsset,createCanopyGrove,type CanopyPlacement} from './canopy-grove';
 import {planetGeography,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
 import {realmSiteDistance} from './realm-layout';
@@ -6,11 +7,12 @@ import {civilizationLogoReserved} from './civilization-world';
 import type {createPlanetInfrastructure} from './planet-infrastructure';
 import {planetBiome} from './planet-biomes';
 import {planetTownComposition} from './planet-composition';
+import {createArtificialTurf,createPocketGarden,type PocketGardenMaterials} from './city-gardens';
 
-export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infrastructure:ReturnType<typeof createPlanetInfrastructure>,publicPlaces:{position:T.Vector3;radius:number}[],outposts:{position:T.Vector3}[]){
+export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infrastructure:ReturnType<typeof createPlanetInfrastructure>,publicPlaces:{position:T.Vector3;radius:number;approach?:T.Vector3;rotation?:T.Quaternion;scale?:number;venue?:{width:number;depth:number}}[],outposts:{position:T.Vector3}[]){
  const assets=new Map<string,ReturnType<typeof createCanopyAsset>>();for(const kind of ['tree','banyan'] as const)for(const detail of ['full','distant'] as const)assets.set(kind+'/'+detail,createCanopyAsset(kind,detail));
  const biome=planetBiome(surface.stop),leaf=new T.Color(biome.leaf),tip=new T.Color(biome.tip),color=new T.Color();
- for(const asset of assets.values()){const colors=asset.crown.attributes.color;for(let vertex=0;vertex<colors.count;vertex++){color.copy(leaf).lerp(tip,T.MathUtils.smoothstep(colors.getY(vertex),.04,.34));colors.setXYZ(vertex,color.r,color.g,color.b)}}
+ for(const asset of assets.values()){const colors=asset.crown.attributes.color,tint=asset.crown.userData.kitTint;for(let vertex=0;vertex<colors.count;vertex++){const occlusion=Array.isArray(tint)?T.MathUtils.clamp(colors.getY(vertex)/tint[1],.4,1):1;color.copy(leaf).lerp(tip,T.MathUtils.smoothstep(colors.getY(vertex),.04,.34)).multiplyScalar(occlusion);colors.setXYZ(vertex,color.r,color.g,color.b)}}
  const radiusFor=(kind:'tree'|'banyan')=>Math.max(assets.get(kind+'/full')!.radius,assets.get(kind+'/distant')!.radius);
  const records:(CanopyPlacement&{direction:T.Vector3;canopyRadius:number})[]=[],vertical=new T.Vector3(0,1,0);
  let seed=0;for(let index=0;index<surface.stop.id.length;index++)seed+=surface.stop.id.charCodeAt(index)*(index+1);const phase=seed*.017;
@@ -51,5 +53,31 @@ export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infra
   const tree=survey(candidate.direction,'tree',.44+(candidate.sample%7)*.029,candidate.sample);if(tree)records.push(tree);
  }
  const grove=createCanopyGrove(records,point=>{const normal=point.clone().sub(surface.center).normalize();return planetPoint(surface,normal).addScaledVector(planetUp(surface,point),-.08)},assets);grove.root.name='Planet_LayeredLeafTrees_'+surface.stop.id;parent.add(grove.root);
- return {...grove,records,banyans:records.filter(record=>record.kind==='banyan')};
+ const groundcover=new T.Group();groundcover.name='Planet_PlantedNeighborhoods_'+surface.stop.id;grove.root.add(groundcover);
+ const gardens:{root:T.Group;position:T.Vector3;radius:number;rotation:T.Quaternion;width:number;depth:number}[]=[],banyans=records.filter(record=>record.kind==='banyan');let gardenMaterials:PocketGardenMaterials|undefined;
+ const anchors=[...publicPlaces,...banyans.map(tree=>({position:tree.position,radius:tree.canopyRadius})),...outposts.map(outpost=>({position:outpost.position,radius:6})),...infrastructure.towns.map(town=>({position:town.position,radius:13}))];
+ for(const [anchorIndex,anchor] of anchors.entries()){
+  if(gardens.length>=32)break;let added=0;const anchorUp=planetUp(surface,anchor.position),anchorRotation=new T.Quaternion().setFromUnitVectors(vertical,anchorUp);
+    for(let attempt=0;attempt<16&&added<2&&gardens.length<32;attempt++){
+  const width=6.8+(anchorIndex%3)*.85,depth=4.8+(attempt%3)*.6,radius=Math.hypot(width,depth)/2,angle=phase+anchorIndex*.7+attempt*2.399963,distance=anchor.radius+radius+1.5;
+   const direction=new T.Vector3(Math.cos(angle)*distance,0,Math.sin(angle)*distance).applyQuaternion(anchorRotation).add(anchor.position).sub(surface.center).normalize(),terrain=planetGeography(surface,direction),position=planetPoint(surface,direction);
+   if(direction.y>.86||terrain.water||terrain.road<radius+2||terrain.river<radius+1.5||realmSiteDistance(surface.stop,surface.radius,direction)<radius+7||civilizationLogoReserved(surface,direction))continue;
+   if(infrastructure.buildings.some(building=>building.position.distanceTo(position)<radius+building.radius+1)||infrastructure.pools.some(pool=>pool.position.distanceTo(position)<radius+8)||publicPlaces.some(place=>place.position.distanceTo(position)<place.radius+radius+.5||!!place.approach&&place.approach.distanceTo(position)<radius+4)||outposts.some(outpost=>outpost.position.distanceTo(position)<radius+5)||gardens.some(garden=>garden.position.distanceTo(position)<garden.radius+radius+.5))continue;
+    const up=planetUp(surface,position);if(up.dot(direction)<.97)continue;const rotation=new T.Quaternion().setFromUnitVectors(vertical,up).multiply(new T.Quaternion().setFromAxisAngle(vertical,angle)),inverse=rotation.clone().invert();
+    if(Array.from({length:8},(_,index)=>index*Math.PI/4).some(edge=>{const normal=new T.Vector3(Math.cos(edge)*radius,0,Math.sin(edge)*radius).applyQuaternion(rotation).add(position).sub(surface.center).normalize(),land=planetGeography(surface,normal);return land.water||land.road<1.5||land.river<1||civilizationLogoReserved(surface,normal)}))continue;
+   const ground=(horizontal:number,forward:number)=>planetPoint(surface,new T.Vector3(horizontal,0,forward).applyQuaternion(rotation).add(position).sub(surface.center)).sub(position).applyQuaternion(inverse).y;
+  const garden=createPocketGarden(width,depth,anchorIndex+attempt,biome.tip,ground,gardenMaterials);gardenMaterials??=garden.materials;garden.root.position.copy(position);garden.root.quaternion.copy(rotation);groundcover.add(garden.root);gardens.push({root:garden.root,position,radius,rotation,width,depth});added++;
+  }
+ }
+ const lawnAprons:{root:T.Mesh;position:T.Vector3}[]=[],template=createArtificialTurf(5,5),tessellate=new TessellateModifier(.85,6);template.geometry.dispose();template.material.color.set('#8fa282');template.material.map!.repeat.set(7,7);
+ for(const place of publicPlaces){
+  if(!place.venue||!place.rotation||!place.scale)continue;const halfWidth=place.venue.width*place.scale/2+.12,halfDepth=place.venue.depth*place.scale/2+.12,spanX=halfWidth+3.2,spanZ=halfDepth+3.5,radius=2.2,gap=1.65,shape=new T.Shape();
+  shape.moveTo(-gap,-spanZ);shape.lineTo(-spanX+radius,-spanZ);shape.quadraticCurveTo(-spanX,-spanZ,-spanX,-spanZ+radius);shape.lineTo(-spanX,spanZ-radius);shape.quadraticCurveTo(-spanX,spanZ,-spanX+radius,spanZ);shape.lineTo(spanX-radius,spanZ);shape.quadraticCurveTo(spanX,spanZ,spanX,spanZ-radius);shape.lineTo(spanX,-spanZ+radius);shape.quadraticCurveTo(spanX,-spanZ,spanX-radius,-spanZ);shape.lineTo(gap,-spanZ);shape.lineTo(gap,-halfDepth);shape.lineTo(halfWidth,-halfDepth);shape.lineTo(halfWidth,halfDepth);shape.lineTo(-halfWidth,halfDepth);shape.lineTo(-halfWidth,-halfDepth);shape.lineTo(-gap,-halfDepth);shape.closePath();
+  const flat=new T.ShapeGeometry(shape,8).rotateX(-Math.PI/2),geometry=tessellate.modify(flat);flat.dispose();const positions=geometry.attributes.position,uvs=geometry.attributes.uv,clear:boolean[]=[],indices:number[]=[];
+  for(let index=0;index<positions.count;index++){const horizontal=positions.getX(index),forward=positions.getZ(index),direction=new T.Vector3(horizontal,0,forward).applyQuaternion(place.rotation).add(place.position).sub(surface.center).normalize(),land=planetGeography(surface,direction),point=planetPoint(surface,direction).addScaledVector(direction,.03);positions.setXYZ(index,point.x,point.y,point.z);uvs.setXY(index,(horizontal+spanX)/(2*spanX),(forward+spanZ)/(2*spanZ));clear.push(!land.water&&land.road>1.4&&land.river>1.2)}
+  for(let index=0;index<positions.count;index+=3)if(clear[index]&&clear[index+1]&&clear[index+2])indices.push(index,index+1,index+2);geometry.setIndex(indices);geometry.computeVertexNormals();const apron=new T.Mesh(geometry,template.material);apron.name='Planet_GroundedLawnBorder';apron.receiveShadow=true;groundcover.add(apron);lawnAprons.push({root:apron,position:place.position});
+ }
+ if(!lawnAprons.length){template.material.map?.dispose();template.material.dispose()}
+ const gardenViews=[...gardens,...lawnAprons];
+ return {...grove,records,banyans,groundcover,gardens,lawnAprons,update:(delta:number,reduced:boolean,observer:T.Vector3,active=true)=>{grove.update(delta,reduced,observer,active);groundcover.visible=active;for(const garden of gardenViews)garden.root.visible=active&&observer.distanceToSquared(garden.position)<115**2}};
 }

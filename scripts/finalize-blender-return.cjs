@@ -1,0 +1,17 @@
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict'),ts=require('typescript');
+const {parseGlb}=require('./complete-export-format.cjs');
+require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
+const {transitStops}=require('../app/transit-config'),{blenderGroundArea}=require('../app/ground-occlusion');
+function artifact(file){const bytes=fs.readFileSync(path.join('public',file));return {url:'/'+file.replaceAll('\\','/'),bytes:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}}
+function png(file,width,height){const result=artifact(file),bytes=fs.readFileSync(path.join('public',file));assert.equal(bytes.toString('ascii',1,4),'PNG');assert.equal(bytes.readUInt32BE(16),width);assert.equal(bytes.readUInt32BE(20),height);return {...result,width,height}}
+
+const planets=transitStops.slice(1).map(stop=>{
+ const file='assets/planets/blender-final/'+stop.id+'.glb',document=parseGlb(fs.readFileSync(path.join('public',file))).document,nodes=document.nodes.filter(node=>node.extras?.blenderSceneFinish==='scene-ao-v1');assert.equal(nodes.length,2);assert.ok(nodes.every(node=>node.extras.planet===stop.id));assert.equal(document.meshes.length,2);assert.equal(document.images.length,1);assert.ok(document.materials.every(material=>material.occlusionTexture));
+ return {planet:stop.id,...artifact(file),lods:2,occlusion:{embedded:true,resolution:[2048,1024],staticOccluders:nodes[0].extras.bakedSceneOccluders,runtimeIntensity:.7},inspectionMap:png('assets/planets/blender-final/'+stop.id+'-scene-ao.png',2048,1024)};
+});
+const normals=['ceramic','stone','timber','brushed'].map(kind=>({surface:kind,...png('assets/world-finish/'+kind+'-normal.png',512,512),space:'tangent',runtimeStrength:.85}));
+const home={...png('assets/world-finish/motherboard-contact.png',1024,2048),area:blenderGroundArea,alphaScale:.48,materialOpacity:.65,inspectionMap:png('assets/world-finish/motherboard-scene-ao.png',1024,2048)};
+const browserAssetBytes=planets.reduce((sum,planet)=>sum+planet.bytes,0)+normals.reduce((sum,normal)=>sum+normal.bytes,0)+home.bytes;assert.ok(browserAssetBytes<30000000);
+const manifest={version:'scene-ao-v1',sourceScene:'Kingdom Complete Assembly',blenderVersion:'5.2.2 LTS',source:'assets/world-return/world-return.blend',recipe:'assets/world-return/bake-scene-finish.py',recipeSha256:crypto.createHash('sha256').update(fs.readFileSync('assets/world-return/bake-scene-finish.py')).digest('hex'),planets,normals,home,browserAssetBytes,loading:'Kits and shared maps at startup; terrain GLBs streamed per planet. Inspection PNGs are not fetched by the runtime.',limits:['Scene-aware ambient occlusion and tangent-space normals, not full indirect-light baking.','Live movement, collision, weather, UI and interaction remain in Three.js.','Original static export and its archive are unchanged; the multi-gigabyte assembly is not loaded by the website.']};
+fs.writeFileSync('public/assets/world-finish/manifest.json',JSON.stringify(manifest,null,2)+'\n');
+console.log(JSON.stringify({status:'BLENDER_RETURN_ASSETS_VERIFIED',planets:planets.length,lods:planets.length*2,normalMaps:normals.length,homeContact:true,browserAssetBytes,manifest:'public/assets/world-finish/manifest.json'}));

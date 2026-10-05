@@ -14,8 +14,13 @@ export const cityEverydaySites=[
  {id:'loop-glaze',kind:'shop',name:'Loop & Glaze Donut Shop',x:250,z:379},
 ] as const satisfies readonly {id:string;kind:EverydayKind;name:string;x:number;z:number}[];
 export type CityEverydayId=typeof cityEverydaySites[number]['id'];
+export const signatureShopScale=3;
+export function signatureShopCameraView(planet:string,aspect:number){
+ const home=planet==='motherboard',foundry=planet==='project-foundry';
+ return {yaw:foundry||planet==='skills-technology'?-.5:-.08,pitch:foundry?.7:.28,zoom:signatureShopScale*Math.max(home?56:foundry?50:36,Math.min(home?110:foundry?110:86,(home?42:foundry?33:28)/aspect)),focusHeight:signatureShopScale*(home?12.5:6.5)};
+}
 const footprints:Record<EverydayKind,[number,number]>={park:[24,20],playground:[20,18],mall:[28,22],market:[24,20],cinema:[22,20],clinic:[20,18],school:[24,20],library:[22,20],sports:[20,24],shop:[20,18]};
-export function everydayFootprint(kind:EverydayKind){const [width,depth]=footprints[kind];return {width,depth}}
+export function everydayFootprint(kind:EverydayKind){const [width,depth]=footprints[kind],scale=kind==='shop'?signatureShopScale:1;return {width:width*scale,depth:depth*scale}}
 
 export const signatureShops=[
 	{planet:'motherboard',theme:'donut',name:'Loop & Glaze',paint:'#cd738e',accent:'#ed91b0',width:1,height:1},

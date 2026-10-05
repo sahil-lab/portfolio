@@ -72,9 +72,9 @@ test('workshop window interiors survive batching with bounded UVs and reversible
  const {createCityLightResponse}=require('../app/world-lighting.ts'),response=createCityLightResponse(scene);response.update(1,1,0);assert.equal(glazing.emissiveIntensity,.24);response.update(.1,0,0);assert.equal(glazing.emissiveIntensity,.025);response.dispose();disposeScene(scene);
 });
 
-test('shop signs receive scene lighting while retaining readable painted text',()=>{
- const scene=new T.Scene(),quarter=createWorkshopNeighborhood(scene),signs=[];quarter.root.traverse(object=>{if(object.name==='Atelier_PaintedShopSign')signs.push(object)});assert.equal(signs.length,4);
- for(const sign of signs){assert.ok(sign.material instanceof T.MeshStandardMaterial);assert.ok(sign.material.roughness>.75);assert.equal(sign.material.metalness,0);assert.equal(sign.material.map.colorSpace,T.SRGBColorSpace);assert.equal(sign.material.emissiveMap,sign.material.map);assert.ok(sign.material.emissiveIntensity>0&&sign.material.emissiveIntensity<.1)}disposeScene(scene);
+test('facade letters stay self-lit without textured sign panels',()=>{
+ const scene=new T.Scene(),quarter=createWorkshopNeighborhood(scene),letters=[];quarter.root.traverse(object=>{if(object.isMesh&&object.material.userData.facadeLettering)letters.push(object)});assert.ok(letters.length>0);
+ for(const letter of letters){assert.equal(letter.material.isMeshStandardMaterial,true);assert.equal(letter.material.toneMapped,false);assert.equal(letter.material.userData.preserveEmissiveColor,true);assert.equal(letter.material.map,null);assert.equal(letter.material.emissiveMap,null);assert.ok(letter.material.emissiveIntensity>=3.2)}disposeScene(scene);
 });
 
 test('baked occlusion normalizes against unobstructed light and leaves empty atlas pixels transparent',()=>{

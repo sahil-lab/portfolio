@@ -12,15 +12,17 @@ import {createCanopyAsset,createCanopyGrove,createCanopyMaterials,type CanopyPla
 import {createWorkScheduler} from './work-scheduler';
 import {cacheStaticTransforms} from './static-transforms';
 import {createVisibleGeometry,type VisibleGeometryPart,type GeometryVisibility} from './visible-geometry';
+import {createPocketGarden} from './city-gardens';
+import {completeArchitectureAttributes} from './architecture-kit';
 
 type Lot={address:string;x:number;z:number;scale:number;variant:number;yaw:number;width:number;depth:number;height:number};
 type Skin={geometry:T.BufferGeometry;material:T.Material};
 function bakeModel(root:T.Object3D):Skin[]{
+  completeArchitectureAttributes(root);
   root.updateMatrixWorld(true);const groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
   root.traverse(object=>{
     if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;
-    const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(object.matrixWorld);
-    const list=groups.get(object.material)??[];list.push(geometry);groups.set(object.material,list);originals.add(object.geometry);
+    const list=groups.get(object.material)??[],instance=new T.Matrix4();for(let index=0;index<(object instanceof T.InstancedMesh?object.count:1);index++){const matrix=object.matrixWorld.clone();if(object instanceof T.InstancedMesh){object.getMatrixAt(index,instance);matrix.multiply(instance)}const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(matrix);list.push(geometry)}groups.set(object.material,list);originals.add(object.geometry);
   });
   const skins=[...groups].map(([material,geometries])=>{const geometry=mergeGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
   originals.forEach(geometry=>geometry.dispose());return skins;
@@ -35,6 +37,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
   const pavement=new T.MeshStandardMaterial({color:'#a3b3a7',roughness:.89}),asphalt=new T.MeshStandardMaterial({color:'#46595b',roughness:.92}),inlay=new T.MeshStandardMaterial({color:'#dec99e',roughness:.68});
   pavement.userData.cityPaving=asphalt.userData.cityPaving=true;
   const cube=new T.BoxGeometry(1,1,1),treeShapes={full:createCanopyAsset('tree','full'),distant:createCanopyAsset('tree','distant')},treeMaterials=createCanopyMaterials();
+  const gardenSkins=bakeModel(createPocketGarden(10.5,8.5,5).root);
   const dummy=new T.Object3D(),lots:Lot[]=[],cells=new Map<string,Lot[]>(),neighborhoods:T.LOD[]=[],cameraBounds:T.Box3[]=[];
   const streetTrees:{x:number;z:number;height:number}[]=[],treeCells=new Map<string,typeof streetTrees>();
   const architecture:{town:ReturnType<typeof createArchitectureNeighborhood>;x:number;z:number}[]=[];
@@ -74,7 +77,9 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     const localLots:Lot[]=[];
     for(const {variant,scale,x,z,yaw} of cityBlockPlan(column,row)){
       const sideways=Math.abs(Math.sin(yaw))>.5;
-      const lot={address:`motherboard/block-${column}-${row}/lot-${x}-${z}`,x:centerX+x,z:centerZ+z,scale,variant,yaw,width:(sideways?4.2:4.6)*scale,depth:(sideways?4.6:4.2)*scale,height:heights[variant]*scale+3};lots.push(lot);localLots.push(lot);
+      const lot={address:`motherboard/block-${column}-${row}/lot-${x}-${z}`,x:centerX+x,z:centerZ+z,scale,variant,yaw,width:(sideways?4.2:4.6)*scale,depth:(sideways?4.6:4.2)*scale,height:heights[variant]*scale+3};
+      if(cityEverydaySites.some(site=>{const footprint=everydayFootprint(site.kind);return Math.abs(lot.x-site.x)<(lot.width+footprint.width)/2+1&&Math.abs(lot.z-site.z)<(lot.depth+footprint.depth)/2+1}))continue;
+      lots.push(lot);localLots.push(lot);
       cameraBounds.push(new T.Box3(new T.Vector3(lot.x-lot.width/2,0,lot.z-lot.depth/2),new T.Vector3(lot.x+lot.width/2,lot.height,lot.z+lot.depth/2)));
     }
     const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),105,sharedFinishes,{scheduler,prepare});
@@ -84,14 +89,31 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     const state={visible:true,castShadow:true};region.blocks.push({lod,far,town,state});
     for(const source of town.shells.children){const mesh=source as T.Mesh;silhouettes.push({geometry:mesh.geometry,material:mesh.material as T.Material,matrix:new T.Matrix4().makeTranslation(centerX,0,centerZ),state})}
     cells.set(cellKey(centerX,centerZ),localLots);
-    const trees=[-1,1].flatMap(side=>[-1,1].map(end=>({x:side*35,y:.05,z:end*35,sx:.39+(row%3)*.025,sy:.51+(column%3)*.035,sz:.39+(row%3)*.025,yaw:(row+column+side)*.71})));
+    const trees=[-1,1].flatMap(side=>[-1,1].map(end=>({x:side*35,y:.05,z:end*35,sx:.39+(row%3)*.025,sy:.51+(column%3)*.035,sz:.39+(row%3)*.025,yaw:(row+column+side)*.71}))),treeCourts=trees.map(tree=>({...tree}));
+    for(const tree of trees){
+      for(const offset of [0,1,2,3]){
+        const horizontal=Math.sign(tree.x)*(35+offset),forward=Math.sign(tree.z)*(35+offset);dummy.position.set(centerX+horizontal,tree.y,centerZ+forward);dummy.rotation.set(0,tree.yaw,0);dummy.scale.set(tree.sx,tree.sy,tree.sz);dummy.updateMatrix();
+        const bounds=new T.Box3();for(const shape of [treeShapes.full,treeShapes.distant]){shape.crown.computeBoundingBox();bounds.union(shape.crown.boundingBox!.clone().applyMatrix4(dummy.matrix))}
+        const occupied=localLots.some(lot=>bounds.intersectsBox(new T.Box3(new T.Vector3(lot.x-lot.width/2,0,lot.z-lot.depth/2),new T.Vector3(lot.x+lot.width/2,lot.height,lot.z+lot.depth/2))))||cityEverydaySites.some(site=>{const footprint=everydayFootprint(site.kind);return bounds.max.x>site.x-footprint.width/2&&bounds.min.x<site.x+footprint.width/2&&bounds.max.z>site.z-footprint.depth/2&&bounds.min.z<site.z+footprint.depth/2});
+        if(!occupied&&bounds.min.x>centerX-44&&bounds.max.x<centerX+44&&bounds.min.z>centerZ-44&&bounds.max.z<centerZ+44){tree.x=horizontal;tree.z=forward;break}
+      }
+    }
     const trunks=trees.map(tree=>({x:centerX+tree.x,z:centerZ+tree.z,height:tree.sy*7}));streetTrees.push(...trunks);treeCells.set(cellKey(centerX,centerZ),trunks);
+    let lawnAreas=[{minX:-6.5,maxX:6.5,minZ:-33,maxZ:33,height:.02},{minX:-33,maxX:33,minZ:-6.5,maxZ:6.5,height:.021}];
+    for(const site of cityEverydaySites){const footprint=everydayFootprint(site.kind),left=site.x-centerX-footprint.width/2-.05,right=site.x-centerX+footprint.width/2+.05,back=site.z-centerZ-footprint.depth/2-.05,front=site.z-centerZ+footprint.depth/2+.05;
+      lawnAreas=lawnAreas.flatMap(area=>{
+        const minX=Math.max(area.minX,left),maxX=Math.min(area.maxX,right),minZ=Math.max(area.minZ,back),maxZ=Math.min(area.maxZ,front);if(minX>=maxX||minZ>=maxZ)return [area];
+        return [{...area,maxX:minX},{...area,minX:maxX},{...area,minX,maxX,maxZ:minZ},{...area,minX,maxX,minZ:maxZ}].filter(part=>part.maxX-part.minX>.01&&part.maxZ-part.minZ>.01);
+      });
+    }
+    const lawnPlacements=lawnAreas.map(area=>({x:(area.minX+area.maxX)/2,y:area.height,z:(area.minZ+area.maxZ)/2,sx:area.maxX-area.minX,sy:.06,sz:area.maxZ-area.minZ}));
     for(const group of [near,middle]){
       instances(group,'City_BlockWalk',cube,pavement,[{x:0,y:-.1,z:0,sx:85,sy:.18,sz:85}]);
-      instances(group,'City_PocketGarden',cube,lawn,[{x:0,y:.02,z:0,sx:13,sy:.06,sz:66},{x:0,y:.021,z:0,sx:66,sy:.06,sz:13}]);
+      instances(group,'City_PocketGarden',cube,lawn,lawnPlacements);
       const shapes=group===near?treeShapes.full:treeShapes.distant;
       instances(group,'City_LayeredLeafCanopies',shapes.crown,treeMaterials.leaf,trees,group===near);
       instances(group,'City_BranchingStreetTrunks',shapes.wood,treeMaterials.wood,trees,group===near);
+      if(group===near)for(const skin of gardenSkins)instances(group,'City_PlantedTreeCourt',skin.geometry,skin.material,treeCourts.map((tree,index)=>({x:tree.x,y:.055,z:tree.z,yaw:tree.yaw,sx:1+(index%2)*.08,sy:1,sz:.95+(row%2)*.08})),false);
     }
     for(const side of [-1,1])pedestrians.push({x:centerX+side*35,z:centerZ,phase:(row+column)*.71+side,variant:(row+column+(side>0?1:0))%3});
     cacheStaticTransforms(middle);cacheStaticTransforms(far);
@@ -137,5 +159,5 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     if(banyanGroves.blocked(blockPosition.set(x,y,z))||(treeCells.get(cellKey(x,z))??[]).some(tree=>y<tree.height&&y>-.2&&Math.hypot(x-tree.x,z-tree.z)<.65))return true;
     return (cells.get(cellKey(x,z))??[]).some(lot=>y<lot.height&&Math.abs(x-lot.x)<lot.width/2+.55&&Math.abs(z-lot.z)<lot.depth/2+.55);
   }
-  return {root,lots,neighborhoods,architecture,farRegions,roofscape,quarter,authored,streetTrees,banyanGroves,update,blocked,streaming:()=>({loaded:architecture.filter(({town})=>town.detailed).length,loading:architecture.filter(({town})=>town.loading).length,pending:scheduler.pending,total:architecture.length}),dispose:()=>{scheduler.dispose();architecture.forEach(({town})=>town.dispose())},bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
+  return {root,lots,neighborhoods,architecture,farRegions,roofscape,quarter,authored,streetTrees,pedestrians,banyanGroves,update,blocked,streaming:()=>({loaded:architecture.filter(({town})=>town.detailed).length,loading:architecture.filter(({town})=>town.loading).length,pending:scheduler.pending,total:architecture.length}),dispose:()=>{scheduler.dispose();architecture.forEach(({town})=>town.dispose())},bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
 }

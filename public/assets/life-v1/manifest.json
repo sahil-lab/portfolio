@@ -1,0 +1,29 @@
+{
+  "version": "street-life-v1",
+  "bytes": 413076,
+  "sha256": "5d23a4382d826c97bf138fd6dbcd010097fc6a1ef13d54f92cf6e022a06772bc",
+  "parts": [
+    "ButterflyBody",
+    "ButterflyWing",
+    "BirdBody",
+    "BirdWing",
+    "BirdTail",
+    "FireflyBody",
+    "ViolinBody",
+    "ViolinNeck",
+    "Bow",
+    "UnicycleWheel",
+    "Saddle",
+    "Easel",
+    "CanvasFrame",
+    "Palette",
+    "Brush",
+    "Ball"
+  ],
+  "triangles": 5144,
+  "recipeSha256": "a891d0ac3121f11033414466c12fd2428087c2a3b6a0c3ed1a444d5341661ddd",
+  "source": "assets/street-life/street-life-study-20261005.blend",
+  "sourceBytes": 1206288948,
+  "review": "outputs/playtest/street-life-candidate-checks.json",
+  "url": "/assets/life-v1/life-kit.glb"
+}

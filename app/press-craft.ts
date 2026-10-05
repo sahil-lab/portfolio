@@ -5,6 +5,8 @@ import {batchScenery} from './static-batching';
 export const pressFinish={pearl:'#e7f0ee',teal:'#187f83',cobalt:'#305bbc',coral:'#d87861',steel:'#afc3ca',brass:'#d0ad6e',ink:'#20333c'};
 
 export function refinePacketPress(model:T.Object3D,parent:T.Object3D){
+  const collectible=model.getObjectByName('PacketPress_CollectibleAssembly');
+  if(collectible)return bindCollectiblePress(model,collectible);
   const root=new T.Group();root.name='PacketPress_CraftedAssembly';
   const enamel=new T.MeshPhysicalMaterial({color:pressFinish.teal,roughness:.56,metalness:.08,clearcoat:.22,clearcoatRoughness:.4});
   const pearl=new T.MeshPhysicalMaterial({color:pressFinish.pearl,roughness:.64,metalness:.06,clearcoat:.16,clearcoatRoughness:.42});
@@ -100,6 +102,22 @@ export function refinePacketPress(model:T.Object3D,parent:T.Object3D){
       const value=T.MathUtils.clamp(progress,0,1);
       needles.forEach((needle,index)=>needle.rotation.z=(.65-value*1.1+(index?.1:0))*Math.PI);
       core.emissiveIntensity=preparing?.35+Math.sin(value*Math.PI)*.42:.25;
+    },
+  };
+}
+
+function bindCollectiblePress(model:T.Object3D,root:T.Object3D){
+  const left=model.getObjectByName('CollectiblePress_NeedleLeft'),right=model.getObjectByName('CollectiblePress_NeedleRight');
+  const vessel=model.getObjectByName('CollectiblePress_Vessel') as T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>|undefined;
+  const core=model.getObjectByName('CollectiblePress_Core') as T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>|undefined;
+  if(!left||!right||!vessel?.isMesh||!vessel.material?.isMeshStandardMaterial||!core?.isMesh||!core.material?.isMeshStandardMaterial)throw new Error('Incomplete Blender collectible Press');
+  const needles=[left,right],light=core.material;
+  vessel.material.depthWrite=false;vessel.castShadow=false;root.userData.collectiblePress=1;
+  return {root,needles,vessel,
+    update:(progress:number,preparing:boolean)=>{
+      const value=T.MathUtils.clamp(progress,0,1);
+      needles.forEach((needle,index)=>needle.rotation.z=(.62-value*1.05+(index?.06:0))*Math.PI);
+      light.emissiveIntensity=preparing?.3+Math.sin(value*Math.PI)*.4:.25;
     },
   };
 }

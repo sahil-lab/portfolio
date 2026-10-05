@@ -16,3 +16,8 @@ test('every building address has a deterministic geometric recipe, not a repeate
   assert.equal(recipes.size,1200,style);assert.equal(massings.size,5);assert.equal(attachments.size,4);
  }
 });
+
+test('building details replace decorative spikes with fitted low-profile equipment',()=>{
+ const {createCraftedBuilding}=require('../app/building-craft'),{disposeScene}=require('../app/scene-resources');
+ for(const style of ['citadel','research','solstice','atelier','forge']){const building=createCraftedBuilding({style,address:'soft-profile/'+style,stairs:false});assert.equal(building.root.getObjectByName('Citadel_Spire'),undefined);assert.equal(building.root.getObjectByName('Research_SolarFin'),undefined);assert.ok(building.root.getObjectByName('Residence_StructuralStorey').geometry.attributes.position.count>24);if(style==='citadel')assert.ok(building.root.getObjectByName('Citadel_RooftopLantern'));if(style==='research')assert.ok(building.root.getObjectByName('Research_FittedSolarPanel'));if(style==='solstice'||style==='atelier')assert.ok(building.root.getObjectByName('Terrace_RoundedShade'));disposeScene(building.root)}
+});

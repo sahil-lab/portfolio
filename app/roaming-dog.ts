@@ -3,14 +3,15 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createDogRig} from './dog-rig';
 import {createDogClearance,createDogWander,findDogRoamingArea,type DogWanderOptions} from './dog-wander';
 import {disposeScene} from './scene-resources';
+import {assetManifest} from './asset-manifest';
 
 export const dogRoamingBounds={minX:-86,maxX:86,minZ:-68,maxZ:211};
 export const dogArrival={x:0,z:60};
 type DogOptions={height:number;blocked:(x:number,z:number)=>boolean;ground:(x:number,z:number)=>number|null;bark:(distance:number,pan:number)=>void;notice:(text:string)=>void;random?:()=>number;load?:(url:string)=>Promise<T.Object3D>;prepare?:(root:T.Object3D)=>Promise<void>};
 export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions){
  const root=new T.Group();root.name='Motherboard_RoamingDog';root.visible=false;scene.add(root);
- const loader=new GLTFLoader(),load=options.load??(async(url:string)=>(await loader.loadAsync(url)).scene);
  let rig:ReturnType<typeof createDogRig>|undefined,wander:ReturnType<typeof createDogWander>|undefined,disposed=false,active=false,scale=1,clearance=1,status='loading',lastBark=0;
+ const loader=new GLTFLoader(),load=options.load??(async(url:string)=>{let failure:unknown;for(const source of [url,assetManifest.dog.fallbackUrl]){if(disposed)throw new DOMException('Dog disposed','AbortError');try{const asset=(await loader.loadAsync(source)).scene;asset.userData.assetUrl=source;return asset}catch(error){if(disposed||error instanceof Error&&error.name==='AbortError')throw error;failure=error}}throw failure});
  const start={...dogArrival},bounds={...dogRoamingBounds};
  const isBlocked=(x:number,z:number)=>options.blocked(x,z)||Math.abs((options.ground(x,z)??-100)-.8)>.35;
  function bark(yaw:number){
@@ -18,7 +19,7 @@ export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions
   if(distance>80)return;
   options.bark(distance,distance?T.MathUtils.clamp((dx*Math.cos(yaw)-dz*Math.sin(yaw))/distance,-1,1):0);lastBark++;
  }
- const ready=load('/assets/roaming-dog.glb').then(async asset=>{
+ const ready=load(assetManifest.dog.url).then(async asset=>{
   if(disposed){disposeScene(asset);return}
   rig=createDogRig(asset);scale=options.height/rig.size.y;
   const center=rig.bounds.getCenter(new T.Vector3());rig.root.position.set(-center.x,-rig.bounds.min.y,-center.z);rig.root.scale.setScalar(1);
@@ -32,7 +33,7 @@ export function createRoamingDog(scene:T.Scene,player:T.Group,options:DogOptions
   wander=createDogWander(configuration);root.userData.roamingDestinations=area.destinations.length;
   root.position.set(start.x,options.ground(start.x,start.z)??.8,start.z);
   if(options.prepare)await options.prepare(root);if(disposed)return;
-  root.userData.dogHeight=options.height;root.userData.clearance=clearance;root.userData.asset='/assets/roaming-dog.glb';root.userData.loaded=true;
+  root.userData.dogHeight=options.height;root.userData.clearance=clearance;root.userData.asset=asset.userData.assetUrl??assetManifest.dog.url;root.userData.loaded=true;
   status='ready';
  }).catch(error=>{if(!disposed){status='failed';console.error('The roaming dog model could not load',error)}});
  function update(dt:number,enabled:boolean,reduced:boolean,cameraYaw:number){

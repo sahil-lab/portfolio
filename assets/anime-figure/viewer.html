@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Anime Figure / Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/viewer.css">
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+</head>
+<body>
+  <header class="studio-header"><div><span class="edition">REFERENCE STUDY / 01</span><h1>Anime Figure</h1></div><span id="status" role="status">Loading model</span><a href="/model/anime-figure.glb" download="anime-figure.glb">Download GLB</a></header>
+  <main id="viewport" aria-label="Interactive anime figure"></main>
+  <footer class="studio-tools">
+    <fieldset class="segments" aria-label="Camera view"><legend>View</legend>
+      <label><input type="radio" name="view" value="three_quarter" checked><span>3/4</span></label>
+      <label><input type="radio" name="view" value="front"><span>Front</span></label>
+      <label><input type="radio" name="view" value="side"><span>Side</span></label>
+      <label><input type="radio" name="view" value="back"><span>Back</span></label>
+      <label><input type="radio" name="view" value="portrait"><span>Face</span></label>
+    </fieldset>
+    <fieldset class="segments material-choice" aria-label="Material view"><legend>Material</legend>
+      <label><input type="radio" name="material" value="color" checked><span>Color</span></label>
+      <label><input type="radio" name="material" value="clay"><span>Clay</span></label>
+    </fieldset>
+    <label class="rotation"><input id="rotate" type="checkbox">Turntable</label>
+  </footer>
+  <script type="module" src="/viewer.mjs"></script>
+</body>
+</html>

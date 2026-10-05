@@ -1,0 +1,77 @@
+{
+  "version": "premium-v1",
+  "scope": "Reviewed shared geometry and material pass; not every bespoke object remodeled",
+  "assets": [
+    {
+      "file": "architecture-kit.glb",
+      "bytes": 116020,
+      "sha256": "c42edb4f7758b9eb366d613209eb9d0ef8ef7b8e33ef021520952ee846181933"
+    },
+    {
+      "file": "kingdom-world-kit.glb",
+      "bytes": 717608,
+      "sha256": "eb7343dedfb018b8aface701e4f7d3b51ef14198559de03e0947b034f672bf9d"
+    },
+    {
+      "file": "ceramic-color.png",
+      "bytes": 77008,
+      "sha256": "6bdf80c75ff154666255580a82245871bfe0d20d329c1139388f0865c9ea2dce"
+    },
+    {
+      "file": "ceramic-roughness.png",
+      "bytes": 154807,
+      "sha256": "e1c58cab068be2126aa55a7c0b844e070c5991c3f3631ee6ecaa25b39235c995"
+    },
+    {
+      "file": "ceramic-normal.png",
+      "bytes": 291124,
+      "sha256": "778ac970405656f1ddbe77da069cce8bad802bcedd93388b7ec88a8245cf538a"
+    },
+    {
+      "file": "stone-color.png",
+      "bytes": 126962,
+      "sha256": "8b597393b1c08836453a4c9201ed2ad0d41ebac27393ef0a4df780dc3a3934bf"
+    },
+    {
+      "file": "stone-roughness.png",
+      "bytes": 186843,
+      "sha256": "7aa6287d6b6e570be155cce84f0f6eef93d4c2bf3b2ae1a418ae35c0ed39d9d1"
+    },
+    {
+      "file": "stone-normal.png",
+      "bytes": 515700,
+      "sha256": "c32eb5e6169880e8c0f8ba7aed2cb03e55a06d3485f0d9033cc1090a71c21d7b"
+    },
+    {
+      "file": "timber-color.png",
+      "bytes": 105409,
+      "sha256": "6959938ea698fd9578ecd692967ad194c43c5feb1884038cdd41f2b773d2879c"
+    },
+    {
+      "file": "timber-roughness.png",
+      "bytes": 132279,
+      "sha256": "279624ab7cb383e69a085902ed3f43d2c5ca3f4979fbf4eb19279dad5bd39cbf"
+    },
+    {
+      "file": "timber-normal.png",
+      "bytes": 278523,
+      "sha256": "4c7dd352f40b44f9a9f8dd2d314ec5d093e6f08d50f492714bc208dd2140acc4"
+    },
+    {
+      "file": "brushed-color.png",
+      "bytes": 86446,
+      "sha256": "84844eb67e913f9fdc17a96fe39169a1510059ec11968a6eed337dfcf793a2c3"
+    },
+    {
+      "file": "brushed-roughness.png",
+      "bytes": 178547,
+      "sha256": "cc463ecaefca732094f065f5d3e823cefe54f0674c036da1f38b89b4f815a8d1"
+    },
+    {
+      "file": "brushed-normal.png",
+      "bytes": 278044,
+      "sha256": "4fdccc649b8e668b91638cc2d0ca2fcd42e40a04d8516c7f48eafbad7f4fba45"
+    }
+  ],
+  "baselineAssetsUnchanged": true
+}

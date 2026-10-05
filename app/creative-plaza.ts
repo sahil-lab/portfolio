@@ -7,6 +7,7 @@ import {PaintingInteraction} from './painting-interaction';
 import {batchScenery} from './static-batching';
 import {addShopArchitecture} from './shop-architecture';
 import {createKettleSteam} from './kettle-steam';
+import {worldKitGeometry,completeKitColors} from './world-kit';
 
 export const commonsSpawn={x:0,y:.8,z:98};
 export function commonsArrival(aspect:number){
@@ -28,7 +29,7 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
   const ink=surface('#233c43'),cream=surface('#f1f2e9'),copper=surface('#c9ad7b',0,.65),teal=surface('#198c91'),rose=surface('#e47f87'),blue=surface('#4b91b3');
   const glass=new T.MeshPhysicalMaterial({color:'#1988ba',metalness:.3,roughness:.22,clearcoat:.75,clearcoatRoughness:.2});
   const foliage=surface('#417c5c'),newGrowth=surface('#a3c783'),petal=surface('#efb79a'),soil=surface('#29433b');
-  const leafGeometry=new T.SphereGeometry(1,8,6),stemGeometry=new T.CylinderGeometry(.025,.04,1.2,6);
+  const authoredLeaf=worldKitGeometry('Kit_Shrub'),leafGeometry=authoredLeaf??new T.SphereGeometry(1,8,6),stemGeometry=new T.CylinderGeometry(.025,.04,1.2,6);if(authoredLeaf)foliage.vertexColors=newGrowth.vertexColors=true;
   const speaker=new PortraitSpeaker(callbacks.subtitle);let clock=0,lastMouth=-1,lastText='',lastBlink=false,lastStatus='';const dispensed:{mesh:T.Object3D;until:number}[]=[];
   const kettleSteam=createKettleSteam();
   const radioControls=new T.Group();radioControls.name='Radio_LiveControls';
@@ -193,7 +194,7 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
     context.fillStyle=voice.speech.snapshot.listening?'#ffcf83':'#99b9c9';context.font='900 22px "Trebuchet MS", sans-serif';context.fillText(voice.status,384,984,650);texture.needsUpdate=true;
   }
   paintPortrait(false);
-  batchScenery(root,{portrait,kettleSteam:kettleSteam.root,radio:radioControls,products:dispensed.map(item=>item.mesh)});
+  completeKitColors(root);batchScenery(root,{portrait,kettleSteam:kettleSteam.root,radio:radioControls,products:dispensed.map(item=>item.mesh)});
   const nearest=()=>player.position.y<3?commonsVenues.find(venue=>Math.hypot(player.position.x-venue.x,player.position.z-(venue.z+venue.depth/2+1))<4.8):undefined;
   function update(dt:number,reduced:boolean,active:boolean,environment={visible:active,wind:0}){
     available=active;voice.update();clock+=dt;speaker.tick(dt,reduced);

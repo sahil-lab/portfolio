@@ -1,0 +1,78 @@
+{
+  "status": "verified-unpublished",
+  "bytes": 2411692,
+  "maps": [
+    {
+      "surface": "ceramic",
+      "channel": "color",
+      "bytes": 77008,
+      "variation": 0.885840812450554
+    },
+    {
+      "surface": "ceramic",
+      "channel": "roughness",
+      "bytes": 154807,
+      "variation": 5.1786606383926985
+    },
+    {
+      "surface": "ceramic",
+      "channel": "normal",
+      "bytes": 291124,
+      "variation": 2.440788117683034
+    },
+    {
+      "surface": "stone",
+      "channel": "color",
+      "bytes": 126962,
+      "variation": 1.7882174346657702
+    },
+    {
+      "surface": "stone",
+      "channel": "roughness",
+      "bytes": 186843,
+      "variation": 5.296347733008826
+    },
+    {
+      "surface": "stone",
+      "channel": "normal",
+      "bytes": 515700,
+      "variation": 11.948972072112563
+    },
+    {
+      "surface": "timber",
+      "channel": "color",
+      "bytes": 105409,
+      "variation": 14.579089632916855
+    },
+    {
+      "surface": "timber",
+      "channel": "roughness",
+      "bytes": 132279,
+      "variation": 25.19727396911937
+    },
+    {
+      "surface": "timber",
+      "channel": "normal",
+      "bytes": 278523,
+      "variation": 9.563856681758722
+    },
+    {
+      "surface": "brushed",
+      "channel": "color",
+      "bytes": 86446,
+      "variation": 5.507185783214928
+    },
+    {
+      "surface": "brushed",
+      "channel": "roughness",
+      "bytes": 178547,
+      "variation": 23.912173134886455
+    },
+    {
+      "surface": "brushed",
+      "channel": "normal",
+      "bytes": 278044,
+      "variation": 1.2281965555057892
+    }
+  ]
+}

@@ -141,3 +141,22 @@ test('actual train and rocket objects preserve boarding, rider attachment and pr
   assert.equal(world.start(0,'rocket'),true);world.journey.elapsed=4;world.update(0,0,0,false);world.home();
   rockets.forEach(object=>{assert.equal(object.visible,true);assert.equal(object.getObjectByName('Rocket_Exhaust').visible,false);assert.ok(object.quaternion.angleTo(new T.Quaternion())<1e-6)});disposeScene(scene);
 });
+
+test('native vehicle bodies preserve wheels, couplers, exhaust bindings and route geometry',async()=>{
+ const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),{createTransitModels}=require('../app/transit-models.ts'),{installCraftKit}=require('../app/craft-kit.ts'),{disposeScene}=require('../app/scene-resources.ts'),bytes=fs.readFileSync('assets/world-candidates/craft-kit.glb'),asset=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;
+ const parts=new Set();asset.traverse(object=>{if(object.userData.craftPart)parts.add(object.userData.craftPart)});for(const part of ['RoverBody','MetroBody','MetroRoof','Tyre','RocketHull','RocketFin'])assert.ok(parts.has(part),part+' is missing');
+ const baseline=createTransitModels(),oldRover=baseline.rover('#82a599'),oldRocket=baseline.rocket('#b89368'),roverBounds=new T.Box3().setFromObject(oldRover.root),rocketBounds=new T.Box3().setFromObject(oldRocket.root);
+ assert.equal(installCraftKit(asset),true);const models=createTransitModels(),rover=models.rover('#82a599'),train=models.train(),rocket=models.rocket('#b89368');
+ try{
+  for(const [model,expected] of [[rover,roverBounds],[rocket,rocketBounds]]){const bounds=new T.Box3().setFromObject(model.root);assert.ok(bounds.min.distanceTo(expected.min)<.001);assert.ok(bounds.max.distanceTo(expected.max)<.001);let triangles=0;model.root.traverse(object=>{if(object.isMesh)triangles+=(object.geometry.index?.count??object.geometry.attributes.position.count)/3});assert.ok(triangles<15000)}
+  assert.ok(rover.root.userData.craftParts.includes('RoverBody'));assert.equal(rover.wheels.length,4);for(const wheel of rover.wheels)assert.equal(wheel.geometry.userData.authoredCraft,'Tyre');
+  assert.ok(rocket.root.userData.craftParts.includes('RocketHull'));assert.ok(rocket.root.userData.craftParts.includes('RocketFin'));assert.equal(rocket.root.getObjectByName('Rocket_Exhaust').uuid,rocket.flame.uuid);assert.equal(rocket.flame.visible,false);assert.ok(rocket.root.getObjectByName('Rocket_Porthole'));
+  rocket.root.updateMatrixWorld(true);for(let sample=0;sample<16;sample++){const angle=sample*Math.PI/8,ray=new T.Raycaster(new T.Vector3(Math.cos(angle)*.36,3.1+Math.sin(angle)*.36,3),new T.Vector3(0,0,-1),0,3),hit=ray.intersectObject(rocket.root,true).find(hit=>hit.object.isMesh);assert.ok(hit);const material=Array.isArray(hit.object.material)?hit.object.material[hit.face.materialIndex]:hit.object.material;assert.equal(material.color.getHexString(),'304650','Rocket hull covers the porthole glazing')}
+  assert.equal(train.carriages.length,metroDimensions.carCount);assert.equal(train.couplers.length,metroDimensions.carCount-1);
+  const route=createMetroPath(transitStops[0],transitStops[2]);
+  for(const reversed of [false,true])for(let step=0;step<=80;step++){
+   placeMetro(train,route,metroDistance(route,step/80),reversed);train.root.updateMatrixWorld(true);
+   for(const carriage of train.carriages){assert.ok(carriage.body.userData.craftParts.includes('MetroBody'));assert.ok(carriage.body.userData.craftParts.includes('MetroRoof'));for(const wheel of carriage.wheels){assert.equal(wheel.geometry.userData.authoredCraft,'Tyre');assert.ok(Math.abs(wheel.geometry.boundingBox.min.x+metroDimensions.wheelRadius)<.00001);assert.ok(Math.abs(wheel.geometry.boundingBox.max.x-metroDimensions.wheelRadius)<.00001)}assert.equal(carriage.axles.length,2)}
+  }
+ }finally{for(const root of [asset,oldRover.root,oldRocket.root,rover.root,train.root,rocket.root])disposeScene(root)}
+});

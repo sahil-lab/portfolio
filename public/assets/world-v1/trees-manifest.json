@@ -1,0 +1,46 @@
+{
+  "version": "collectible-trees-v1",
+  "url": "/assets/world-v1/kingdom-world-kit.glb",
+  "bytes": 1186004,
+  "sha256": "cca52d5cd45902da52b76cb2c191b357085bc0979acd6a792b76a30493b5d7b4",
+  "originalSha256": "eb7343dedfb018b8aface701e4f7d3b51ef14198559de03e0947b034f672bf9d",
+  "remodeledParts": [
+    "Kit_Banyan_Distant_Crown",
+    "Kit_Banyan_Distant_Wood",
+    "Kit_Banyan_Full_Crown",
+    "Kit_Banyan_Full_Wood",
+    "Kit_Tree_Distant_Crown",
+    "Kit_Tree_Distant_Wood",
+    "Kit_Tree_Full_Crown",
+    "Kit_Tree_Full_Wood"
+  ],
+  "preservedParts": 13,
+  "triangles": {
+    "Kit_Banyan_Distant_Crown": 960,
+    "Kit_Banyan_Distant_Wood": 1326,
+    "Kit_Banyan_Full_Crown": 4800,
+    "Kit_Banyan_Full_Wood": 6252,
+    "Kit_Blossom": 200,
+    "Kit_Boot": 624,
+    "Kit_CanopyLobe_Distant": 20,
+    "Kit_CanopyLobe_Full": 200,
+    "Kit_CourierBody": 624,
+    "Kit_CourierHead": 624,
+    "Kit_Hand": 624,
+    "Kit_Kerb": 60,
+    "Kit_ResidentBody": 624,
+    "Kit_ResidentHead": 624,
+    "Kit_Shrub": 200,
+    "Kit_SquarePaver": 60,
+    "Kit_StonePaver": 60,
+    "Kit_Tree_Distant_Crown": 672,
+    "Kit_Tree_Distant_Wood": 368,
+    "Kit_Tree_Full_Crown": 3360,
+    "Kit_Tree_Full_Wood": 1376
+  },
+  "source": "assets/world-candidates/world-details-study-20261004-r1.blend",
+  "sourceBytes": 1159814910,
+  "reviews": [
+    "outputs/playtest/botanical-candidate-final/checks.json"
+  ]
+}

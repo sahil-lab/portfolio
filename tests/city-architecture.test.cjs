@@ -131,9 +131,9 @@ test('architecture geometry has finite positions, unit normals and a bounded pol
   }
 });
 
-test('factory keeps its dependency surface and supports the distant bakeModel merge contract',()=>{
+test('factory keeps its explicit shared-kit dependency surface and supports the distant bakeModel merge contract',()=>{
   const imports=ts.preProcessFile(fs.readFileSync(require.resolve('../app/city-architecture.ts'),'utf8')).importedFiles.map(entry=>entry.fileName);
-  assert.deepEqual(imports,['three','three/addons/geometries/RoundedBoxGeometry.js','./facade-craft','./architecture-profiles']);
+  assert.deepEqual(imports,['three','three/addons/geometries/RoundedBoxGeometry.js','./facade-craft','./architecture-profiles','./architecture-kit']);
   for(const variant of [0,1,2]){
     const building=createCityBuilding({width:4.6,height:8.4,depth:4.2,accent:'#89badb',variant}),groups=new Map(),baked=new T.Group();building.root.updateMatrixWorld(true);
     const originalBounds=new T.Box3().setFromObject(building.root);

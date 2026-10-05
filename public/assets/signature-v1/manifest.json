@@ -1,0 +1,89 @@
+{
+  "version": "signature-shops-v1",
+  "source": "assets/signature-candidates/signature-shops-study-20261003-r2.blend",
+  "review": "outputs/playtest/signature-candidates-v3-checks.json",
+  "assets": [
+    {
+      "theme": "donut",
+      "bytes": 3373820,
+      "sha256": "bfad19749c1a9d875a98d8a57465c83859d86dafaa38a49bbba0e8847bb88614",
+      "occlusionBytes": 695802,
+      "occlusionSha256": "71e4cb41556c57be41426101ee2bd33441b726e934ba2677e3e8b39d9f0bed48",
+      "triangles": 17820,
+      "parts": 98
+    },
+    {
+      "theme": "gelato",
+      "bytes": 3260468,
+      "sha256": "697f3f14e17453a4c6a8182405782f061066328754da640f22a49115c2cc0c9e",
+      "occlusionBytes": 740596,
+      "occlusionSha256": "6277ccee14e55fd60fcfbf245b0c0b02a1881d931faae00efebf8169aef3c288",
+      "triangles": 16068,
+      "parts": 90
+    },
+    {
+      "theme": "tea",
+      "bytes": 2407060,
+      "sha256": "bf3930d1e1f4d1e2b1a8cc942f71c67d972f09996811a0ee8f7adf6dc25aa943",
+      "occlusionBytes": 718329,
+      "occlusionSha256": "70527eb6d55a8b716ac7d763d91710f057f484e79a9d4896c1a4d20734f26a90",
+      "triangles": 14024,
+      "parts": 106
+    },
+    {
+      "theme": "tart",
+      "bytes": 4032996,
+      "sha256": "59e8ad5279ef178b71ba28323abcd57a5074693534b43c34f4372d244e06c42d",
+      "occlusionBytes": 816081,
+      "occlusionSha256": "c5567d0fc14062abdf2e30dab0de93e35f815b0bf31550511d3d1f42fd49ee0b",
+      "triangles": 35488,
+      "parts": 141
+    },
+    {
+      "theme": "coffee",
+      "bytes": 2331160,
+      "sha256": "6dc3d47875e62a0e80db69bbf48530264d0914a1448799108610ccb50e792e5d",
+      "occlusionBytes": 699853,
+      "occlusionSha256": "e84f4f05c5fd2189a376f8ca109a7cf6387282474df72c3adfa636f156b95a30",
+      "triangles": 12852,
+      "parts": 89
+    },
+    {
+      "theme": "cotton",
+      "bytes": 2511512,
+      "sha256": "c89e2b8271c97f82498c562572b6b16bf03621d377d7e739c814ea9ed5113cbf",
+      "occlusionBytes": 745512,
+      "occlusionSha256": "e2b83c7133ba095b90e94df91e3fa34435043483d2a2909eed85e0bbac18a9a6",
+      "triangles": 18380,
+      "parts": 93
+    },
+    {
+      "theme": "prism",
+      "bytes": 2380180,
+      "sha256": "abfede766fa4c6169307545b52f966840e9eeb60942d594424d9b96cfbdae635",
+      "occlusionBytes": 732599,
+      "occlusionSha256": "854fc0445b54a230e86724b40094e11fbceb518cd89114358d010dec2aa758a3",
+      "triangles": 14220,
+      "parts": 85
+    },
+    {
+      "theme": "glider",
+      "bytes": 2421952,
+      "sha256": "677e70ed7021bfcdaf93daecaa1f721cf3d8a67c8af363d7e61ab0ba2dc76523",
+      "occlusionBytes": 725032,
+      "occlusionSha256": "dbe1a3bb5cf9392a1d543667a2aec839b9143f37305c4d5ac84c88efe811d881",
+      "triangles": 15024,
+      "parts": 105
+    },
+    {
+      "theme": "kite",
+      "bytes": 2476436,
+      "sha256": "bff44bb1c46eed08917d3f8987c291d1e5c648d00a8e2dad8fe967bb864a867d",
+      "occlusionBytes": 701186,
+      "occlusionSha256": "460e5a65090409c1648f1e89aecf0588e3f5c83ed70e3523f0d42f3502f0ce27",
+      "triangles": 16168,
+      "parts": 90
+    }
+  ],
+  "totalBytes": 31770574
+}

@@ -1,6 +1,24 @@
 import * as T from 'three';
 
 export type GroundOccluder={x:number;z:number;width:number;depth:number;strength?:number;round?:boolean};
+export const blenderGroundArea={x:0,z:79,width:1070,depth:2560,y:.035} as const;
+type FinishTextureLoader=(url:string,ready:(texture:T.Texture)=>void,failed:()=>void)=>void;
+
+export function createBlenderGroundFinish(parent:T.Object3D,prepare?:(root:T.Object3D)=>Promise<void>,load?:FinishTextureLoader){
+ const root=new T.Group();root.name='Blender_HomeSceneFinish';parent.add(root);
+ const geometry=new T.PlaneGeometry(blenderGroundArea.width,blenderGroundArea.depth).rotateX(-Math.PI/2),material=new T.MeshBasicMaterial({color:'#203734',transparent:true,opacity:.65,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}),mesh=new T.Mesh(geometry,material);
+ mesh.name='Blender_BakedGroundContact';mesh.position.set(blenderGroundArea.x,blenderGroundArea.y,blenderGroundArea.z);mesh.visible=false;mesh.userData.surface='baked-contact';root.add(mesh);
+ let alive=true,resolveReady!:(value:boolean)=>void;const ready=new Promise<boolean>(resolve=>resolveReady=resolve),disposed=()=>{alive=false;resolveReady(false);material.removeEventListener('dispose',disposed)};material.addEventListener('dispose',disposed);
+ if(typeof window==='undefined'&&!load){resolveReady(false);return {root,ready}}
+ const request=load??((url,onReady,onFailure)=>{new T.TextureLoader().load(url,onReady,undefined,onFailure)});
+ request('/assets/world-finish/motherboard-contact.png',texture=>{
+  if(!alive){texture.dispose();resolveReady(false);return}
+  texture.name='Blender_MotherboardSceneContact';texture.colorSpace=T.NoColorSpace;texture.anisotropy=4;material.map=texture;material.needsUpdate=true;
+  const preparation=new T.Group();preparation.add(new T.Mesh(geometry,material));
+  Promise.resolve(prepare?.(preparation)).then(()=>{preparation.clear();if(alive){mesh.visible=true;root.userData.blenderSceneFinish='scene-ao-v1';resolveReady(true)}else resolveReady(false)},()=>{preparation.clear();if(alive){material.map=null;texture.dispose()}resolveReady(false)});
+ },()=>resolveReady(false));
+ return {root,ready};
+}
 
 export function createGroundOcclusion(name:string,area:{x:number;z:number;width:number;depth:number;y:number},occluders:GroundOccluder[],feather=1.2,size=256){
  const data=new Uint8Array(size*size*4),falloff=Math.max(.05,feather);

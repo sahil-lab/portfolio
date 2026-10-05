@@ -4,17 +4,25 @@ import {createAssetManager} from './asset-manager';
 
 export function createWorldAssets(dependencies:{fetch?:typeof fetch;parse?:(data:ArrayBuffer,url:string)=>Promise<GLTF>}={}){
  const manager=createAssetManager({concurrency:1,paused:true}),fetcher=dependencies.fetch??globalThis.fetch;
+ let disposed=false;
  return {manager,
   async model(id:WorldAssetId){
-   const asset=assetManifest[id],lease=manager.acquire(asset.url,async signal=>{
-        const response=await fetcher(asset.url,{signal,credentials:'same-origin',cache:'force-cache'});if(!response.ok)throw Error('Model unavailable: '+id);
+    const asset=assetManifest[id],urls='fallbackUrl' in asset?[asset.url,asset.fallbackUrl]:[asset.url];let failure:unknown;
+    for(const url of urls){
+      if(disposed)throw new DOMException('World assets disposed','AbortError');
+      const lease=manager.acquire(url,async signal=>{
+            const response=await fetcher(url,{signal,credentials:'same-origin',cache:'force-cache'});if(!response.ok)throw Error('Model unavailable: '+id);
         return response.arrayBuffer();
      },()=>{},asset.priority);
-   try{
-        const data=await lease.promise,gltf=await (dependencies.parse??((buffer,url)=>new GLTFLoader().parseAsync(buffer,new URL(url,location.href).href.replace(/[^/]+$/,''))))(data,asset.url);
+      try{
+            const data=await lease.promise,gltf=await (dependencies.parse??((buffer,url)=>new GLTFLoader().parseAsync(buffer,new URL(url,location.href).href.replace(/[^/]+$/,''))))(data,url);
+            gltf.scene.userData.assetUrl=url;
         return gltf.scene;
-     }finally{lease.release()}
+       }catch(error){if(disposed||(error instanceof Error&&error.name==='AbortError'))throw error;failure=error}
+       finally{lease.release()}
+    }
+    throw failure;
   },
-    start:()=>manager.start(),dispose:()=>manager.dispose(),
+      start:()=>manager.start(),dispose:()=>{disposed=true;manager.dispose()},
  };
 }

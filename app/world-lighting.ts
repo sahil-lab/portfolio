@@ -10,6 +10,12 @@ export function sampleWorldLighting(mode:WorldLightingMode,seconds:number,isDay:
  const angle=((Math.max(0,seconds)/480+.2)%1)*Math.PI*2,altitude=Math.sin(angle);
  return {night:T.MathUtils.smoothstep(-altitude,-.08,.58),sunset:Math.max(0,1-Math.abs(altitude)*3.5)};
 }
+export function sampleMorning(mode:WorldLightingMode,seconds:number,weather:Pick<WeatherSnapshot,'isDay'|'updatedAt'>,localHour=new Date().getHours()+new Date().getMinutes()/60){
+ if(mode==='day')return 1;if(mode==='night'||mode==='sunset')return 0;
+ if(mode==='cycle'){const phase=(Math.max(0,seconds)/480+.2)%1;return phase<.5?1-T.MathUtils.smoothstep(phase,.24,.45):0}
+ const reported=weather.updatedAt?new Date(weather.updatedAt):null,hour=reported&&Number.isFinite(reported.getTime())?reported.getHours()+reported.getMinutes()/60:localHour;
+ return weather.isDay&&Number.isFinite(hour)?T.MathUtils.smoothstep(hour,5.5,7)*(1-T.MathUtils.smoothstep(hour,10.5,12.5)):0;
+}
 export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,seconds:number){
  const light=sampleWorldLighting(mode,seconds,weather.isDay),snapshot=mode==='local'?weather:{...weather,isDay:light.night<.55};
  const tint:Partial<SkyLook>={};
@@ -18,7 +24,7 @@ export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,sec
   Object.assign(tint,{zenith:color('#83b9ce','#789aa4','#101f2d'),horizon:color('#c2d6d2','#edbc94','#293e4b'),background:color('#83b9ce','#789aa4','#101f2d'),fogColor:color('#bed0cd','#c2a995','#243d48'),sunColor:color('#ffe5c2','#ffd099','#a9c8e3'),sunIntensity:3.1*(1-light.night)+.18*light.night-light.sunset*.55,ambient:.44*(1-light.night)+.2*light.night,directional:.5*(1-light.night)+.18*light.night,sunX:-40-20*light.night-light.sunset*85,sunY:65-light.sunset*40,sunZ:70-35*light.night,solarOpacity:(1-light.night)*(1-weather.cloudCover/140),moonOpacity:light.night,starsOpacity:light.night*(1-weather.cloudCover/130)});
   if(!['fog','storm','rain','drizzle','sleet','snow'].includes(weather.kind))tint.fogDensity=.00045;
  }
- return {...light,snapshot,tint};
+ return {...light,morning:sampleMorning(mode,seconds,weather),snapshot,tint};
 }
 export function createCityLightResponse(scene:T.Scene){
  const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;nightIntensity:number;roughness:number;window:boolean;paving:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
@@ -30,7 +36,7 @@ export function createCityLightResponse(scene:T.Scene){
     const practical=material.userData.surface==='light',window=material.userData.surface==='glass'||practical,paving=material.userData.cityPaving===true;
     if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,practical?4:1.2):.42,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
    }})}
-    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,night);material.emissiveIntensity=base.intensity*(1-night)+base.nightIntensity*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
+    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,material.userData.preserveEmissiveColor?0:night);material.emissiveIntensity=base.intensity*(1-night)+base.nightIntensity*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
   },
   dispose(){for(const material of surfaces.keys())material.removeEventListener('dispose',removed);surfaces.clear()},
   get count(){return surfaces.size},

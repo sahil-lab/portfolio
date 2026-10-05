@@ -41,7 +41,7 @@ test('research facade has framed working data, stepped fins, joined edges and gr
     assert.equal(panel.object.material.emissiveIntensity,0);
     for(const indicator of realm.indicators){const position=indicator.position;assert.ok(position.x>panel.bounds.min.x&&position.x<panel.bounds.max.x);assert.ok(position.y>panel.bounds.min.y&&position.y<panel.bounds.max.y);assert.ok(position.z>panel.bounds.max.z)}
     const folds=parts(realm,'Observatory_FoldedCeramicWing'),distant=realm.landmarks[0].distant.children.filter(object=>object.geometry?.type==='ExtrudeGeometry');
-    assert.equal(folds.length,6);assert.equal(distant.length,6);
+    assert.equal(folds.length,6);assert.equal(distant.length,6);assert.ok(folds.every(fold=>fold.bounds.max.y<21),'research wings remain low and rounded');
     distant.forEach(object=>{
       const fold=folds.find(part=>new T.Vector3().setFromMatrixPosition(part.matrix).distanceTo(object.position)<.001);
       assert.ok(fold);assert.equal(object.geometry.uuid,fold.object.geometry.uuid);assert.equal(object.material.uuid,fold.object.material.uuid);

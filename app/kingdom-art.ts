@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {createCraftMaterials} from './crafted-surfaces';
 import {districts,routes} from './world-config';
+import {applyAuthoredPaving} from './paving-material';
+import {applyAuthoredArchitecture,completeArchitectureAttributes} from './architecture-kit';
 
 export const kingdomPalette={
   pearl:'#f4f3e9',jade:'#459e89',ink:'#30434c',brass:'#e3bd79',
@@ -8,9 +10,12 @@ export const kingdomPalette={
 };
 
 export function finishKingdomMaterials(scene:T.Object3D){
+  completeArchitectureAttributes(scene);
   const finished=new Set<T.Material>();
   scene.traverse(object=>{
     if(!(object instanceof T.Mesh))return;
+    applyAuthoredArchitecture(object);
+    applyAuthoredPaving(object);
     for(const material of Array.isArray(object.material)?object.material:[object.material]){
       if(finished.has(material)||!(material instanceof T.MeshStandardMaterial))continue;
       finished.add(material);

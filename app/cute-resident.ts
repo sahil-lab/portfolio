@@ -1,5 +1,7 @@
 import * as T from 'three';
 import {cityBlock} from './city-architecture';
+import {worldKitGeometry,worldKitReady,completeKitColors} from './world-kit';
+import {applyPremiumSurface} from './premium-materials';
 
 export type ResidentOccupation='technician'|'gardener'|'archivist'|'baker';
 export type ResidentMotion={moving?:boolean;reduced?:boolean;attentive?:boolean;look?:number};
@@ -12,19 +14,22 @@ const profiles=[
 
 export function createCuteResident(color:string,variant=0,occupation?:ResidentOccupation){
   const seed=Number.isFinite(variant)?Math.abs(Math.trunc(variant)):0,profile=profiles.find(entry=>entry.occupation===occupation)??profiles[seed%profiles.length];
-  const root=new T.Group();root.name='City_Resident';
+  const root=new T.Group();root.name='City_Resident';root.userData.authoredKit=worldKitReady();
   const material=(tone:string|T.Color,roughness=.6)=>new T.MeshPhysicalMaterial({color:tone,roughness,metalness:.025,clearcoat:.18,clearcoatRoughness:.48});
   const coat=material(new T.Color(color).lerp(new T.Color('#d9d3c7'),.24)),skin=material(['#ece2d0','#c8bda9','#dce0d5','#dbc4b1'][seed%4]),hair=material(['#596369','#64766c','#566c85','#907367'][seed%4]);
   const cream=material('#f5eedf'),ink=material('#303f49'),denim=material('#647b88'),blush=material('#c9877c'),accent=material(profile.accent);
   const metal=new T.MeshStandardMaterial({color:'#b9c1bd',roughness:.48,metalness:.65});
   skin.userData.surface='ceramic';coat.userData.surface='paint';metal.userData.surface='brushed-metal';
+  if(applyPremiumSurface(skin,'ceramic')){coat.roughness=.86;coat.metalness=0;coat.clearcoat=0;coat.sheen=.2;coat.sheenRoughness=.8}
   const sphere=new T.SphereGeometry(1,12,9);
   const instanceParts:T.Mesh[]=[];
   function orb(name:string,finish:T.Material,x:number,y:number,z:number,width:number,height:number,depth:number,parent:T.Object3D=root){
-    const mesh=new T.Mesh(sphere,finish);mesh.name=name;mesh.position.set(x,y,z);mesh.scale.set(width,height,depth);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);instanceParts.push(mesh);return mesh;
+    const part=name==='Resident_Head'?'Kit_ResidentHead':name==='Resident_Sneaker'?'Kit_Boot':name==='Resident_Hand'?'Kit_Hand':null,geometry=part?worldKitGeometry(part):null;if(geometry)(finish as T.MeshStandardMaterial).vertexColors=true;
+    const mesh=new T.Mesh(geometry??sphere,finish);mesh.name=name;mesh.position.set(x,y,z);mesh.scale.set(width,height,depth);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);instanceParts.push(mesh);return mesh;
   }
   function block(name:string,finish:T.Material,x:number,y:number,z:number,width:number,height:number,depth:number,parent:T.Object3D=root){
-    const mesh=new T.Mesh(cityBlock(width,height,depth,Math.min(width,height,depth)*.23),finish);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
+    const geometry=name==='Resident_Coat'?worldKitGeometry('Kit_ResidentBody')?.scale(width/2,height/2,depth/2):null;if(geometry)(finish as T.MeshStandardMaterial).vertexColors=true;
+    const mesh=new T.Mesh(geometry??cityBlock(width,height,depth,Math.min(width,height,depth)*.23),finish);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
   }
   block('Resident_Coat',coat,0,.77,0,profile.width*2,.79,.46);
   block('Resident_Shirt',cream,0,1.015,.237,.22,.19,.035);
@@ -82,6 +87,7 @@ export function createCuteResident(color:string,variant=0,occupation?:ResidentOc
   }
   const eyeHeights=eyes.map(eye=>eye.scale.y),phase=seed*.713,blinkPeriod=3.8+seed%5*.37;let time=0,reaction=0;
   root.userData.variant=seed;root.userData.occupation=profile.occupation;root.userData.temperament=profile.temperament;
+    completeKitColors(root);
   return {root,feet,instanceParts,parts:{head,eyes,smile,arms},movingParts:[head,...arms,...feet],react:()=>{reaction=1.3},update:(dt:number,{moving=false,reduced=false,attentive=false,look=0}:ResidentMotion={})=>{
     const delta=Number.isFinite(dt)?Math.max(0,dt):0;time+=reduced?0:delta;reaction=Math.max(0,reaction-delta);
     const engaged=attentive||reaction>0,gait=moving&&!reduced?Math.sin(time*7+phase):0;

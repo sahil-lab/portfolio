@@ -1,0 +1,8 @@
+{
+  "status": "draft-awaiting-geometry-and-bake-validation",
+  "bytes": 5355996,
+  "sha256": "cd431a8765459b1984b58f9338ec2b3e5cf83a6ee2df99dcffd5f3a1895a648f",
+  "nodes": 84,
+  "materials": 16,
+  "triangles": 57272
+}

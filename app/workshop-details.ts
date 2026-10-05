@@ -4,6 +4,7 @@ import {createCeramicPlanter,createWorkLight,createRepairCabinet,createCableReel
 import {createGroundOcclusion,type GroundOccluder} from './ground-occlusion';
 import {mapWindowRoom,windowRoom} from './window-interiors';
 import {loadWorkshopLighting} from './workshop-lighting';
+import {createFacadeLettering} from './readable-display';
 
 export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhysicalMaterial>){
   const solids:{x:number;y:number;z:number;w:number;h:number;d:number}[]=[];
@@ -43,17 +44,9 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     for(const side of [-1,1])mesh(group,'Atelier_SocketFastener',new T.CylinderGeometry(.037,.037,.03,8).rotateX(Math.PI/2),finishes.brass,side*(width/2-.11),.13,.173);
   }
   function plaque(text:string,subline:string,x:number,y:number,z:number,width:number,height:number,light=false){
-    const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=256;const context=canvas.getContext('2d')!;
-    context.fillStyle=light?'#dce6d9':'#29463f';context.fillRect(0,0,1024,256);context.strokeStyle=light?'#9b8058':'#ae9365';context.lineWidth=2;context.strokeRect(12,12,1000,232);
-    context.textAlign='center';context.fillStyle=light?'#29463f':'#eee8cd';context.font='600 74px "Trebuchet MS", sans-serif';context.fillText(text,512,subline?113:157,920);
-    if(subline){context.fillStyle=light?'#6c7664':'#c1c7ab';context.font='500 32px "Trebuchet MS", sans-serif';context.fillText(subline,512,190,920)}
-    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
-    const paint=new T.MeshStandardMaterial({map:texture,roughness:.82,metalness:0,emissive:'#ffffff',emissiveMap:texture,emissiveIntensity:.065});
-    mesh(root,'Atelier_PaintedShopSign',new T.PlaneGeometry(width,height),paint,x,y,z);
-    for(const side of [-1,1]){
-      box('Atelier_SignEdge',x,y+side*height/2,z+.008,width+.045,.035,.035,finishes.brass);
-      box('Atelier_SignStile',x+side*width/2,y,z+.008,.035,height+.045,.035,finishes.brass);
-    }
+    const color=light?'#29463f':'#eee8cd';
+    createFacadeLettering(root,'Atelier_FacadeLettering',text,width,height*(subline?.58:.8),new T.Vector3(x,y+(subline?height*.18:0),z),color);
+    if(subline)createFacadeLettering(root,'Atelier_FacadeLettering_Detail',subline,width*.86,height*.2,new T.Vector3(x,y-height*.29,z),color);
   }
   const planting:Placement[]=[],flowers:Placement[]=[];
   function planter(x:number,y:number,z:number,width=1.8){
@@ -108,7 +101,7 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
     box('Atelier_RoofCartridge',wing.x,wing.height+1.84,9.4,2.7,.34,3.1,finishes.chalk);
     for(let contact=0;contact<6;contact++)box('Atelier_RoofContact',wing.x-1.12+contact*.45,wing.height+1.84,11.01,.12,.09,.3,finishes.brass);
     portico(wing.x,3.95,14.2,5.8,index?finishes.sage:finishes.oxide);
-    plaque(index?'MEMORY STACK':'SIGNAL EXCHANGE',index?'VOLATILE STORAGE / 02':'ROUTING & REPAIRS / 01',wing.x,4.32,13.98,5.7,.98);
+    plaque(index?'MEMORY STACK':'SIGNAL EXCHANGE',index?'VOLATILE STORAGE / 02':'ROUTING & REPAIRS / 01',wing.x,8.14,13.516,5.35,.46);
     for(const side of [-1,1])for(let pin=0;pin<6;pin++)box('Atelier_FacadeContact',wing.x+side*3.16,1.4+pin*1.72,12.9,.22,.36,.8,finishes.brass);
     for(const side of [-1,1])planter(wing.x+side*2.2,.8,15.13,1.35);
     lantern(wing.x-2.8,.6,13.94,true);lantern(wing.x+2.8,.6,13.94,true);
@@ -121,8 +114,7 @@ export function addWorkshopDetails(root:T.Group,finishes:Record<string,T.MeshPhy
   for(const x of [-7.8,-1.8])lantern(x,3.05,12.95,true);
   box('Atelier_BackCanopy',-4.8,6.77,12.7,9.25,.22,2.3,finishes.sage);
   for(let index=0;index<16;index++)box('Atelier_CanopyRib',-9.12+index*.575,6.91,12.7,.045,.04,2.35,finishes.brass);
-  box('Atelier_WorkshopFascia',-4.8,6.13,13.86,9.08,1.02,.14,finishes.chalk);
-  plaque('BOOTLOADER WORKSHOP','PACKET PRESS / SYSTEM DISPATCH',-4.8,6.13,13.944,8.4,.98,true);
+  plaque('BOOTLOADER WORKSHOP','PACKET PRESS / SYSTEM DISPATCH',-4.8,5.95,12.738,7.8,.32);
   const cabinet=createRepairCabinet(finishes);cabinet.position.set(-5.2,.8,14.7);root.add(cabinet);
   solids.push({x:-5.2,y:1.71,z:14.7,w:5.5,h:1.8,d:1.2});
   const shelfLevels=[3.2,4.07,4.93];

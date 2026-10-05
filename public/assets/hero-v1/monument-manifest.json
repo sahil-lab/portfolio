@@ -1,0 +1,12 @@
+{
+  "version": "collectible-monument-v1",
+  "url": "/assets/hero-v1/monument.glb",
+  "bytes": 6800840,
+  "sha256": "a03a03994e04999c00d3974f9a6852e69fb89d2bddc1ede1f4a154713d8ea7c8",
+  "originalSha256": "3aef840cbc623bd34f32428020b67d787089c47f83f6278d864239db9e5527de",
+  "source": "assets/hero-candidates/monument-study-20261003.blend",
+  "sourceBytes": 1159125607,
+  "reviews": [
+    "outputs/playtest/monument-collectible-candidate-v3/checks.json"
+  ]
+}

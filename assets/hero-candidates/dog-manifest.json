@@ -1,0 +1,15 @@
+{
+  "status": "exported-awaiting-rig-and-runtime-review",
+  "bytes": 6117224,
+  "sha256": "a094dccb299a683e6e34c3245763805b1ce16f891e54926998ce10ed55a31e9c",
+  "triangles": 86882,
+  "nodes": 26,
+  "materials": 8,
+  "images": {
+    "dog_normal": "6c44ca6a91c956b1dd55dcc3ead3fc4d381f2e0b552ac9d40f99d68686e104fe",
+    "dog_basecolor": "ee0cf947cc7fe5741707e33c3bb9c1bd2a2c468c5fbcf12f05a5b728dc41db07",
+    "dog_roughness": "4bc6c6f1435afe2f17442989abd144170d67f113349d89cfb7ff13ff78838872",
+    "fur_strand_atlas": "0294378198d22a01db74d3de1c4d6b3b1ee2e936453e67e9d27242261a7e5273"
+  },
+  "originalSha256": "fd6caf91202250e078d32ea03f47a4ba41c679cad37cb9dd9b34bc0fc7ed7f5c"
+}

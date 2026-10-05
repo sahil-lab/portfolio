@@ -7,6 +7,7 @@ import {disposeScene} from './scene-resources';
 import {finishKingdomMaterials} from './kingdom-art';
 import type {createPlanetLandscape,buildPlanetLandscape} from './planet-surface';
 import type {ForgeSnapshot} from './forge-feed';
+import {loadAuthoredTerrain,type AuthoredTerrain} from './authored-terrain';
 
 type Landscape=ReturnType<typeof createPlanetLandscape>;
 type Builder=typeof buildPlanetLandscape;
@@ -16,19 +17,20 @@ function createOrbitalProxy(surface:PlanetSurface){
  for(let index=0;index<position.count;index++){normal.fromBufferAttribute(position,index).normalize();planetPoint(surface,normal,point).sub(surface.center);position.setXYZ(index,point.x,point.y,point.z);color.copy(land).lerp(patch,(Math.sin(normal.x*9+normal.z*3)*Math.cos(normal.y*12-normal.x*4)+1)*.22).toArray(colors,index*3)}
  geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));mesh.name='Planet_StreamingSilhouette';mesh.position.copy(surface.center);return mesh;
 }
-export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>}={}){
+export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain}={}){
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
- const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null;
+ const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
  function unload(){
-    generation++;rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
+    generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
  }
  async function load(priority=1):Promise<boolean>{
   if(disposed)return false;if(value){lastUse=now();return true}if(pending)return pending;
-   const token=++generation,staging=new T.Group();state='loading';lastUse=now();
+  const token=++generation,staging=new T.Group(),controller=new AbortController();terrainController=controller;state='loading';lastUse=now();let terrain:AuthoredTerrain|null=null;
   pending=(async()=>{
    try{
    const factory=await (options.factory??(async()=>{const landscapeModule=await import('./planet-surface');return landscapeModule.buildPlanetLandscape}))();
-    const builder=factory(staging,surface);let result:IteratorResult<string,Landscape>;
+    if(disposed||token!==generation)return false;terrain=options.terrain?await options.terrain(surface,controller.signal):options.factory?null:await loadAuthoredTerrain(surface,controller.signal);if(disposed||token!==generation)return false;
+    const builder=factory(staging,surface,terrain??undefined);let result:IteratorResult<string,Landscape>;
     do{if(disposed||token!==generation){builder.return(undefined as never);return false}result=await scheduler.run(()=>builder.next(),priority)}while(!result.done);
     if(disposed||token!==generation)return false;
     const landscape=result.value;finishKingdomMaterials(landscape.root);
@@ -38,24 +40,24 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
     root.add(landscape.root);landscape.root.name='Planet_LoadedDetail_'+surface.stop.id;value=landscape;proxy.visible=false;lastUse=now();state='loaded';root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;
     if(repositoryData)value.civilization?.setRepositories(repositoryData);if(realmState!==null)value.realm?.restore(realmState);return true;
    }catch{if(!disposed&&token===generation)state='failed';return false}
-   finally{disposeScene(staging);staging.clear();pending=null}
+  finally{if(terrain)disposeScene(terrain.root);disposeScene(staging);staging.clear();pending=null;if(terrainController===controller)terrainController=null}
   })();return pending;
  }
  return {root,rotation,proxy,load,unload,get loaded(){return value!==null},get state(){return state},get lastUse(){return lastUse},get pending(){return pending},
-   get globe(){return value?.globe??proxy},get infrastructure(){return value?.infrastructure},get publicSpaces(){return value?.publicSpaces},get population(){return value?.population},get civilization(){return value?.civilization},get realm(){return value?.realm},get vegetation(){return value?.vegetation},get outposts(){return value?.outposts??[]},get details(){return value?.details},get distant(){return value?.distant??proxy},
+  get globe(){return value?.globe??proxy},get infrastructure(){return value?.infrastructure},get publicSpaces(){return value?.publicSpaces},get population(){return value?.population},get civilization(){return value?.civilization},get realm(){return value?.realm},get vegetation(){return value?.vegetation},get outposts(){return value?.outposts??[]},get details(){return value?.details},get distant(){return value?.distant??proxy},get streetLife(){return value?.streetLife},
   setRepositories(snapshot:ForgeSnapshot){repositoryData=snapshot;value?.civilization?.setRepositories(snapshot)},
   update(delta:number,reduced:boolean,observer:T.Group,active=false){
   const observed=!!root.userData.observed,wasActive=state==='active'||state==='loaded';
    if(active||observed){lastUse=now();if(!value&&state!=='failed')void load(0);state=value?'active':state}
    else if(value)state='sleeping';
-  if(value&&(active||observed||wasActive)){value.root.userData.observed=observed;value.update(delta,reduced,observer,active);value.root.visible=active||observed;proxy.visible=!value.root.visible}
+  if(value&&(active||observed||wasActive)){value.root.userData.observed=observed;value.root.userData.streetLifeEnvironment=root.userData.streetLifeEnvironment;value.root.userData.streetLifeQuality=root.userData.streetLifeQuality;value.update(delta,reduced,observer,active);value.root.visible=active||observed;proxy.visible=!value.root.visible}
   },
   blocked:(position:T.Vector3,padding=.45)=>value?value.blocked(position,padding):true,
   nearest:(position:T.Vector3)=>value?.nearest(position),
   dispose(){if(disposed)return;disposed=true;unload();disposeScene(proxy);root.removeFromParent()},
  };
 }
-export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>}={}){
+export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain}={}){
  const scheduler=createWorkScheduler(),now=options.now??(()=>performance.now()),landscapes=surfaces.map(surface=>surface?createStreamedPlanet(parent,surface,scheduler,options):null);let lastSweep=-Infinity;
  const maxResident=options.maxResident??2,retireAfter=options.retireAfterMs??15000;
  function trim(keep:Set<number>){

@@ -13,12 +13,15 @@ import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {createPlanetPublicSpaces} from './planet-public-spaces';
 import {createPlanetCanopy} from './planet-canopy';
 import {createPlanetColorizer,planetBiome} from './planet-biomes';
+import type {AuthoredTerrain} from './authored-terrain';
+import {createStreetLife} from './street-life';
 export {createPlanetSurface,planetPoint,planetUp,type PlanetSurface} from './planet-geography';
 export {moveOnPlanet,resetSurfaceFrame} from './planet-movement';
 
 const vertical=new T.Vector3(0,1,0);
-export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
+export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface,authored?:AuthoredTerrain){
   const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);
+  root.userData.authoredTerrain=!!authored;root.userData.blenderSceneFinish=authored?.full.userData.blenderSceneFinish??null;
   const identity=civilizationFor(surface.stop),palette=identity?civilizations[identity]:null;
   const infrastructure=createPlanetInfrastructure(root,surface);
   yield 'towns';
@@ -38,7 +41,7 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();
   return geometry;
   }
-  const globe=new T.Mesh(terrainGeometry(design?128:160,design?88:112),new T.MeshStandardMaterial({vertexColors:true,roughness:1}));globe.name=surface.stop.name+'_Planet';globe.position.copy(surface.center);globe.receiveShadow=true;root.add(globe);
+  const globe=authored?.full??new T.Mesh(terrainGeometry(design?128:160,design?88:112),new T.MeshStandardMaterial({vertexColors:true,roughness:1}));globe.name=surface.stop.name+'_Planet';globe.position.copy(surface.center);globe.receiveShadow=true;root.add(globe);
   yield 'terrain';
   const solids:{position:T.Vector3;radius:number}[]=[];
   const outposts:{root:T.Group;position:T.Vector3;name:string;architecture:ReturnType<typeof createArchitectureNeighborhood>;inverse:T.Quaternion}[]=[];
@@ -59,19 +62,21 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
   yield 'population';
   const civilization=createCivilizationWorld(root,surface);
   yield 'civilization';
-  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root});
+  const streetLife=createStreetLife(root,{id:surface.stop.id,seed:surface.stop.id.length,anchors:publicSpaces.places.map(place=>({id:place.kind,position:place.approach,rotation:place.rotation})),project:point=>planetPoint(surface,point.clone().sub(surface.center)),up:point=>planetUp(surface,point),blocked:(point,padding)=>{const terrain=planetGeography(surface,point.clone().sub(surface.center).normalize());return terrain.water||terrain.road<padding+1||terrain.river<padding+1||infrastructure.blocked(point,padding)||publicSpaces.blocked(point,padding)||vegetation.blocked(point,padding)||!!realm?.blocked(point,padding)||population.blocked(point,padding)||!!civilization?.blocked(point,padding)||solids.some(solid=>point.distanceToSquared(solid.position)<(solid.radius+padding)**2)}});
+  yield 'street-life';
+  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root,streetLife:streetLife.root});
   const details=new T.Group();details.name='Planet_SurfaceDetails';details.add(...root.children);root.add(details);
-  const distant=new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
+  const distant=authored?.distant??new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
   if(realm){root.add(realm.silhouette);details.visible=false;distant.visible=true}
   const rotation=createPlanetRotation(root,surface.center);
   const outpostObserver=new T.Vector3();
-  return {root,globe,outposts,infrastructure,publicSpaces,vegetation,population,civilization,realm,rotation,details,distant,
-    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);vegetation.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active)},
-    blocked:(position:T.Vector3,padding=.45)=>infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||vegetation.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
+  return {root,globe,outposts,infrastructure,publicSpaces,vegetation,population,civilization,realm,rotation,details,distant,streetLife,
+    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);vegetation.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active,streetLife.blocked);streetLife.update(dt,reduced,active,player.position,root.userData.streetLifeEnvironment??{morning:1,night:0},root.userData.streetLifeQuality??'balanced')},
+    blocked:(position:T.Vector3,padding=.45)=>streetLife.blocked(position,padding)||infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||vegetation.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
     nearest:(position:T.Vector3)=>outposts.find(outpost=>position.distanceTo(outpost.position)<7),
   };
 }
 
-export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface){
- const builder=buildPlanetLandscape(parent,surface);let result=builder.next();while(!result.done)result=builder.next();return result.value;
+export function createPlanetLandscape(parent:T.Object3D,surface:PlanetSurface,authored?:AuthoredTerrain){
+ const builder=buildPlanetLandscape(parent,surface,authored);let result=builder.next();while(!result.done)result=builder.next();return result.value;
 }
