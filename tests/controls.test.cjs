@@ -16,9 +16,11 @@ test('skating is faster than walking and remains frame-rate independent without 
 });
 test('RAM ramp reaches the balcony and guarded edges prevent falling; lift carries rider both ways',()=>{
  const p=new T.Group(),s=new T.Scene();p.position.set(15,.8,-.8);const nav=createTraversal(s,p);
+ const root=s.getObjectByName('TraversableRoutes'),lift=s.getObjectByName('ServiceLift_Platform');assert.ok(root.children.length<12);assert.ok(lift?.parent===root);
  for(let i=0;i<110;i++)moveCharacter(p,0,-1,.075,()=>false,nav.height);assert.ok(p.position.y>4.7);
  const high=p.position.y;for(let i=0;i<100;i++)moveCharacter(p,-1,0,.075,()=>false,nav.height);assert.equal(p.position.y,high);
  p.position.set(0,.8,-21);assert.ok(nav.interact());for(let i=0;i<250;i++)nav.update(.02);assert.ok(Math.abs(p.position.y-8.6)<.01);assert.ok(nav.interact());for(let i=0;i<250;i++)nav.update(.02);assert.ok(Math.abs(p.position.y-.8)<.01);
+ assert.ok(Math.abs(lift.position.y-(p.position.y-.15))<1e-8);
 });
 test('chassis overlook is connected to the sky bridge and the circuit abyss has a guarded edge',()=>{
  const p=new T.Group(),s=new T.Scene();p.position.set(6.8,8.6,-26.4);const nav=createTraversal(s,p);
@@ -29,6 +31,22 @@ test('chassis overlook is connected to the sky bridge and the circuit abyss has 
  p.position.set(38,.8,0);moveCharacter(p,1,0,5,()=>false,nav.height);
  assert.ok(p.position.x<=39.3);
 });
+test('orbit camera resolves layered plaza paving during a camera sweep without clipping close views',()=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1.23,.1,18000);scene.add(player);scene.scale.setScalar(2);player.position.set(52,.8,201);
+ const rig=createGameCamera(camera,scene,player),settings={...defaultSettings,reducedMotion:true,stableCamera:false};
+ for(const zoom of [60,100,135])for(let step=0;step<24;step++){
+  rig.reset({yaw:step*Math.PI/12,pitch:.24,zoom,focusHeight:12.5});rig.update(0,false,settings,false,12.5);camera.updateMatrixWorld(true);
+  for(let tile=0;tile<12;tile++){
+   const angle=tile*Math.PI/6,lower=new T.Vector3((52+Math.sin(angle)*22)*2,.066*2,(180+Math.cos(angle)*22)*2).project(camera),upper=new T.Vector3((52+Math.sin(angle)*22)*2,.079*2,(180+Math.cos(angle)*22)*2).project(camera);
+   const separation=Math.abs(lower.z-upper.z)*.5*(2**24-1);assert.ok(separation>=4,`Paving depth separation ${separation} at zoom ${zoom}`);
+  }
+ }
+ rig.setMode('first-person');rig.update(.016,false,settings);assert.equal(camera.near,.1);
+ rig.setMode('close');rig.reset({zoom:5,pitch:.16});rig.update(.016,false,settings);camera.updateMatrixWorld(true);assert.ok(camera.near<=camera.position.distanceTo(player.getWorldPosition(new T.Vector3()))*.1);
+ rig.setMode('far');rig.reset({zoom:135,pitch:.24});rig.update(.016,true,settings);assert.equal(camera.near,.1);
+ rig.update(.016,false,settings);assert.ok(camera.near>.1);rig.resetClipping();assert.equal(camera.near,.1);
+});
+
 test('camera avoids an obstruction and stays finite through large pointer rotation and zoom changes',()=>{
  const scene=new T.Scene(),p=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100);scene.add(p);const wall=new T.Mesh(new T.BoxGeometry(20,20,.4));wall.position.set(0,5,3);wall.userData.cameraSolid=true;scene.add(wall);const rig=createGameCamera(camera,scene,p);rig.update(.02,false,defaultSettings);assert.ok(camera.position.z<2.8);for(let i=0;i<200;i++){rig.rotate(900,900,false);rig.zoom(i%2?100:-100);rig.update(.02,true,defaultSettings);assert.ok(Number.isFinite(camera.position.lengthSq()))}const before=rig.yaw;rig.rotate(100,100,true);assert.equal(rig.yaw,before);
 });

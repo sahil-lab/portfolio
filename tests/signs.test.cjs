@@ -83,8 +83,18 @@ test('RAM terminal clears the entire stair and rail footprint while keeping a re
   const machines=createDistrictMachines(scene,player,animated,new KingdomSimulation(),district=>opened=district);
   const sign=scene.getObjectByName('WoodenSign: E · RAM Library'),bounds=new T.Box3().setFromObject(sign);
   const routes=scene.getObjectByName('TraversableRoutes');
-  const padded=bounds.clone().expandByScalar(.5);
-  routes.traverse(object=>{if(object instanceof T.Mesh)assert.equal(padded.intersectsBox(new T.Box3().setFromObject(object)),false,object.name||'stair or rail overlaps RAM sign')});
+  const padded=bounds.clone().expandByScalar(.5),triangle=new T.Triangle(),matrix=new T.Matrix4(),instance=new T.Matrix4();routes.updateWorldMatrix(true,true);
+  routes.traverse(object=>{
+    if(!(object instanceof T.Mesh))return;
+    const geometry=object.geometry,positions=geometry.attributes.position;
+    for(let copy=0;copy<(object.isInstancedMesh?object.count:1);copy++){
+      matrix.copy(object.matrixWorld);if(object.isInstancedMesh){object.getMatrixAt(copy,instance);matrix.multiply(instance)}
+      for(let offset=0;offset<(geometry.index?.count??positions.count);offset+=3){
+        for(const [corner,vertex] of [triangle.a,triangle.b,triangle.c].entries())vertex.fromBufferAttribute(positions,geometry.index?geometry.index.getX(offset+corner):offset+corner).applyMatrix4(matrix);
+        assert.equal(padded.intersectsTriangle(triangle),false,object.name||'stair or rail overlaps RAM sign');
+      }
+    }
+  });
   assert.ok(bounds.min.x>ramStair.x+ramStair.width/2+.65);
   assert.ok(bounds.min.x>librarian.x+1.8,'the board must not stand in front of the librarian');
   player.position.set(station.x,.8,station.z+1.6);

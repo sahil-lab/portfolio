@@ -49,9 +49,9 @@ export function createTransitModels(){
   const g=new T.Group();g.name='DiagnosticRocket';const paint=surface(color,0,.25);
   const profile=[[0,0],[.85,0],[1.2,.6],[1.2,3.1],[1.05,4.2],[.65,5.3],[0,6]].map(([x,y])=>new T.Vector2(x,y)),hull=craftGeometry('RocketHull',2.4,6,2.4);mesh(g,hull??new T.LatheGeometry(profile,40),cream,0,hull?3:0,0);
   mesh(g,new T.CylinderGeometry(1.22,1.22,.32,40),paint,0,1,0);mesh(g,new T.CylinderGeometry(1.08,1.08,.22,40),copper,0,4.12,0);
-  const rim=mesh(g,new T.TorusGeometry(.55,.1,8,32),copper,0,3.1,1.13);rim.name='Rocket_Porthole';mesh(g,new T.SphereGeometry(.48,20,12),navy,0,3.1,1.12).scale.z=.2;
-    mesh(g,new T.TorusGeometry(.43,.025,5,32),glow,0,3.1,1.26);
-    for(let rivet=0;rivet<12;rivet++){const angle=rivet/12*Math.PI*2;mesh(g,new T.SphereGeometry(.037,6,4),copper,Math.cos(angle)*.55,3.1+Math.sin(angle)*.55,1.22)}
+  const rim=mesh(g,new T.TorusGeometry(.55,.1,8,32),copper,0,3.1,1.25);rim.name='Rocket_Porthole';mesh(g,new T.SphereGeometry(.48,20,12),navy,0,3.1,1.24).scale.z=.2;
+    mesh(g,new T.TorusGeometry(.43,.025,5,32),glow,0,3.1,1.38);
+    for(let rivet=0;rivet<12;rivet++){const angle=rivet/12*Math.PI*2;mesh(g,new T.SphereGeometry(.037,6,4),copper,Math.cos(angle)*.55,3.1+Math.sin(angle)*.55,1.34)}
   for(let i=0;i<3;i++){const a=i/3*Math.PI*2,fin=box(g,paint,Math.sin(a)*1.25,.75,Math.cos(a)*1.25,.25,1.8,1.45,'RocketFin');fin.rotation.y=a}
   const flame=mesh(g,new T.ConeGeometry(.65,2.5,16),surface('#eeb665',1.4),0,-1.1,0);flame.rotation.z=Math.PI;flame.name='Rocket_Exhaust';flame.visible=false;
   batchScenery(g,{flame,rim});return {root:g,flame};

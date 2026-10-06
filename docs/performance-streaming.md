@@ -12,6 +12,239 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Ground-Contact Boundary In The 19:25 Recording
+
+`Recording 2026-10-06 192505.mp4` shows the straight shading boundary crossing
+the white paths while the character stays still and the camera rotates. The
+11.11-second original is unchanged; review frames are under
+`outputs/performance/oct6-192505-review`.
+
+Matched close-camera captures isolate `Blender_BakedGroundContact`: hiding
+only that world-sized overlay removes the boundary while real cast shadows
+remain. Its negative polygon offset pulled the transparent plane through
+slightly raised paving, with the intersection changing with camera angle.
+`app/ground-occlusion.ts` now leaves the overlay unbiased. The texture, opacity,
+depth test, world geometry, local contact shadows, and real sun shadows remain.
+
+`scripts/check-shadow-boundary.cjs --depth --distance=30` captures six headings
+with the normal material, the former offset as a negative control, and the
+global overlay hidden as a reference. The player stays fixed. The pixel check
+samples uniform path interiors, excluding antialiased edges, and requires the
+enabled normal overlay to match the reference while the former offset fails.
+The desktop development check sampled 287,696 pixels: none differed by more
+than three channel levels, compared with 189,489 under the former offset.
+The rebuilt production mobile check sampled 90,921 pixels, with zero differing
+in the corrected case and 86,887 in the control. Both saved 18 captures without
+page errors, under `outputs/performance/oct6-contact-depth-pixels` and
+`outputs/performance/oct6-contact-depth-production-mobile` respectively.
+
+The ten ground-contact and capital tests, TypeScript, scoped runtime lint,
+diagnostic syntax check, and plain production build pass. Logs and source
+fingerprints use `outputs/performance/oct6-contact-depth-*`. These are local
+results, not a deployment or a new frame-rate measurement. The earlier camera
+clipping and shadow-coverage checks below did not resolve this recorded boundary
+and must not be treated as proof that it was fixed.
+
+## Camera-Only Shadow Boundary
+
+This was an earlier attempt, not the confirmed cause of the 19:25 boundary.
+
+The follow-up screenshots showed that testing only character movement was not
+enough. The new `scripts/check-shadow-boundary.cjs` holds the character at the
+plaza arrival and rotates only the camera through six headings. Matched captures
+isolate ambient occlusion, sun shadows, and thin paving casters. Shadow-toggle
+diagnostics explicitly invalidate material shaders: switching only
+`renderer.shadowMap.enabled` can leave cached shader variants in use.
+
+The plaza approach, promenade, and crosswalk overlays now receive real shadows
+without casting their own nearly coplanar shadows onto adjacent ground. Their
+geometry, textures, walking routes, and the original approach strip are retained.
+The sun's orthographic coverage is also expanded from 170 to 512 world units
+across, moving the nearby coverage boundary farther from the plaza. The existing
+single shadow map and its resolution remain unchanged, so shadows can be softer;
+no additional shadow-casting lights or render targets are added.
+
+The 38 affected plaza, batching, controls, world-engine, and planetary-lighting
+tests pass, along with TypeScript, scoped runtime lint, and the plain production
+build. Production desktop and mobile camera-only checks pass at six headings
+each, asserting fixed character position, nonblank rendering, enabled shadows,
+512-unit coverage, and receiver-only approach paving. Captures are under
+`outputs/performance/oct6-boundary-production-{desktop,mobile}`. The older
+617-test and Vercel-build results below describe the preceding focus-only change,
+not a new full-suite run for this narrow correction.
+
+## Moving Plaza Shadow Coverage
+
+This coverage improvement did not remove the camera-dependent overlay boundary.
+
+The later recording showed a light rectangle moving with the character and
+interrupting cast shadows. The earlier removal of the fixed
+`Capital_QuietApproach` paving strip targeted the wrong rectangle; that strip
+and its original behavior have been restored.
+
+The directional shadow map previously followed the character everywhere. Its
+finite footprint could cross the courtyard as the visitor moved, leaving
+parts of existing plaza shadows outside the map. Shadow following now supports
+a stable focus region: the plaza uses its center and 27-unit radius, then
+smoothly blends back to normal character following over the next 24 units.
+Map size, shadow resolution, light direction, and texel snapping are unchanged.
+The three-dimensional focus distance retains normal behavior for distant
+planets and high flight.
+
+The regression includes an unfocused control that clips the plaza at a real
+walking position. With the focus enabled, the whole paving perimeter stays
+inside the shadow map, movement inside the plaza does not change its footprint,
+and leaving the region does not jump the shadow target. The test initializes
+the shadow projection as Three.js does when allocating the map.
+
+The live browser check visits five character positions with sun shadows enabled.
+It measures the target's distance from the plaza center and the paving's margin
+from the map edges, retaining the original approach surface. Captures and the
+initial results are under `outputs/performance/oct6-plaza-shadow-focus-live`.
+
+Final production desktop and mobile checks pass with at least an 18.25 percent
+map-edge margin throughout those positions. Shadow targets stay within 0.027
+local units of the plaza center, accounting for texel snapping, rather than
+following the moving character. Camera sweeps, mode changes, preview unloading,
+and graphics recovery pass; desktop planet travel also returns to zero detailed
+residents. All 617 Node tests, TypeScript, scoped lint, and both production build
+targets pass. Results are under `outputs/performance/oct6-shadow-focus-production`
+and `oct6-shadow-focus-*.log`, with source fingerprints checked around each gate.
+
+## Recorded Camera-Motion Flicker, 6 October 2026
+
+The supplied 14:44 recording is 15.68 seconds at 1124 x 914. It shows the
+plaza during camera rotation, a case not covered by the earlier stationary
+pixel comparison. Extracted review frames are kept locally under
+`outputs/performance/oct6-recording-review`; the original recording is unchanged.
+
+The orbit camera retained a 0.1 near plane at long viewing distances. A regression
+using the plaza's paving/contact heights found only 2.75 depth steps in an
+initial 24-bit depth-budget sample. The camera now chooses a near plane equal
+to two percent of its actual orbit distance, capped at 2.5 and never below the
+original near plane. This increases separation between closely layered surfaces
+without changing their geometry, graphics quality, or the far view distance.
+
+First-person and interior views retain their original close clipping plane.
+Obstructions that bring the camera closer also reduce the near plane. Flight,
+shared activities, and planet observation reset clipping when they take over the
+shared camera. GTAO already updates its near/far and projection uniforms each
+frame, so no postprocessing implementation was replaced.
+
+The regression sweeps 24 angles at three orbit distances and checks the paving
+layers stay at least four depth steps apart. It also covers first-person,
+interior, close-view, and controller-handoff behavior. The browser check
+`scripts/check-camera-lifecycle.cjs --flicker` performs real mouse drags, checks
+48 rendered frames for depth separation and nonblank output, and saves three
+view captures. The initial live sweep retained at least 5.79 depth steps at
+the recording's viewport. These checks target depth shimmer, not the separate
+frame-rate bottleneck or a guarantee against all texture aliasing.
+
+All 616 Node tests, TypeScript, scoped runtime lint, and both Vercel and plain
+production builds pass for this source. Logs use
+`outputs/performance/oct6-flicker-*.log`, with source fingerprints in
+`outputs/performance/oct6-flicker-source.json`.
+
+The production motion checks also pass at 1124 x 914 and 390 x 844. Across
+48 moving frames each, the minimum paving-layer separation was 5.79 and 5.90
+depth steps respectively. Camera-mode cycles, project-preview unloading, and
+forced WebGL loss/restoration retained the same document, scene, canvas, and
+player position, with no captured page errors. Desktop planet travel retired
+all inactive detail. Captures and results are under
+`outputs/performance/oct6-flicker-production`.
+
+## Verified Follow-up, 6 October 2026
+
+This follow-up addresses the outstanding failures from `048071e` while retaining
+its project boards, named fallbacks, scheduling, shops, and world interactions.
+
+### Corrected Failures
+
+- The rocket porthole assembly now sits 0.12 local units farther forward, clear
+  of the hull. The visibility regression checks both fallback and authored
+  rockets, along with their original operating bounds and animation bindings.
+- Nitro's tracer collected multiple physical copies of the same package version
+  and copied them concurrently to identical destinations. The supported
+  `traceOpts.hooks.tracedPackages` hook now deduplicates package-relative output
+  paths. Duplicate sources must be byte-identical; conflicting contents fail
+  explicitly, and separate package versions remain separate. The complete
+  Windows Vercel build, including Nitro packaging, now succeeds without modifying
+  dependencies or suppressing errors.
+- Graphics restoration now prepares visible shaders asynchronously before
+  restarting the frame loop. A generation guard rejects stale recovery
+  callbacks. The previous direct first render timed out after a multi-planet
+  tour; the same production test now restores the existing canvas, scene, and
+  player position. Timer-based event polling alone did not fix the stall.
+
+### Rendering Corrections
+
+Premium surfaces clone texture objects per material. UUID-only texture keys
+prevented otherwise identical scenery from batching, while resident instancing
+rejected mapped materials entirely. Known immutable premium textures can now
+share batches when their image source, UV matrix, channel, wrapping, filtering,
+format, color space, and other sampling settings match. Custom textures retain
+identity-based separation; authored-material and animated-part exclusions remain.
+
+Fixed stairs and rails now use fewer than twelve meshes while the service lift
+remains independent. The collectible press batches fixed decoration without
+removing its needles, glass, illuminated core, stock controls, or animation
+targets. Three.js type flags at the import boundary also allow real ESM-loaded
+GLTF meshes to be checked by the CommonJS regression harness. Clearance tests
+check actual batched triangles and instances rather than bounding empty gaps.
+
+### Follow-up Measurements
+
+The control is the preserved production build of `048071e`, served separately
+from the candidate. Both use the same Chrome process, Intel Arc Pro GPU,
+1440 x 960 viewport, DPR 1, fixed Balanced quality, and static project-page
+fixtures. Each view warms for 90 frames and records three 90-frame windows;
+values below are the median run's mean interval and derived FPS. No profiler
+or draw instrumentation is active during this comparison.
+
+| View | Before ms / FPS | After ms / FPS |
+| --- | ---: | ---: |
+| Plaza | 49.63 / 20.15 | 45.74 / 21.86 |
+| Project gallery | 22.22 / 45.00 | 20.55 / 48.65 |
+| Returned plaza | 56.11 / 17.82 | 49.26 / 20.30 |
+| Planet | 25.92 / 38.58 | 27.96 / 35.76 |
+
+Mainland average frame time improved, but its p95 remained about 66.7 ms and
+the dense plaza is still below 30 FPS on this machine. Planet mean frame time
+regressed in this sample. These changes therefore do not establish a complete
+lag fix or universal FPS improvement. Sampled plaza draw calls fell from 3,215
+to 2,294; individual draw counters include phase-dependent shadow work and
+cannot be treated as per-frame averages. Post-GC plaza heap was 384.71 versus
+382.80 MiB, not a large memory reduction.
+
+The separate instrumented probe reported scene-render CPU time of 61.17 versus
+45.41 ms before the final stair, press, and recovery changes. It helped locate
+the excess submissions but is not substituted for the final route above.
+Control-first ordering, caches, asset activation, and machine load still affect
+this single paired comparison. Results and screenshots are preserved in
+`outputs/performance/oct6-resolution-production-desktop/metrics.json`.
+
+### Follow-up Verification
+
+All **615 Node tests pass**, including the former rocket failure. TypeScript,
+scoped lint for all changed runtime/configuration files, the full Vercel build,
+and the plain production build pass. Source fingerprints were checked around
+each test/build and final browser run after an overlapping edit was detected;
+the user chose to retain the published features, which were restored before
+the successful verification.
+
+Production desktop/mobile camera cycles, zero paused draws, single-loop resume,
+project iframe unloading, and forced WebGL loss/restoration pass. Desktop rapid
+travel retains at most two detailed planets and retires to zero. Recovery uses
+the existing low-quality fallback; normal benchmark quality is unchanged.
+Screenshots and canvas-pixel checks confirm nonblank rendering. These are local
+browser checks, not deployment or physical-phone certification. The earlier
+stationary lighting probe did not reproduce persistent flicker; no claim is
+made that every device-specific lighting issue is eliminated.
+
+Verification logs use `outputs/performance/oct6-resolution-verified-*.log` and
+`oct6-resolution-final-browser-*.log`; final camera captures are under
+`outputs/performance/oct6-resolution-final-lifecycle`.
+
 ## Runtime Follow-up, 6 October 2026
 
 This pass targets retained iframe applications, hidden transform traversal,

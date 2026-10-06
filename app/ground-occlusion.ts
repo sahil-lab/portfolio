@@ -6,7 +6,7 @@ type FinishTextureLoader=(url:string,ready:(texture:T.Texture)=>void,failed:()=>
 
 export function createBlenderGroundFinish(parent:T.Object3D,prepare?:(root:T.Object3D)=>Promise<void>,load?:FinishTextureLoader){
  const root=new T.Group();root.name='Blender_HomeSceneFinish';parent.add(root);
- const geometry=new T.PlaneGeometry(blenderGroundArea.width,blenderGroundArea.depth).rotateX(-Math.PI/2),material=new T.MeshBasicMaterial({color:'#203734',transparent:true,opacity:.65,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}),mesh=new T.Mesh(geometry,material);
+ const geometry=new T.PlaneGeometry(blenderGroundArea.width,blenderGroundArea.depth).rotateX(-Math.PI/2),material=new T.MeshBasicMaterial({color:'#203734',transparent:true,opacity:.65,depthWrite:false,toneMapped:false}),mesh=new T.Mesh(geometry,material);
  mesh.name='Blender_BakedGroundContact';mesh.position.set(blenderGroundArea.x,blenderGroundArea.y,blenderGroundArea.z);mesh.visible=false;mesh.userData.surface='baked-contact';root.add(mesh);
  let alive=true,resolveReady!:(value:boolean)=>void;const ready=new Promise<boolean>(resolve=>resolveReady=resolve),disposed=()=>{alive=false;resolveReady(false);material.removeEventListener('dispose',disposed)};material.addEventListener('dispose',disposed);
  if(typeof window==='undefined'&&!load){resolveReady(false);return {root,ready}}

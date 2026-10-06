@@ -113,6 +113,9 @@ function bindCollectiblePress(model:T.Object3D,root:T.Object3D){
   if(!left||!right||!vessel?.isMesh||!vessel.material?.isMeshStandardMaterial||!core?.isMesh||!core.material?.isMeshStandardMaterial)throw new Error('Incomplete Blender collectible Press');
   const needles=[left,right],light=core.material;
   vessel.material.depthWrite=false;vessel.castShadow=false;root.userData.collectiblePress=1;
+  const controls:T.Object3D[]=[...needles,vessel,core];
+  model.traverse(object=>{if(/^PacketPress_(?:Lever|Tray|Ram|Capsule_|Indicator_)|^Collision_/.test(object.name))controls.push(object)});
+  batchScenery(root,{controls},{preserveMaterials:true});
   return {root,needles,vessel,
     update:(progress:number,preparing:boolean)=>{
       const value=T.MathUtils.clamp(progress,0,1);

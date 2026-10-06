@@ -9,11 +9,12 @@ import * as T from 'three';
  * Expects `sun.position` to hold the light's offset from its target (the weather sky sets it
  * every frame); the anchor is added to both light and target after snapping.
  */
-export function createShadowFollow(sun:T.DirectionalLight){
-  const forward=new T.Vector3(),right=new T.Vector3(),up=new T.Vector3(),worldUp=new T.Vector3(0,1,0),snapped=new T.Vector3();
+export function createShadowFollow(sun:T.DirectionalLight,focus?:{center:T.Vector3;radius:number;transition?:number}){
+  const forward=new T.Vector3(),right=new T.Vector3(),up=new T.Vector3(),worldUp=new T.Vector3(0,1,0),snapped=new T.Vector3(),focused=new T.Vector3();
   return {
     texel:(worldScale=1)=>{const frustum=sun.shadow.camera;return (frustum.right-frustum.left)/sun.shadow.mapSize.width/worldScale},
     follow(anchor:T.Vector3,worldScale=1){
+      if(focus){const blend=T.MathUtils.smoothstep(anchor.distanceTo(focus.center),focus.radius,focus.radius+Math.max(1,focus.transition??focus.radius));if(blend<1)anchor=focused.copy(focus.center).lerp(anchor,blend)}
       forward.copy(sun.position).normalize();
       right.crossVectors(worldUp,forward);if(right.lengthSq()<1e-8)right.set(1,0,0);else right.normalize();
       up.crossVectors(forward,right);

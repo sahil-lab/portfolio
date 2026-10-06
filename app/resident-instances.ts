@@ -1,5 +1,6 @@
 import * as T from 'three';
 import type {createCuteResident} from './cute-resident';
+import {textureKey} from './static-batching';
 
 type Resident=Pick<ReturnType<typeof createCuteResident>,'root'|'instanceParts'>;
 
@@ -9,9 +10,9 @@ export function createResidentInstances(parent:T.Object3D,residents:Resident[]){
  const groups=new Map<string,{source:T.Mesh;resident:Resident}[]>(),matrix=new T.Matrix4(),inverse=new T.Matrix4();
  for(const resident of attached)for(const source of resident.instanceParts){
   let ancestor:T.Object3D|null=source.parent;while(ancestor&&ancestor!==resident.root)ancestor=ancestor.parent;
-  if(!ancestor||!(source.material instanceof T.MeshStandardMaterial)||source.material.map)continue;
+  if(!ancestor||!(source.material instanceof T.MeshStandardMaterial)||source.material.map&&!source.material.userData.premiumSurface)continue;
   const material=source.material,physical=material instanceof T.MeshPhysicalMaterial?material:null;
-  const key=JSON.stringify([source.geometry.userData.authoredKit,(source.geometry as T.SphereGeometry).parameters,material.type,material.vertexColors,material.userData.surface,material.roughness,material.metalness,material.emissive.getHex(),material.emissiveIntensity,material.envMapIntensity,physical?.clearcoat,physical?.clearcoatRoughness,material.transparent,material.opacity,material.side,material.fog,source.castShadow,source.receiveShadow,source.layers.mask]);
+  const key=JSON.stringify([source.geometry.userData.authoredKit,(source.geometry as T.SphereGeometry).parameters,material.type,material.vertexColors,material.userData.surface,material.userData.premiumSurface,material.roughness,material.metalness,material.emissive.getHex(),material.emissiveIntensity,material.envMapIntensity,textureKey(material.map),textureKey(material.roughnessMap),textureKey(material.metalnessMap),textureKey(material.normalMap),material.normalScale.toArray(),textureKey(material.bumpMap),material.bumpScale,textureKey(material.aoMap),material.aoMapIntensity,textureKey(material.emissiveMap),textureKey(material.alphaMap),physical?.clearcoat,physical?.clearcoatRoughness,material.transparent,material.opacity,material.side,material.fog,material.depthTest,material.depthWrite,material.toneMapped,material.alphaTest,source.castShadow,source.receiveShadow,source.layers.mask]);
   const group=groups.get(key)??[];group.push({source,resident});groups.set(key,group);
  }
  const batches=[...groups.values()].filter(group=>group.length>1).map(parts=>{

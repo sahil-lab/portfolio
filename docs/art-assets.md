@@ -4,15 +4,17 @@ The Packet Press was the first Blender-authored hero prop. Shared Blender librar
 
 ## Street Life
 
-The home world and all nine planets now include morning butterflies, night fireflies,
+The home world and all nine planets now include daytime butterflies, night bats and fireflies,
 independent birds, a painter, a violinist and a unicycle juggler. The
 [published life kit](../public/assets/life-v1/manifest.json) contains 16 Blender-authored,
 vertex-AO-baked parts: 5,144 triangles and 413,076 bytes, with no embedded images.
 The [street-life handoff](../assets/street-life/README.md) records the editable native
 study, density limits, source recipes and verification.
 
-Butterflies and fireflies follow the observer using independently timed random
-waypoints rather than circular orbits. Fireflies have 2.5-times-larger bodies,
+The original eight butterfly followers and the fireflies follow the observer using independently timed random
+waypoints rather than circular orbits. Butterflies remain available throughout
+daylight, including local afternoons; the morning-light value no longer hides them.
+Their existing night, weather and quality limits remain. Fireflies have 2.5-times-larger bodies,
 glowing tips and halos, with slower drifting and retained light pulses. Birds do
 not follow: 55 on the mainland and 25 on each planet occupy distributed habitats,
 peck at seeds, drink from pools and perch on ray-verified surfaces. Sparrows,
@@ -20,7 +22,23 @@ robins, bluebirds and pigeons have distinct plumage and compact proportions, wit
 open wingspans about 1.2 to 1.4 times a butterfly's width. Their flight paths vary
 between arcs, weaves and swoops. These behaviors retain each planet's local gravity.
 
-The final count update passed 18 feature tests, TypeScript, scoped lint and the
+Separate daytime butterfly groups now occupy the existing scattered habitats:
+55 on the mainland and 25 on each planet. They flutter independently and stay in
+their habitats when the observer moves or flies. Night bats use the same 55/25
+population ratio as birds, with independently phased, seeded flight paths above
+the terrain. Their bodies reuse fitted life-kit geometry; scalloped membrane wings
+and pointed ears are lightweight Three.js geometry, not a new Blender asset.
+The original followers, fireflies, bird species and published life kit are retained.
+
+The habitat addition passed 21 street-life tests, including population and flight
+clearance checks on all nine actual planet builders, plus TypeScript, scoped lint
+and the [production build](../outputs/playtest/oct6-habitat-wildlife-build.log).
+The [browser review](../outputs/playtest/oct6-habitat-wildlife-checks.json) passed
+eight mainland/Copper desktop/mobile captures with visible-pixel, movement,
+day/night and lifecycle checks. These are local checks, not a hosted deployment
+or a new frame-rate measurement.
+
+The earlier bird count update passed 18 feature tests, TypeScript, scoped lint and the
 [production build](../outputs/playtest/bird-populations-build.log). Tests require
 exactly 55 mainland birds and 25 on all nine actual planet builders. The earlier
 [32-view flock review](../outputs/playtest/bird-flocks-final-checks.json) verified
@@ -32,7 +50,9 @@ confirms the 55/25 populations, all four species and nonblank scenes across all
 ten worlds, with no captured browser errors.
 
 Wildlife is instanced; low quality and wet weather reduce density.
-Fireflies add no lights. Performer reservations preserve public approaches and are
+Bats use eight instanced mesh groups and scattered butterflies use three; neither
+adds lights or shadow casters. Distant habitat updates are skipped beyond 130 and
+100 local units respectively. Fireflies add no lights. Performer reservations preserve public approaches and are
 respected by the player, residents and shuttles. Reduced motion freezes the new
 animations, and inactive worlds do not accumulate motion time. Direct lighting and
 animation remain live Three.js systems; violin performance is visual only.

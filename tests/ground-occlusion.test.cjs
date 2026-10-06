@@ -12,6 +12,10 @@ test('baked contacts fade from actual rectangular and circular footprints withou
 test('Blender home finish loads one contact layer after shader preparation without changing collision geometry',async()=>{
  const parent=new T.Group(),texture=new T.Texture();let complete,prepared=false,url;const finish=createBlenderGroundFinish(parent,async root=>{prepared=true;assert.equal(root.children.length,1)},(value,ready)=>{url=value;complete=ready});const mesh=finish.root.children[0];assert.equal(mesh.visible,false);assert.equal(finish.root.visible,true);assert.equal(mesh.geometry.attributes.position.count,4);complete(texture);assert.equal(await finish.ready,true);assert.equal(prepared,true);assert.equal(mesh.visible,true);assert.equal(mesh.material.map,texture);assert.equal(mesh.userData.cameraSolid,undefined);assert.deepEqual(mesh.position.toArray(),[blenderGroundArea.x,blenderGroundArea.y,blenderGroundArea.z]);assert.equal(url,'/assets/world-finish/motherboard-contact.png');let disposed=0;texture.addEventListener('dispose',()=>disposed++);disposeScene(parent);assert.equal(disposed,1);
 });
+test('the world-sized contact layer cannot bias its depth through raised paths',()=>{
+ const parent=new T.Group(),finish=createBlenderGroundFinish(parent),mesh=finish.root.children[0];
+ assert.equal(mesh.material.polygonOffset,false);assert.equal(mesh.material.depthTest,true);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.position.y,.035);assert.equal(mesh.castShadow,false);disposeScene(parent);
+});
 test('late Blender contact downloads cannot revive a disposed scene',async()=>{
  const parent=new T.Group(),texture=new T.Texture();let complete,disposed=0;texture.addEventListener('dispose',()=>disposed++);const finish=createBlenderGroundFinish(parent,undefined,(_url,ready)=>complete=ready);disposeScene(parent);complete(texture);assert.equal(await finish.ready,false);assert.equal(disposed,1);assert.equal(finish.root.children[0].visible,false);
 });

@@ -67,8 +67,10 @@ test('collectible material tints and embedded maps survive the Blender export',(
 
 test('native Press binding animates its own instruments without adding a runtime housing',async()=>{
   const asset=await loadHero('../assets/premium-candidates/packet-press-collectible.glb'),parent=new T.Group();parent.add(asset.scene);
+  const expected=new T.Box3().setFromObject(asset.scene.getObjectByName('PacketPress_CollectibleAssembly'));
   const children=parent.children.length,press=refinePacketPress(asset.scene,parent);
   assert.equal(parent.children.length,children);assert.equal(press.root,asset.scene.getObjectByName('PacketPress_CollectibleAssembly'));
+  let meshes=0;press.root.traverse(object=>{if(object.isMesh)meshes++});assert.ok(meshes<32,'Static press decorations must share draws');const actual=new T.Box3().setFromObject(press.root);assert.ok(actual.min.distanceTo(expected.min)<1e-5&&actual.max.distanceTo(expected.max)<1e-5);
   assert.equal(parent.getObjectByName('PacketPress_CraftedAssembly'),undefined);assert.equal(press.root.userData.collectiblePress,1);
   assert.equal(press.vessel.material.depthWrite,false);assert.equal(press.vessel.castShadow,false);
   press.update(0,false);const rest=press.needles[0].quaternion.clone();press.update(.6,true);assert.ok(rest.angleTo(press.needles[0].quaternion)>.5);

@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {batchScenery} from './static-batching';
 export type Ramp={id:string;x:number;width:number;startZ:number;endZ:number;bottom:number;top:number;steps:number};
 export const ramStair:Ramp={id:'ram-reading-stair',x:15,width:2.4,startZ:-1,endZ:-8.4,bottom:.8,top:4.8,steps:20};
 export const liftConfig={x:0,z:-21,size:3,bottom:.8,top:8.6,speed:2};
@@ -17,6 +18,7 @@ export function createTraversal(scene:T.Scene,player:T.Group){
   const front=root.children.find(o=>Math.abs(o.position.z+8.2)<.01&&o.position.y>5);if(front){front.scale.x=.8;front.position.x=21.1}
   const lift=box(0,.65,-21,3,.3,3);lift.name='ServiceLift_Platform';
   for(const x of [-1.65,1.65])box(x,4.5,-22, .15,9,.15,true);
+  batchScenery(root,{lift});
   let y=.8,target=.8,moving=false;
   const aboard=()=>Math.abs(player.position.x)<1.3&&Math.abs(player.position.z+21)<1.3&&Math.abs(player.position.y-y)<.4;
   const near=()=>Math.hypot(player.position.x,player.position.z+21)<3.2;

@@ -32,7 +32,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
  for(let index=0;index<180;index++){const ring=Math.floor(index/60),angle=(index%60+(ring%2)*.5)*Math.PI/30;dummy.position.set(Math.sin(angle)*(12+ring*5),.055,Math.cos(angle)*(12+ring*5));dummy.rotation.set(0,angle,0);dummy.scale.set(1.1+ring*.48,1,1);dummy.updateMatrix();tiles.setMatrixAt(index,dummy.matrix);tiles.setColorAt(index,tileColors[(index*7+ring)%tileColors.length])}tiles.computeBoundingSphere();tiles.receiveShadow=true;plaza.add(tiles);
  for(const radius of [8.8,16.8,24.5]){const inlay=new T.Mesh(new T.TorusGeometry(radius,.035,5,96),materials.brass);inlay.name='Capital_CircuitPavingRing';inlay.rotation.x=Math.PI/2;inlay.position.y=.075;plaza.add(inlay)}
  const approachMaterial=materials.paving.clone();approachMaterial.color.set('#84958d');
- kit.box(fixed,'Capital_QuietApproach',new T.Vector3(52,.076,197),[5.1,.014,13.8],approachMaterial);
+ kit.box(fixed,'Capital_QuietApproach',new T.Vector3(52,.076,197),[5.1,.014,13.8],approachMaterial).castShadow=false;
  for(const side of [-1,1])kit.box(fixed,'Capital_ApproachSeam',new T.Vector3(52+side*2.57,.084,197),[.035,.008,13.8],materials.brass);
  const fountain=createCapitalFountain('royal');fountain.root.position.set(capitalSite.x,0,capitalSite.z);root.add(fountain.root);
  const pavilion=createCapitalPavilion(root,materials);kit.solids.push(...pavilion.solids);
@@ -102,7 +102,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   const forecourt={x:site.x,z:site.z+footprint.depth/2+2},promenade=planWalkingRoute({x:52,z:209},forecourt,(x,z)=>forbidden(x,z)||[[1.5,0],[-1.5,0],[0,1.5],[0,-1.5]].some(([horizontal,vertical])=>forbidden(x+horizontal,z+vertical))),entrance=planWalkingRoute(forecourt,goal,forbidden);
   if(promenade.length<2||entrance.length<2)continue;const path=[...promenade,...entrance.slice(1)];routes.push({name:site.name,points:path});
   for(let index=1;index<path.length;index++){
-   const start=path[index-1],end=path[index],length=Math.hypot(end.x-start.x,end.z-start.z),walk=kit.box(fixed,'Capital_ConnectedPromenade',new T.Vector3((start.x+end.x)/2,.043,(start.z+end.z)/2),[index<promenade.length?3:1.5,.025,length+.05],materials.stone);walk.rotation.y=Math.atan2(end.x-start.x,end.z-start.z);
+  const start=path[index-1],end=path[index],length=Math.hypot(end.x-start.x,end.z-start.z),walk=kit.box(fixed,'Capital_ConnectedPromenade',new T.Vector3((start.x+end.x)/2,.043,(start.z+end.z)/2),[index<promenade.length?3:1.5,.025,length+.05],materials.stone);walk.rotation.y=Math.atan2(end.x-start.x,end.z-start.z);walk.castShadow=false;
   if(index%3===0&&length>5){
    lampProbe.set((start.x+end.x)/2+(end.z-start.z)/length*2.5,.8,(start.z+end.z)/2-(end.x-start.x)/length*2.5);
    const crossesPath=routes.some(route=>route.points.some((point,pointIndex)=>{if(!pointIndex)return false;const previous=route.points[pointIndex-1];routeLine.start.set(previous.x,.8,previous.z);routeLine.end.set(point.x,.8,point.z);return routeLine.closestPointToPoint(lampProbe,true,pathProbe).distanceToSquared(lampProbe)<4}));
@@ -111,7 +111,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   }
  }
  for(const [x,z,yaw] of [[52,229,0],[100,294,Math.PI/2],[-100,250,Math.PI/2]]){
-  for(let stripe=0;stripe<8;stripe++){const crossing=kit.box(fixed,'Capital_RaisedCrosswalk',new T.Vector3(x+(stripe-3.5)*.8,.09,z),[.4,.06,10],materials.stone);crossing.rotation.y=yaw}
+  for(let stripe=0;stripe<8;stripe++){const crossing=kit.box(fixed,'Capital_RaisedCrosswalk',new T.Vector3(x+(stripe-3.5)*.8,.09,z),[.4,.06,10],materials.stone);crossing.rotation.y=yaw;crossing.castShadow=false}
   for(const side of [-1,1]){const signal=kit.box(fixed,'Capital_TrafficSignal',new T.Vector3(x+side*5.8,2.8,z+3.5),[.28,.9,.25],materials.ink);kit.box(fixed,'Capital_TrafficSignalLamp',signal.position.clone().add(new T.Vector3(0,-.2,.14)),[.16,.16,.03],materials.leaf)}
  }
  const contacts:GroundOccluder[]=kit.solids.filter(bound=>bound.min.x>24&&bound.max.x<82&&bound.min.z>150&&bound.max.z<210).map(bound=>({x:(bound.min.x+bound.max.x)/2,z:(bound.min.z+bound.max.z)/2,width:bound.max.x-bound.min.x,depth:bound.max.z-bound.min.z,strength:.44}));

@@ -2,6 +2,18 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{batchScenery}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('equivalent premium texture clones batch without merging different UVs or image sources',()=>{
+ const root=new T.Group(),color=new T.Texture(),normal=new T.Texture(),other=new T.Texture();
+ for(const texture of [color,normal,other])texture.userData.blenderSceneFinish='premium-surface-v1';
+ for(const variant of ['shared','repeat','channel','source'])for(let index=0;index<4;index++){
+  const map=color.clone(),normalMap=(variant==='source'?other:normal).clone();if(variant==='repeat')map.repeat.set(2,1);if(variant==='channel')map.channel=1;
+  const material=new T.MeshStandardMaterial({color:'#9bc3b3',map,normalMap});material.userData.premiumSurface='ceramic';const mesh=new T.Mesh(new T.BoxGeometry(),material);mesh.position.set(1+index*2,1,1);root.add(mesh);
+ }
+ const before=new T.Box3().setFromObject(root);batchScenery(root,{});
+ assert.equal(root.children.length,4);assert.ok(root.children.every(mesh=>mesh.isInstancedMesh&&mesh.count===4));assert.ok(new T.Box3().setFromObject(root).equals(before));
+ assert.equal(root.children.filter(mesh=>mesh.material.map.repeat.x===2).length,1);assert.equal(root.children.filter(mesh=>mesh.material.map.channel===1).length,1);assert.equal(root.children.filter(mesh=>mesh.material.normalMap.source===other.source).length,1);disposeScene(root);
+});
+
 test('batching preserves shadow roles and depth state instead of inventing shadow casters',()=>{
  for(const count of [2,4]){const root=new T.Group();for(const [casts,receives,depthWrite] of [[false,false,false],[false,true,true],[true,true,true]])for(let index=0;index<count;index++){const mesh=new T.Mesh(new T.BoxGeometry(),new T.MeshStandardMaterial({color:'#8aafa0',depthWrite}));mesh.position.set(1+index,1,1);mesh.castShadow=casts;mesh.receiveShadow=receives;root.add(mesh)}batchScenery(root,{});assert.equal(root.children.length,3);assert.deepEqual(root.children.map(mesh=>[mesh.castShadow,mesh.receiveShadow,mesh.material.depthWrite]),[[false,false,false],[false,true,true],[true,true,true]]);disposeScene(root)}
 });

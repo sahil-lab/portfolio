@@ -4,6 +4,7 @@ import {createSpatialIndex} from './spatial-index';
 export const planetArrivalCameraView=(aspect:number)=>({yaw:1.05,pitch:.26,zoom:Math.max(62,Math.min(108,34/aspect)),focusHeight:5.8});
 type CameraView={yaw?:number;pitch?:number;zoom?:number;focusHeight?:number};
 export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player:T.Group){
+  const closeNear=camera.near;
   let mode:CameraMode='far';
   let yaw=.1,pitch=.42,zoom=46,zoomLimit=160,eased=46,distance=46,focusHeight=1.5,stableYaw=.1,stablePitch=.38;
   let easedYaw=yaw,easedPitch=pitch;
@@ -11,11 +12,16 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
   const target=new T.Vector3(),wanted=new T.Vector3(),direction=new T.Vector3(),ray=new T.Ray(),hit=new T.Vector3();
   const boxes:T.Box3[]=[];const movingBounds:{mesh:T.Mesh;box:T.Box3}[]=[],dynamicBoxes=new WeakMap<T.Mesh,T.Box3>(),candidates=new Set<T.Box3>(),sweep=new T.Box3();let clock=2;
   const bounds=(box:T.Box3)=>({minX:box.min.x,maxX:box.max.x,minZ:box.min.z,maxZ:box.max.z});let index=createSpatialIndex(boxes,bounds,32);
+  function updateNear(orbitDistance:number,inside:boolean){
+    const near=inside||mode==='first-person'?closeNear:Math.max(closeNear,Math.min(2.5,orbitDistance*.02));
+    if(camera.near!==near){camera.near=near;camera.updateProjectionMatrix()}
+  }
   function applyView(view:CameraView={}){yaw=view.yaw??.1;pitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.42);zoom=view.zoom??(mode==='far'?46:24);zoomLimit=Math.max(160,zoom);eased=zoom;distance=zoom;focusHeight=view.focusHeight??1.5;stableYaw=yaw;stablePitch=view.pitch??(mode==='first-person'?0:mode==='close'?.3:.38);easedYaw=yaw;easedPitch=pitch}
   return {
     get yaw(){return easedYaw},
     get stableYaw(){return stableYaw},
     get mode(){return mode},
+    resetClipping:()=>updateNear(0,true),
     setMode:(value:CameraMode)=>{responsiveView=null;yaw=easedYaw;mode=value;pitch=mode==='first-person'?0:mode==='close'?.3:.42;stablePitch=pitch;stableYaw=yaw;zoom=mode==='far'?46:24;zoomLimit=160;eased=zoom;distance=zoom;focusHeight=1.5;easedYaw=yaw;easedPitch=pitch},
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;if(x||y)responsiveView=null;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,mode==='first-person'?-1.35:.16,mode==='first-person'?1.35:1.15)},
     zoom:(amount:number)=>{if(mode!=='first-person'){if(amount)responsiveView=null;zoom=T.MathUtils.clamp(zoom+amount,5,zoomLimit)}},
@@ -31,7 +37,7 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
       const angle=settings.stableCamera?stablePitch:easedPitch,rotation=settings.stableCamera?stableYaw:easedYaw;
       direction.set(Math.sin(rotation)*Math.cos(angle),Math.sin(angle),Math.cos(rotation)*Math.cos(angle));
       if(player.userData.surfaceFrame instanceof T.Quaternion)direction.applyQuaternion(player.userData.surfaceFrame);
-      if(mode==='first-person'){camera.position.copy(target);camera.up.copy(player.up);camera.lookAt(wanted.copy(target).sub(direction));player.visible=false;return}
+      if(mode==='first-person'){updateNear(0,inside);camera.position.copy(target);camera.up.copy(player.up);camera.lookAt(wanted.copy(target).sub(direction));player.visible=false;return}
       // Wheel/pinch zoom eases toward its target; only obstruction clamping below is allowed to snap.
       eased=T.MathUtils.damp(eased,zoom,8,dt);
       const desired=vehicle?Math.max(eased,46):inside?Math.min(eased,16):eased;
@@ -40,6 +46,7 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
       for(const box of candidates){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
       for(const {mesh,box} of movingBounds){if(!mesh.visible||!mesh.parent||box.containsPoint(target)||!box.intersectsBox(sweep))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
       distance=safe<distance?safe:T.MathUtils.lerp(distance,safe,1-Math.exp(-dt*5));
+      updateNear(distance,inside);
       wanted.copy(direction).multiplyScalar(distance).add(target);
       // The camera is placed on the swept ray each frame: no smoothing through walls.
       camera.position.copy(wanted);camera.up.copy(player.up);camera.lookAt(target);

@@ -3,7 +3,7 @@
 Published under [life-v1](../../public/assets/life-v1/manifest.json) after the
 120-view candidate gate.
 
-The home world and all nine planets share morning butterflies, nighttime fireflies,
+The home world and all nine planets share daytime butterflies, nighttime bats and fireflies,
 independent feeding and perching birds, an easel painter, a violinist and a unicycle juggler.
 Existing residents, signature shops, controls and local terrain remain intact.
 
@@ -27,17 +27,33 @@ The mainland population is 55 birds; each of the nine planets has 25 birds.
 Birds remain distributed across fixed habitats, not attached to the player.
 Daylight, distance, weather and graphics quality control how many are drawn;
 low quality draws at most 28 mainland birds or 13 planet birds without changing
-the underlying population. Each world also has up to eight morning butterflies
+the underlying population. Each world also has up to eight following daytime butterflies
 and 24 night fireflies, halved on low quality. Wet weather reduces visible wildlife.
 Fireflies use emissive meshes and soft point
 halos without adding lights. Their bodies, glowing tips and halos are 2.5 times
 the original size.
 
-Butterflies and fireflies follow the observer with independently timed, seeded
+The original butterfly group and fireflies follow the observer with independently timed, seeded
 waypoints, changing radius, direction and height instead of orbiting in circles.
+Butterflies remain active after morning ends, fading with night rather than the
+morning-light value. Weather and graphics quality still reduce their visible count.
 Fireflies drift more slowly and retain their individual light pulses. The shared
 follower stays within three units of its target, supports flight and teleports,
 and follows local gravity on every planet. Menus do not hide the insects.
+
+An additional 55 mainland butterflies and 25 per planet occupy scattered habitats
+during daylight. They share the existing geometry and fluttering behavior but keep
+their own habitat positions and phases, independent of the observer and altitude.
+Only nearby groups within 100 local units are updated and drawn.
+
+At night, 55 mainland bats and 25 per planet take over the daytime bird population
+ratio, with the same weather and quality reductions. Each follows a seeded,
+closed seven-point flight path above a habitat, oriented to local gravity; bats
+do not follow the player. Groups farther than 130 local units are skipped.
+Eight instanced mesh groups supply fitted life-kit bodies and eyes plus procedural
+scalloped membrane wings and pointed ears. Bats add no lights or shadow casters.
+The existing Blender library is unchanged. Reduced motion freezes flight and wings;
+inactive worlds and daytime bats do not advance their flight clocks.
 
 [street-birds.ts](../../app/street-birds.ts) has no observer target. Birds independently
 peck at seed patches, drink from pools, fly between locations and perch on real
@@ -56,7 +72,17 @@ Reduced motion freezes these new animations; inactive worlds do not accumulate m
 
 ## Verification
 
-The October 6 population update passed 18 feature tests, TypeScript and scoped
+The October 6 habitat addition passed all 21 street-life tests, TypeScript, scoped
+runtime lint and the [production build](../../outputs/playtest/oct6-habitat-wildlife-build.log).
+Tests cover the 55/25 ratios, independent habitats, retained followers and fireflies,
+quality/distance limits, mirrored wings, reduced motion, inactive clocks and bat
+flight clearance on all nine actual planet builders. The
+[browser review](../../outputs/playtest/oct6-habitat-wildlife-checks.json) passed eight
+mainland/Copper desktop/mobile views with visible geometry, motion, day/night
+switching and matching source fingerprints. No hosted deployment or FPS improvement
+is claimed by these checks.
+
+The earlier October 6 bird population update passed 18 feature tests, TypeScript and scoped
 runtime lint. Tests require exactly 55 mainland birds and 25 birds in all nine
 actual planet builders, alongside compact size, four species, drinking contacts,
 exclusive landings and varied flights. The

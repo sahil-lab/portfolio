@@ -5,7 +5,7 @@ const {createQualityGovernor,qualityTiers,qualityThresholds,tierOrder,isQualityC
 const {createAtmosphereBlend}=require('../app/atmosphere-blend.ts');
 
 function lightSpace(sun,scene,point){
-  scene.updateMatrixWorld(true);sun.shadow.updateMatrices(sun);
+  scene.updateMatrixWorld(true);sun.shadow.camera.updateProjectionMatrix();sun.shadow.updateMatrices(sun);
   return point.clone().applyMatrix4(sun.shadow.matrix);
 }
 
@@ -31,6 +31,21 @@ test('shadow frustum follows the courier in whole texel steps so static shadows 
   // The anchor itself stays within half a texel of where the courier actually is.
   sun.position.copy(origin);const snapped=follow.follow(new T.Vector3(5.123,.8,17.456),scene.scale.x);
   assert.ok(snapped.distanceTo(new T.Vector3(5.123,.8,17.456))<=texel*Math.SQRT1_2+1e-9);
+});
+
+test('plaza shadow coverage stays pinned while the visitor crosses existing shadows',()=>{
+ const scene=new T.Scene();scene.scale.setScalar(2);const sun=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-85,right:85,top:85,bottom:-85,far:900});scene.add(sun,sun.target);
+ const center=new T.Vector3(52,.8,180),offset=new T.Vector3(-40,65,70),follow=createShadowFollow(sun,{center,radius:27,transition:24}),landmark=new T.Vector3(104,.08,360);let initial;
+ sun.position.copy(offset);createShadowFollow(sun).follow(new T.Vector3(64,.8,195),2);let clipped=false;
+ for(let point=0;point<32;point++){const angle=point*Math.PI/16,sample=lightSpace(sun,scene,new T.Vector3((52+Math.sin(angle)*27)*2,.08,(180+Math.cos(angle)*27)*2));if(sample.x<0||sample.x>1||sample.y<0||sample.y>1)clipped=true}
+ assert.equal(clipped,true,'unfocused control must reproduce shadow coverage cutting through the plaza');
+ for(const position of [[52,.8,201],[64,.8,195],[40,.8,190],[52,.8,161]]){
+  sun.position.copy(offset);follow.follow(new T.Vector3(...position),2);const projected=lightSpace(sun,scene,landmark);
+  if(initial)assert.ok(projected.distanceTo(initial)<1e-8,'walking moves the shadow coverage over the fixed plaza');else initial=projected;
+  for(let point=0;point<32;point++){const angle=point*Math.PI/16,sample=lightSpace(sun,scene,new T.Vector3((52+Math.sin(angle)*27)*2,.08,(180+Math.cos(angle)*27)*2));assert.ok(sample.x>.1&&sample.x<.9&&sample.y>.1&&sample.y<.9,'plaza paving reaches a shadow-map edge')}
+ }
+ let previous;for(let distance=27;distance<=55;distance+=.25){sun.position.copy(offset);const anchor=center.clone().add(new T.Vector3(distance,0,0)),snapped=follow.follow(anchor,2).clone();if(previous)assert.ok(snapped.distanceTo(previous)<1,'leaving the plaza jumps the shadow volume');previous=snapped}
+ const outside=center.clone().add(new T.Vector3(80,0,0));sun.position.copy(offset);assert.ok(follow.follow(outside,2).distanceTo(outside)<=follow.texel(2)*Math.SQRT1_2+1e-9);
 });
 
 test('quality governor demotes at once, promotes only after calm windows and never re-enters a tier it left',()=>{

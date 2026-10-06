@@ -1,11 +1,11 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},performance:{type:'boolean'},output:{type:'string'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(options.output??'outputs/playtest/camera-lifecycle');fs.mkdirSync(output,{recursive:true});
 async function main(){
- const browser=await chromium.launch({channel:options.browser,headless:true}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
+ const browser=await chromium.launch({channel:options.browser,headless:true}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:options.flicker?{width:1124,height:914}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
  page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));page.on('crash',()=>events.push({event:'renderer-crash'}));page.on('framenavigated',frame=>{if(frame===page.mainFrame())events.push({event:'navigation',url:frame.url()})});
- page.on('console',message=>{if(/context lost|Shader Error|out of memory|too many active webgl/i.test(message.text()))events.push({event:'console',message:message.text()})});
+ page.on('console',message=>{if(/context lost|context restored|Shader Error|out of memory|too many active webgl/i.test(message.text()))events.push({event:'console',message:message.text()})});
  await page.exposeFunction('__cameraLifecycleEvent',event=>events.push(event));
  await page.addInitScript(quality=>{
   localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality,cameraMode:'far',worldLighting:'day'}}));
@@ -37,6 +37,41 @@ async function main(){
    const gallery=await page.evaluate(()=>{const world=globalThis.__cameraLifecycleWorld;return {...world.projectPages.stats,boards:world.projectGallery.entries.length}});assert.ok(gallery.loaded<=(options.quality==='high'?2:1));assert.equal(gallery.boards,5);await snapshot('bounded-project-previews');
    await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goCapital('plaza'));await page.waitForFunction(()=>globalThis.__cameraLifecycleWorld.projectPages.stats.loaded===0);assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.projectPages.frames.filter(frame=>frame.iframe.hasAttribute('src')).length),0);events.push({event:'project-previews-unloaded',loaded:0});console.log('PROJECT_PREVIEWS_UNLOADED');
   }
+  if(options.shadows){
+   assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goCapital('plaza')),true);const samples=[];
+   for(const [index,position] of [[52,.8,201],[64,.8,195],[40,.8,190],[52,.8,161],[52,.8,201]].entries()){
+    const sample=await page.evaluate(async position=>{const world=globalThis.__cameraLifecycleWorld;world.player.position.fromArray(position);await new Promise(resolve=>{let frames=8;function next(){if(--frames)requestAnimationFrame(next);else resolve()}requestAnimationFrame(next)});const sun=world.scene.children.find(object=>object.isDirectionalLight&&object.castShadow),center=world.player.position.clone().set(52,.8,180);let margin=1;for(let point=0;point<32;point++){const angle=point*Math.PI/16,sample=world.player.position.clone().set(52+Math.sin(angle)*27,.04,180+Math.cos(angle)*27).applyMatrix4(world.scene.matrixWorld).applyMatrix4(sun.shadow.matrix);margin=Math.min(margin,sample.x,1-sample.x,sample.y,1-sample.y)}return {position:world.player.position.toArray(),target:sun.target.position.toArray(),focusError:sun.target.position.distanceTo(center),margin,enabled:world.renderer.shadowMap.enabled,hasMap:!!sun.shadow.map,approachPresent:!!world.scene.getObjectByName('Capital_QuietApproach')}},position);
+    samples.push(sample);assert.ok(sample.enabled&&sample.hasMap,'real sun shadows must remain enabled');assert.ok(sample.focusError<.08,'shadow coverage followed the character inside the plaza');assert.ok(sample.margin>.1,'shadow-map boundary crosses the plaza paving');
+    if(index===0||index===2)await page.screenshot({path:path.join(output,`plaza-shadow-${options.mobile?'mobile':'desktop'}-${index}.png`)});
+   }
+   events.push({event:'plaza-shadow-coverage',samples});console.log('PLAZA_SHADOW_COVERAGE_OK '+JSON.stringify(samples));
+  }
+  if(options.flicker){
+   assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goCapital('plaza')),true);
+   const bounds=await page.locator('.world canvas').boundingBox(),samples=[];assert.ok(bounds);
+   await page.mouse.move(bounds.x+bounds.width*.48,bounds.y+bounds.height*.5);await page.mouse.down();
+   for(const [step,fraction] of [.6,.72,.6,.48,.36,.24,.36,.48].entries()){
+    await page.mouse.move(bounds.x+bounds.width*fraction,bounds.y+bounds.height*.5,{steps:8});
+    samples.push(...await page.evaluate(()=>new Promise(resolve=>{
+     const world=globalThis.__cameraLifecycleWorld,probe=document.createElement('canvas');probe.width=96;probe.height=64;const context=probe.getContext('2d'),frames=[];
+     function sample(){
+      const camera=world.camera;let separation=Infinity,visible=0;
+      for(let tile=0;tile<60;tile++){
+       const angle=tile*Math.PI/30,lower=world.player.position.clone().set((52+Math.sin(angle)*22)*2,.066*2,(180+Math.cos(angle)*22)*2).project(camera),upper=world.player.position.clone().set((52+Math.sin(angle)*22)*2,.079*2,(180+Math.cos(angle)*22)*2).project(camera);
+       if(Math.abs(lower.x)<.95&&Math.abs(lower.y)<.95&&Math.abs(lower.z)<1){separation=Math.min(separation,Math.abs(lower.z-upper.z)*.5*(2**24-1));visible++}
+      }
+      context.drawImage(world.renderer.domElement,0,0,96,64);const pixels=context.getImageData(0,0,96,64).data,colors=new Set();let brightness=0;
+      for(let offset=0;offset<pixels.length;offset+=4){brightness+=(pixels[offset]+pixels[offset+1]+pixels[offset+2])/3;colors.add(`${pixels[offset]>>4},${pixels[offset+1]>>4},${pixels[offset+2]>>4}`)}
+      frames.push({near:camera.near,separation:visible?separation:null,colors:colors.size,brightness:brightness/(96*64),position:camera.position.toArray()});if(frames.length<6)requestAnimationFrame(sample);else resolve(frames);
+     }
+     requestAnimationFrame(sample);
+    })));
+    if([0,3,7].includes(step))await page.screenshot({path:path.join(output,`flicker-${options.mobile?'mobile':'desktop'}-${step}.png`)});
+   }
+   await page.mouse.up();const measured=samples.filter(sample=>sample.separation!==null),minimum=Math.min(...measured.map(sample=>sample.separation)),brightnessStep=Math.max(...samples.slice(1).map((sample,index)=>Math.abs(sample.brightness-samples[index].brightness)));
+   assert.ok(measured.length>24,'camera sweep did not cover the paving');assert.ok(minimum>=4,'paving depth precision collapsed during the camera sweep');assert.ok(samples.every(sample=>sample.colors>20),'camera sweep captured a blank canvas');assert.ok(new Set(samples.map(sample=>sample.position.map(value=>value.toFixed(2)).join(','))).size>8,'camera sweep did not move');
+   events.push({event:'plaza-camera-sweep',frames:samples.length,minimumDepthUnits:minimum,largestBrightnessStep:brightnessStep,nearRange:[Math.min(...samples.map(sample=>sample.near)),Math.max(...samples.map(sample=>sample.near))]});console.log('PLAZA_CAMERA_SWEEP_OK '+JSON.stringify(events.at(-1)));
+  }
   for(let cycle=0;cycle<3;cycle++){
    await page.getByRole('button',{name:'View controls',exact:true}).click();
    for(const mode of ['Close camera','First person camera','Far camera']){await page.getByRole('button',{name:mode,exact:true}).click();await snapshot(mode+'-'+cycle)}
@@ -56,9 +91,9 @@ async function main(){
     }
     if(options.recover){
      const position=await page.evaluate(()=>{const world=globalThis.__cameraLifecycleWorld,extension=world.renderer.getContext().getExtension('WEBGL_lose_context');if(!extension)throw Error('Context-loss testing unavailable');globalThis.__cameraLossExtension=extension;const position=world.player.position.toArray();extension.loseContext();return position});
-     await page.waitForFunction(()=>globalThis.__cameraContextsLost===1,null,{timeout:15000});
+    await page.waitForFunction(()=>globalThis.__cameraContextsLost===1,null,{timeout:15000,polling:100});
      await page.evaluate(()=>globalThis.__cameraLossExtension.restoreContext());
-     await page.waitForFunction(()=>globalThis.__cameraContextsRestored===1&&!globalThis.__cameraLifecycleWorld.renderer.getContext().isContextLost(),null,{timeout:30000});
+    await page.waitForFunction(()=>globalThis.__cameraContextsRestored===1&&globalThis.__cameraLifecycleWorld.renderReady!==false&&!globalThis.__cameraLifecycleWorld.renderer.getContext().isContextLost(),null,{timeout:30000,polling:100});
      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
      const restored=await snapshot('context-restored');assert.equal(restored.restored,1);assert.deepEqual(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.player.position.toArray()),position,'context recovery changed player position');
      const colors=await page.evaluate(()=>{const world=globalThis.__cameraLifecycleWorld;world.renderer.render(world.scene,world.camera);const probe=document.createElement('canvas');probe.width=80;probe.height=60;const context=probe.getContext('2d');context.drawImage(world.renderer.domElement,0,0,80,60);const pixels=context.getImageData(0,0,80,60).data,colors=new Set();for(let index=0;index<pixels.length;index+=4)colors.add(`${pixels[index]>>4},${pixels[index+1]>>4},${pixels[index+2]>>4}`);return colors.size});assert.ok(colors>20,'restored canvas is blank');
@@ -66,7 +101,7 @@ async function main(){
   await page.screenshot({path:path.join(output,options.quality+(options.mobile?'-mobile':'-desktop')+'.png')});
     for(const sample of snapshots){assert.equal(sample.document,original.document,'page reloaded');assert.equal(sample.insertions,original.insertions,'world canvas replaced');assert.equal(sample.lost,sample.label==='context-restored'?1:0,'unexpected WebGL context loss');assert.equal(sample.scene,original.scene,'scene recreated')}
   assert.deepEqual(errors,[]);assert.equal(events.filter(event=>event.event==='renderer-crash').length,0);console.log('CAMERA_LIFECYCLE_OK');
- }catch(error){errors.push(error.message);await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});throw error}
+ }catch(error){errors.push(error.message);const state=await page.evaluate(()=>({hidden:document.hidden,lost:globalThis.__cameraContextsLost,restored:globalThis.__cameraContextsRestored,contextLost:globalThis.__cameraLifecycleWorld?.renderer.getContext().isContextLost(),draws:globalThis.__cameraLifecycleWorld?.renderer.info.render.calls,notice:document.body.innerText.slice(-1200)})).catch(()=>null);events.push({event:'failure-state',...state});console.error('CAMERA_FAILURE_STATE '+JSON.stringify(state));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});throw error}
  finally{fs.writeFileSync(path.join(output,options.quality+(options.mobile?'-mobile':'-desktop')+'.json'),JSON.stringify({events,errors,snapshots},null,2)+'\n');await browser.close()}
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

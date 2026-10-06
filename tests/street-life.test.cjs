@@ -10,18 +10,25 @@ test('the native street-life kit contains baked reusable parts with independent 
   }finally{disposeScene(asset)}
 });
 
-test('street wildlife uses bounded morning and night populations without daytime fireflies',()=>{
-  assert.deepEqual(streetLifeDensity({morning:1,night:0}),{butterflies:8,fireflies:0,birds:25});
+test('street wildlife uses bounded daytime and night populations without daytime fireflies',()=>{
+  assert.deepEqual(streetLifeDensity({morning:1,night:0}),{butterflies:8,ambientButterflies:25,fireflies:0,birds:25,bats:0});
   assert.equal(streetLifeDensity({morning:1,night:0},'low').birds,13);
   assert.equal(streetLifeDensity({morning:1,night:0},'balanced',55).birds,55);
-  assert.deepEqual(streetLifeDensity({morning:0,night:1}),{butterflies:0,fireflies:24,birds:0});
-  assert.equal(streetLifeDensity({morning:0,night:0}).butterflies,0);
+  assert.deepEqual(streetLifeDensity({morning:0,night:1}),{butterflies:0,ambientButterflies:0,fireflies:24,birds:0,bats:25});
+  assert.deepEqual(streetLifeDensity({morning:0,night:0}),{butterflies:8,ambientButterflies:25,fireflies:0,birds:25,bats:0});
   for(const quality of ['low','balanced','high'])for(let step=0;step<=20;step++){
     const density=streetLifeDensity({morning:1,night:step/20,wet:.4},quality);
     for(const [kind,count] of Object.entries(density)){assert.ok(Number.isInteger(count));assert.ok(count>=0&&count<=streetLifeBudget[kind])}
   }
   assert.ok(streetLifeDensity({morning:1,night:0},'low').butterflies<8);
   assert.ok(streetLifeDensity({morning:1,night:0,wet:1}).birds<streetLifeBudget.birds);
+});
+
+test('nocturnal bats and scattered butterflies retain the bird population ratio and quality limits',()=>{
+  for(const population of [25,55])for(const quality of ['low','balanced','high'])for(const wet of [0,.5,1]){
+    const day=streetLifeDensity({morning:0,night:0,wet},quality,population),night=streetLifeDensity({morning:0,night:1,wet},quality,population);
+    assert.equal(night.bats,day.birds);assert.equal(day.ambientButterflies,day.birds);assert.equal(day.bats,0);assert.equal(night.ambientButterflies,0);assert.equal(night.birds,0);assert.equal(day.fireflies,0);assert.ok(night.fireflies>0);
+  }
 });
 
   test('morning wildlife follows local morning, fixed lighting and the rising part of the cycle',()=>{
@@ -36,11 +43,12 @@ test('street wildlife uses bounded morning and night populations without daytime
     assert.equal(sampleMorning('cycle',160,weather),0);
   });
 
-test('butterfly morning activity follows fixed modes, the day cycle and reported local time',()=>{
+test('morning lighting metadata does not suppress afternoon butterfly activity',()=>{
   const {visualWeather}=require('../app/world-lighting.ts'),{defaultWeather}=require('../app/weather-state.ts');
   assert.equal(visualWeather(defaultWeather,'day',0).morning,1);assert.equal(visualWeather(defaultWeather,'night',0).morning,0);assert.equal(visualWeather(defaultWeather,'sunset',0).morning,0);
   assert.ok(visualWeather(defaultWeather,'cycle',0).morning>.9);assert.equal(visualWeather(defaultWeather,'cycle',160).morning,0);
   assert.equal(visualWeather({...defaultWeather,updatedAt:'2026-10-05T08:00'},'local',0).morning,1);assert.equal(visualWeather({...defaultWeather,updatedAt:'2026-10-05T14:00'},'local',0).morning,0);
+  const afternoon=visualWeather({...defaultWeather,isDay:true,updatedAt:'2026-10-05T14:00'},'local',0);assert.equal(streetLifeDensity(afternoon).butterflies,8);assert.equal(streetLifeDensity(afternoon).fireflies,0);
 });
 
 test('juggling balls follow continuous alternating arcs and stay within the performer area',()=>{
@@ -77,7 +85,7 @@ test('street life reserves clear performer areas and switches instanced wildlife
 test('insects follow walking, teleporting and flying observers without requiring fixed habitats',()=>{
   const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),life=createStreetLife(scene,{id:'following',anchors:[]}),observer=new T.Vector3(500,.8,-400),matrix=new T.Matrix4(),position=new T.Vector3();
   const near=(mesh,radius)=>{for(let index=0;index<mesh.count;index++){mesh.getMatrixAt(index,matrix);position.setFromMatrixPosition(matrix);assert.ok(position.distanceTo(observer)<radius,mesh.name+' left the observer behind')}};
-  try{assert.equal(life.habitats.length,0);for(let frame=0;frame<700;frame++){observer.x+=.7;life.update(.1,false,true,observer,{morning:1,night:0});assert.equal(life.stats.butterflies,8);assert.equal(life.stats.birds,0);near(life.butterflies.body,7)}
+  try{assert.equal(life.habitats.length,0);for(let frame=0;frame<700;frame++){observer.x+=.7;life.update(.1,false,true,observer,{morning:frame<100?1:0,night:0});assert.equal(life.stats.butterflies,8);assert.equal(life.stats.birds,0);near(life.butterflies.body,7)}
     observer.set(-800,120,600);life.update(.1,false,true,observer,{morning:0,night:1});assert.equal(life.stats.fireflies,24);near(life.fireflies.body,5);assert.ok(life.halos.material.size>=.8);life.fireflies.light.geometry.computeBoundingBox();assert.ok(life.fireflies.light.geometry.boundingBox.getSize(new T.Vector3()).x>=.124);
     life.update(0,true,true,observer,{morning:0,night:1});const frozen=life.fireflies.body.instanceMatrix.array.slice();life.update(10,true,true,observer,{morning:0,night:1});assert.deepEqual(life.fireflies.body.instanceMatrix.array,frozen);observer.x+=40;life.update(.1,true,true,observer,{morning:0,night:1});near(life.fireflies.body,5);
   }finally{disposeScene(scene)}
@@ -86,6 +94,28 @@ test('insects follow walking, teleporting and flying observers without requiring
 test('following butterflies vary their radius and turn direction instead of orbiting in a circle',()=>{
   const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),life=createStreetLife(scene,{id:'flutter',anchors:[]}),observer=new T.Vector3(40,.8,60),matrix=new T.Matrix4(),position=new T.Vector3(),previous=new T.Vector3(),radii=[],turns=new Set();
   try{for(let frame=0;frame<360;frame++){life.update(.1,false,true,observer,{morning:1,night:0});life.butterflies.body.getMatrixAt(0,matrix);position.setFromMatrixPosition(matrix).sub(life.follower.position);radii.push(Math.hypot(position.x,position.z));if(frame){assert.ok(position.distanceTo(previous)<1);const turn=previous.x*position.z-previous.z*position.x;if(Math.abs(turn)>.005)turns.add(Math.sign(turn))}previous.copy(position)}assert.ok(Math.max(...radii)-Math.min(...radii)>.8);assert.equal(turns.size,2)}finally{disposeScene(scene)}
+});
+
+test('scattered butterflies stay at separate habitats while the original butterflies follow the observer',()=>{
+  const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),anchors=Array.from({length:8},(_,index)=>({id:'garden-'+index,position:new T.Vector3(index%4*24,0,Math.floor(index/4)*32),rotation:new T.Quaternion()})),life=createStreetLife(scene,{id:'motherboard',anchors,seed:4}),observer=new T.Vector3(36,.8,16),day={morning:0,night:0},matrix=new T.Matrix4(),position=new T.Vector3();
+  try{
+    life.update(0,true,true,observer,day);assert.equal(life.ambientFlutterPaths.length,55);assert.equal(life.ambientButterflies.body.instanceMatrix.count,55);assert.equal(life.stats.ambientButterflies,55);assert.equal(life.stats.butterflies,8);assert.ok(new Set(life.ambientFlutterPaths.map(path=>path.site)).size>8);
+    const initial=life.ambientButterflies.body.instanceMatrix.array.slice(),points=[];for(let index=0;index<life.stats.ambientButterflies;index++){life.ambientButterflies.body.getMatrixAt(index,matrix);points.push(new T.Vector3().setFromMatrixPosition(matrix))}assert.ok(new T.Box3().setFromPoints(points).getSize(new T.Vector3()).x>50);
+    observer.set(42,20,20);life.update(0,true,true,observer,day);assert.deepEqual(life.ambientButterflies.body.instanceMatrix.array,initial,'scattered butterflies moved with a flying observer');life.butterflies.body.getMatrixAt(0,matrix);position.setFromMatrixPosition(matrix);assert.ok(position.distanceTo(observer)<5);
+    life.update(.1,false,true,observer,day);assert.ok(initial.some((value,index)=>value!==life.ambientButterflies.body.instanceMatrix.array[index]));life.update(0,true,true,observer,day);const frozen=life.ambientButterflies.body.instanceMatrix.array.slice();life.update(10,true,true,observer,day);assert.deepEqual(life.ambientButterflies.body.instanceMatrix.array,frozen);
+    life.update(0,true,true,observer,day,'low');assert.equal(life.stats.ambientButterflies,28);life.update(0,true,true,observer,{morning:0,night:1});assert.equal(life.stats.ambientButterflies,0);assert.equal(life.stats.fireflies,24);observer.set(1000,.8,1000);life.update(.1,false,true,observer,day);assert.equal(life.stats.ambientButterflies,0);assert.equal(life.stats.butterflies,8);
+  }finally{disposeScene(scene)}
+});
+
+test('night bats fly independently in the bird ratio with bounded instancing and no added lights',()=>{
+  const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),anchors=Array.from({length:8},(_,index)=>({id:'night-garden-'+index,position:new T.Vector3(index%4*24,0,Math.floor(index/4)*32),rotation:new T.Quaternion()})),life=createStreetLife(scene,{id:'motherboard',anchors,seed:8}),observer=new T.Vector3(36,.8,16),day={morning:0,night:0},night={morning:0,night:1};
+  try{
+    assert.equal(life.batFlights.length,55);assert.equal(life.bats.body.instanceMatrix.count,55);assert.equal(new Set(life.batFlights.map(bat=>bat.flight)).size,55);assert.ok(new Set(life.batFlights.map(bat=>bat.site)).size>8);assert.equal(Object.keys(life.bats).length,8);assert.equal(life.bats.left.geometry.userData.streetLifePart,'BatWing');
+    life.update(0,true,true,observer,day);assert.equal(life.stats.bats,0);life.update(0,true,true,observer,night);assert.equal(life.stats.bats,55);assert.equal(life.stats.birds,0);assert.equal(life.stats.fireflies,24);assert.equal(life.stats.butterflies,0);assert.equal(life.stats.ambientButterflies,0);
+    for(const bat of life.renderedBats){assert.ok(bat.position.y>3.5);assert.equal(bat.flight.closed,true);assert.equal(bat.flight.points.length,7);assert.ok(new T.Vector3(0,1,0).applyQuaternion(bat.rotation).y>.999)}const initial=life.bats.body.instanceMatrix.array.slice();observer.x+=20;life.update(0,true,true,observer,night);assert.deepEqual(life.bats.body.instanceMatrix.array,initial,'bats followed the observer');
+    life.update(.1,false,true,observer,night);assert.ok(initial.some((value,index)=>value!==life.bats.body.instanceMatrix.array[index]));life.update(0,true,true,observer,night);const frozen=life.bats.left.instanceMatrix.array.slice(),elapsed=life.batFlights.map(bat=>bat.elapsed);life.update(10,true,true,observer,night);assert.deepEqual(life.bats.left.instanceMatrix.array,frozen);life.update(10,false,false,observer,night);assert.deepEqual(life.batFlights.map(bat=>bat.elapsed),elapsed);assert.equal(life.root.visible,false);
+    life.update(0,true,true,observer,night,'low');assert.equal(life.stats.bats,28);life.update(0,true,true,observer,day);assert.equal(life.stats.bats,0);observer.set(1000,.8,1000);life.update(.1,false,true,observer,night);assert.equal(life.stats.bats,0);assert.equal(life.stats.fireflies,24);let lights=0;life.root.traverse(object=>{if(object.isLight)lights++});assert.equal(lights,0);for(const object of Object.values(life.bats))assert.equal(object.castShadow,false);
+  }finally{disposeScene(scene)}
 });
 
 test('following fireflies wander independently instead of circling and retain their glow and follow distance',()=>{
@@ -135,17 +165,20 @@ test('drinking birds keep both feet on coping and lower their beaks to the real 
 
 test('wildlife has mirrored outward-facing wings and paired instanced bird eyes',()=>{
   const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),life=createStreetLife(scene,{id:'wing-study',anchors:[{id:'court',position:new T.Vector3(),rotation:new T.Quaternion()}]});
-  try{for(const pair of [life.butterflies,life.birds]){const left=pair.left.geometry,right=pair.right.geometry;assert.notEqual(left.uuid,right.uuid);for(let index=0;index<left.attributes.position.count;index++){assert.ok(Math.abs(left.attributes.position.getX(index)+right.attributes.position.getX(index))<1e-7);assert.equal(left.attributes.position.getY(index),right.attributes.position.getY(index));assert.ok(Math.abs(left.attributes.normal.getX(index)+right.attributes.normal.getX(index))<1e-7)}for(let index=0;index<left.index.count;index+=3){assert.equal(left.index.getX(index),right.index.getX(index+2));assert.equal(left.index.getX(index+2),right.index.getX(index))}}
+  try{for(const pair of [life.butterflies,life.ambientButterflies,life.birds,life.bats]){const left=pair.left.geometry,right=pair.right.geometry;assert.notEqual(left.uuid,right.uuid);for(let index=0;index<left.attributes.position.count;index++){assert.ok(Math.abs(left.attributes.position.getX(index)+right.attributes.position.getX(index))<1e-7);assert.equal(left.attributes.position.getY(index),right.attributes.position.getY(index));assert.ok(Math.abs(left.attributes.normal.getX(index)+right.attributes.normal.getX(index))<1e-7)}for(let index=0;index<left.index.count;index+=3){assert.equal(left.index.getX(index),right.index.getX(index+2));assert.equal(left.index.getX(index+2),right.index.getX(index))}}
     life.update(.1,false,true,new T.Vector3(),{morning:1,night:0});assert.ok(life.stats.birds>0);assert.equal(life.birds.leftEye.count,life.stats.birds);assert.equal(life.birds.rightEye.count,life.stats.birds);const first=new T.Matrix4(),second=new T.Matrix4();life.birds.leftEye.getMatrixAt(0,first);life.birds.rightEye.getMatrixAt(0,second);assert.ok(new T.Vector3().setFromMatrixPosition(first).distanceTo(new T.Vector3().setFromMatrixPosition(second))>.11);assert.ok(life.seeds.count>0);const resting=life.renderedBirds.findIndex(bird=>bird.mode!=='flying');assert.ok(resting>=0);for(const wing of [life.birds.left,life.birds.right]){wing.getMatrixAt(resting,first);wing.geometry.computeBoundingBox();assert.ok(wing.geometry.boundingBox.clone().applyMatrix4(first).max.y-life.renderedBirds[resting].position.y<.19,'resting wings should fold beside the body')}const positions=life.birdLife.agents.map(bird=>bird.position.toArray());life.update(0,false,true,new T.Vector3(1000,.8,1000),{morning:1,night:0});assert.deepEqual(life.birdLife.agents.map(bird=>bird.position.toArray()),positions,'birds must not move with the observer');assert.equal(life.stats.birds,0);
   }finally{disposeScene(scene)}
 });
 
 test('all nine planets place painting, violin and unicycle-juggling scenes with local gravity and clear approaches',()=>{
-  const T=require('three'),{createPlanetSurface,planetUp}=require('../app/planet-geography.ts'),{createPlanetLandscape}=require('../app/planet-surface.ts'),{transitStops}=require('../app/transit-config.ts'),{disposeScene}=require('../app/scene-resources.ts');
+  const T=require('three'),{createPlanetSurface,planetUp,planetPoint}=require('../app/planet-geography.ts'),{createPlanetLandscape}=require('../app/planet-surface.ts'),{transitStops}=require('../app/transit-config.ts'),{disposeScene}=require('../app/scene-resources.ts');
   const previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
   try{for(const stop of transitStops.slice(1)){const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),landscape=createPlanetLandscape(scene,surface),life=landscape.streetLife;
     try{assert.equal(life.performers.length,3,stop.id+' missing performers');assert.ok(life.habitats.length>0,stop.id+' missing wildlife habitat');assert.equal(life.root.parent.name,'Planet_SurfaceDetails');for(const entry of life.performers){const up=new T.Vector3(0,1,0).applyQuaternion(entry.site.rotation);assert.ok(up.dot(planetUp(surface,entry.site.position))>.999,stop.id+' wrong local gravity')}
       for(const place of landscape.publicSpaces.places)assert.equal(life.blocked(place.approach),false,stop.id+' blocked '+place.kind+' approach');const observer=new T.Group();observer.position.copy(life.habitats[0].position);landscape.root.userData.streetLifeEnvironment={morning:1,night:0};landscape.update(.1,false,observer,true);assert.equal(life.stats.butterflies,8);assert.equal(life.stats.fireflies,0);landscape.root.userData.streetLifeEnvironment={morning:0,night:1};landscape.update(.1,false,observer,true);assert.equal(life.stats.butterflies,0);assert.equal(life.stats.fireflies,24);const time=life.root.userData.motionTime;landscape.update(10,false,observer,false);assert.equal(life.root.visible,false);assert.equal(life.root.userData.motionTime,time);
+      assert.equal(life.batFlights.length,25,stop.id+' bat population');assert.equal(life.bats.body.instanceMatrix.count,25);assert.equal(life.ambientFlutterPaths.length,25,stop.id+' scattered butterfly population');assert.equal(life.ambientButterflies.body.instanceMatrix.count,25);assert.ok(life.stats.bats>0,stop.id+' missing local night bats');assert.equal(life.stats.ambientButterflies,0);
+      for(const bat of life.batFlights)for(const point of bat.flight.getPoints(24)){const up=planetUp(surface,point),ground=planetPoint(surface,point.clone().sub(surface.center));assert.ok(point.clone().sub(ground).dot(up)>3.5,stop.id+' bat flight intersects terrain')}
+      for(const bat of life.renderedBats)assert.ok(new T.Vector3(0,1,0).applyQuaternion(bat.rotation).dot(planetUp(surface,bat.position))>.999,stop.id+' bat lost local gravity');
       const phases=[...landscape.population.residents,...landscape.population.traffic].map(actor=>actor.phase),reservation=life.blocked;life.blocked=()=>true;landscape.update(.1,false,observer,true);assert.deepEqual([...landscape.population.residents,...landscape.population.traffic].map(actor=>actor.phase),phases,stop.id+' population ignored performer reservations');life.blocked=reservation;
       const destination=new T.Vector3(.73,-.27,-.49).normalize(),matrix=new T.Matrix4(),position=new T.Vector3();observer.position.copy(require('../app/planet-geography.ts').planetPoint(surface,destination)).addScaledVector(destination,.8);
       assert.ok(life.birdLife.perches.length>0,stop.id+' missing physical bird perches');assert.ok(life.birdLife.drinkSites.length>0,stop.id+' missing poolside drinking spots');assert.equal(life.birdLife.agents.length,25,stop.id+' must have exactly 25 birds');assert.equal(life.birds.body.instanceMatrix.count,25);assert.equal(new Set(life.birdLife.agents.map(bird=>bird.species)).size,4,stop.id+' missing bird species');assert.ok(life.habitats.length>3,stop.id+' birds still limited to three habitats');
