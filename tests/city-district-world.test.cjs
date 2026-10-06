@@ -23,6 +23,11 @@ test('every authored district stair reaches its upper walkway and returns withou
   disposeScene(scene);
 });
 
+test('district collision indexing matches the original predicate while inspecting only local candidates',context=>{
+ const spatial=require('../app/spatial-index.ts'),create=spatial.createSpatialIndex,indexes=[];context.mock.method(spatial,'createSpatialIndex',(values,bounds,cellSize)=>{const index=create(values,bounds,cellSize);indexes.push({values,index});return index});const scene=new T.Scene(),world=createAuthoredDistricts(scene);let candidates=0,linear=0;
+ try{assert.equal(indexes.length,world.districts.length);for(const [districtIndex,site] of world.districts.entries()){const {values,index}=indexes[districtIndex];for(const height of [-4.8,.8,4,8,12,20])for(let horizontal=-60;horizontal<=60;horizontal+=2.5)for(let forward=-60;forward<=60;forward+=2.5){const expected=values.some(solid=>height+1.7>solid.y&&height<solid.y+solid.height-.04&&Math.abs(horizontal-solid.x)<solid.width/2+.45&&Math.abs(forward-solid.z)<solid.depth/2+.45);assert.equal(site.blocked(horizontal+site.district.x,forward+site.district.z,height),expected);candidates+=index.at(horizontal,forward).length+index.broad.length;linear+=values.length}}assert.ok(candidates<linear*.2,'collision broad phase did not reduce candidate work')}finally{disposeScene(scene)}
+});
+
 test('district activity is interaction-based and remote district animation is culled',()=>{
   const scene=new T.Scene(),world=createAuthoredDistricts(scene),player=new T.Group(),site=world.districts[0];player.position.set(site.district.x,.8,site.district.z+17.7);
   assert.match(world.prompt(player.position),/Connector/);assert.ok(world.interact(player.position));world.update(.1,false,player,true);assert.equal(site.root.visible,true);assert.ok(world.districts.slice(1).some(other=>!other.root.visible));

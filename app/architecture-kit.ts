@@ -8,6 +8,7 @@ export type ArchitectureSurface='ceramic'|'stone'|'timber'|'brushed';
 const surfaceMaps=new Map<ArchitectureSurface,T.Texture>();
 const normalMaps=new Map<ArchitectureSurface,T.Texture>();
 const converted=new WeakMap<T.BufferGeometry,Map<string,T.BufferGeometry>>();
+const blockTemplates=new Map<string,T.BufferGeometry>();
 const requiredParts=['Block','PlainBlock','ForgeRoof','ConservatoryRoof','PetalRoof','ResearchRoof','WorkshopRoof','GuildRoof','Vault','Sphere','Dome','Cylinder','CylinderHigh','Torus'].map(name=>'Architecture_'+name);
 let pending:Promise<boolean>|null=null;
 const roofNames:Record<string,string>={Forge_ButterflyRoof:'ForgeRoof',Conservatory_GlassVault:'ConservatoryRoof',Petal_SweptTileRoof:'PetalRoof',Research_FoldedInstrumentRoof:'ResearchRoof',Workshop_SawtoothRoof:'WorkshopRoof',Guild_ShingledGable:'GuildRoof',Guild_DormerRoof:'GuildRoof',Cloud_PearlDome:'Dome',Pavilion_ContinuousVault:'Vault',Pavilion_VaultUnderside:'Vault'};
@@ -15,7 +16,7 @@ Object.assign(roofNames,{Forge_ButterflyStationRoof:'ForgeRoof',Garden_GlazedBar
 
 export function installArchitectureKit(scene:T.Object3D){
  const found=new Map<string,T.BufferGeometry>();scene.traverse(object=>{const mesh=object as T.Mesh;if(!mesh.isMesh||!mesh.userData.architecturePart||!mesh.geometry.attributes.color)return;const tint=mesh.userData.bakedTint;if(!Array.isArray(tint)||!Number.isFinite(tint[0])||tint[0]<=0)return;const geometry=mesh.geometry.clone(),source=geometry.attributes.color,colors=new Float32Array(source.count*3);for(let index=0;index<source.count;index++){const value=T.MathUtils.clamp(source.getX(index)/tint[0],.6,1);colors[index*3]=colors[index*3+1]=colors[index*3+2]=value}geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.userData.authoredArchitecture=mesh.userData.architecturePart;geometry.userData.premiumPart=mesh.userData.premiumCandidate??null;geometry.computeBoundingBox();geometry.computeBoundingSphere();found.set(mesh.userData.architecturePart,geometry)});
- if(requiredParts.some(name=>!found.has(name))||[...found.keys()].some(name=>!requiredParts.includes(name)&&name!=='Architecture_DetailSphere')){for(const shape of found.values())shape.dispose();return false}for(const shape of shapes.values())shape.dispose();shapes.clear();for(const [name,shape] of found)shapes.set(name,shape);return true;
+ if(requiredParts.some(name=>!found.has(name))||[...found.keys()].some(name=>!requiredParts.includes(name)&&name!=='Architecture_DetailSphere')){for(const shape of found.values())shape.dispose();return false}for(const shape of shapes.values())shape.dispose();for(const geometry of blockTemplates.values())geometry.dispose();blockTemplates.clear();shapes.clear();for(const [name,shape] of found)shapes.set(name,shape);return true;
 }
 export const architectureKitReady=()=>shapes.size===14||shapes.size===15;
 
@@ -36,10 +37,14 @@ function finishGeometry(geometry:T.BufferGeometry,preserveNormals=false){
 
 export function authoredBlock(width:number,height:number,depth:number,radius=0){
  const source=shapes.get(radius>0?'Architecture_Block':'Architecture_PlainBlock');if(!source)return null;
+ const key=JSON.stringify([width,height,depth,radius]),parameters={width,height,depth,radius},cached=blockTemplates.get(key);
+ if(cached){blockTemplates.delete(key);blockTemplates.set(key,cached);return Object.assign(cached.clone(),{parameters,type:'BlenderBlockGeometry'})}
  const geometry=source.clone(),positions=geometry.attributes.position,dimensions=[width,height,depth],corner=Math.min(radius,Math.min(width,height,depth)*.45);
  const stretch=(value:number,size:number)=>radius>0?Math.sign(value)*(Math.abs(value)>.88?size/2-corner+(Math.abs(value)-.88)/.12*corner:Math.abs(value)/.88*(size/2-corner)):value*size/2;
  for(let index=0;index<positions.count;index++)positions.setXYZ(index,stretch(positions.getX(index),dimensions[0]),stretch(positions.getY(index),dimensions[1]),stretch(positions.getZ(index),dimensions[2]));
- Object.assign(geometry,{parameters:{width,height,depth,radius},type:'BlenderBlockGeometry'});return finishGeometry(geometry);
+ Object.assign(geometry,{parameters,type:'BlenderBlockGeometry'});finishGeometry(geometry);blockTemplates.set(key,geometry);
+ if(blockTemplates.size>128){const oldest=blockTemplates.keys().next().value!;blockTemplates.get(oldest)!.dispose();blockTemplates.delete(oldest)}
+ return Object.assign(geometry.clone(),{parameters:{...parameters},type:'BlenderBlockGeometry'});
 }
 
 function fit(source:T.BufferGeometry,bounds:T.Box3){

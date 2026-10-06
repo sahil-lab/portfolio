@@ -12,6 +12,179 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Mobile Stability And Research, 7 October 2026
+
+This follow-up targets camera changes, native touch swipes and mobile rendering
+without removing assets, effects, population, resolution settings or controls.
+The page already creates its world only on mount; camera mode changes do not
+recreate that world. The reported physical-phone reload was not reproduced in
+local Chrome emulation, so its cause is not certified by these tests.
+
+The investigation did reproduce unnecessary GPU work: eight resize events with
+unchanged dimensions caused 16 drawing-buffer resets. World resizing now caches
+width, height and pixel ratio, uses one `setDrawingBufferSize` call for a real
+change, and explicitly invalidates the cache after context restoration. The
+same unchanged-size check now produces zero resets. The canvas, camera and all
+postprocessing settings remain the same.
+
+The root viewport disables overscroll while the world is present, preventing
+supported browsers' pull-to-refresh and scroll chaining during gestures. Normal
+controls and scrollable panels remain available. The browser harness now uses
+native touch events, not just mouse drags in a narrow viewport: six swipes across
+three portrait/landscape states plus camera-mode cycles retained one document,
+scene and canvas. Development recovery also retained those identities.
+
+Animated resident batches now maintain conservative bounding spheres as their
+matrices update. Ordinary camera and shadow frustum tests can reject an entirely
+off-screen batch without dropping any visible part; a distance-scaled Float32
+margin is covered by a vertex-level regression. Unchanged instance colors are
+not uploaded again, but recoloring and changing visible slots still upload.
+
+Three.js shader debug checks remain enabled in development and are disabled in
+production, following the renderer documentation. This avoids optional blocking
+shader/program log queries, not shader compilation or any shading feature. The
+existing asynchronous preparation and visual validation remain in place.
+
+### Researched Guidance
+
+- [MDN WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices): avoid blocking GPU queries and framebuffer churn; batch compatible draws and manage resource lifetime. Quality-reducing backbuffer changes and lossy texture compression were not adopted.
+- [Three.js WebGLRenderer](https://threejs.org/docs/pages/WebGLRenderer.html): production shader diagnostics, `compileAsync`, and one-call drawing-buffer sizing. APIs were checked against the installed renderer before use.
+- [Three.js InstancedMesh](https://threejs.org/docs/pages/InstancedMesh.html): transformed instances require updated bounds for correct culling; color buffers need uploading only when changed.
+- [MDN overscroll behavior](https://developer.mozilla.org/en-US/docs/Web/CSS/overscroll-behavior): prevent viewport pull-to-refresh and scroll chaining rather than attempting to intercept browser reloads afterward.
+- [Chrome Page Lifecycle](https://developer.chrome.com/docs/web-platform/page-lifecycle-api): browsers can discard pages under resource pressure without a cancellable event. No website can guarantee that a tab survives every OS/browser condition; no unconditional unload handler or reload loop was added.
+
+### Current Measurement
+
+The matched local Chrome mobile-emulation run used the previous retained build,
+the same 390 x 844 viewport, Balanced quality, project fixtures and the existing
+three-sample method. This is not a physical-phone or 10,000-times speedup claim.
+
+| Location | Mean Frame, Before/After (ms) | p95, Before/After (ms) |
+| --- | --- | --- |
+| Plaza | 28.52 / 33.52 | 50.0 / 50.0 |
+| Project boards | 28.89 / 19.81 | 49.9 / 33.4 |
+| Return to plaza | 42.59 / 32.03 | 66.7 / 50.0 |
+| Citadel | 20.92 / 16.67 | 33.4 / 16.7 |
+
+Readiness was 20.60 versus 19.16 seconds. Three locations improved, including
+60 FPS in the sampled Citadel view, but the initial plaza mean regressed. The
+result is therefore mixed, not universally smooth. Evidence is under
+`outputs/performance/oct7-mobile-stability-comparison-mobile`.
+
+Production validation passed: zero unchanged-size drawing-buffer resets, six
+native swipes across three orientation states, camera-mode cycles, a 48-frame
+camera sweep, bounded preview unloading and forced context recovery all retained
+the same document, scene and canvas. The single-loop check recorded 8 active,
+0 paused and 8 resumed frames. No unexpected context loss or page errors occurred.
+The separate day/night/quality visual review passed 11 desktop/mobile captures.
+Reports are under `outputs/performance/oct7-mobile-stability-production` and
+`outputs/playtest/oct7-mobile-stability-visuals-checks.json`.
+
+TypeScript, scoped lint, all 29 focused controls/resource/resident tests and the
+production build passed for this follow-up. The earlier 629-test full-suite gate
+describes the preceding ranked pass, not a new full-suite run here. Source hashes
+in `outputs/performance/oct7-mobile-stability-source.json` were verified after
+the browser tests. The exact reported phone/browser reload remains unconfirmed;
+the test evidence is local Chrome touch emulation. This follow-up is not pushed.
+
+## Complexity-Ranked Algorithmic Pass
+
+The [full file ranking](code-complexity.md) inventories 1,045 non-ignored project
+files and parses 586 source files, including 132 Python sources, with no parser
+failures. Its separate application queue contains 262 modules. The score combines
+function control-flow complexity, decision count, nesting and local importers;
+it is not a Big-O estimate or a substitute for runtime profiling. The audit covers
+every included source file, but does not claim a manual rewrite of every file.
+
+Work starts with the highest-ranked application paths and follows the dependency
+that owns the measured cost. The current changes preserve assets, geometry,
+textures, visual effects, population counts, interactions and quality settings:
+
+| Ranked Area | Action |
+| --- | --- |
+| World orchestration | Profiled startup and draw submission; extended resident instancing with a WeakMap and collision-checked geometry hashes, retaining independent transforms, colors and visibility. |
+| Page initialization | Reviewed the existing parallel module/kit loading; retained it. Cached the two prepared variants of each shared model part in the owning kit module. |
+| Everyday-place construction | Added a 128-entry exact-dimension LRU in the shared authored-block factory; every caller still receives independently editable buffers. |
+| Friends server | Encode each shared room snapshot once per broadcast, preserving delivery, backpressure and the wire format. |
+| Realm construction | Reuse valid bounds for shared immutable geometry; existing landmark, collision and animated-detail tests remain intact. |
+| Building factories | Retain index buffers through material-group and static-scene merging; exact transformed triangles, normals and UVs match the expanded representation. |
+| Friends UI | Reviewed its bounded five-player lookups and conditional timers; no speculative rewrite. |
+| City districts | Use the existing grid spatial index before the unchanged collision predicate; 72,030 multi-height samples match the original scan with less than 20 percent of its candidates. |
+| Authored surfaces | Reuse the full source/sampling/UV identity for trusted relief and normal-map clones, without merging different UVs or custom texture identities. |
+
+The initial production diagnostic measured about 19 seconds to ready and 67.8 ms
+median-run mean frame time in the plaza. Disabling wildlife did not improve that
+run; bypassing draw submission reduced frame time substantially. Those diagnostic
+modes are temporary test instrumentation, not application changes.
+
+An early full-screen shader-preparation experiment was rejected: in its matched
+run readiness changed from 26.5 to 28.2 seconds and frame time did not improve.
+Its runtime changes were removed; the original bloom, GTAO, output and antialiasing
+pipeline remains. The differing absolute timings demonstrate local-run variability.
+
+A second experiment combining different diffuse colors into shared static draws
+was also rejected after its matched run regressed loading and frame times. Its
+changes were removed. Material color boundaries and wildlife perch discovery
+remain as before; no visual content was removed to obtain a faster result.
+
+The retained version passed TypeScript, scoped lint, all 629 tests in 117 Node test files and
+the plain production build. The guarded source hashes and logs are under
+`outputs/performance/oct6-retained-final-*`. The full AST inventory is complete;
+the manual optimization work covered the ranked paths above and their owning
+dependencies, not every lower-ranked file. Remaining files retain their place in
+the report's optimization queue.
+
+The retained lossless-indexing desktop comparison used the same Chrome process,
+Balanced settings, 1440 x 960 viewport and DPR 1. Each location used 90 warm frames
+and three 90-frame samples; the table reports the median run's mean and p95.
+Project iframes used fixed local response fixtures in both builds. Control ran
+first, so cache, ordering and shared-machine variation remain limitations.
+
+| Location | Mean Frame, Before/After (ms) | p95, Before/After (ms) |
+| --- | --- | --- |
+| Plaza | 94.27 / 83.14 | 133.3 / 116.6 |
+| Project boards | 51.11 / 43.14 | 83.4 / 66.7 |
+| Return to plaza | 88.33 / 80.74 | 116.7 / 100.0 |
+| Citadel | 43.89 / 40.74 | 66.8 / 50.2 |
+
+Readiness changed from 36.92 to 30.49 seconds in this pair. Plaza heap use changed
+from 382.63 to 342.67 MiB, and Citadel from 455.09 to 403.06 MiB. The scene still
+falls short of consistently smooth 30/60 FPS on this machine; these are local
+improvements, not a universal speed or physical-phone guarantee. Results and
+screenshots are in `outputs/performance/oct6-lossless-comparison-desktop`.
+The separate 390 x 844 mobile-emulation run retained the same settings and
+workload but did not improve frame time:
+
+| Location | Mean Frame, Before/After (ms) | p95, Before/After (ms) |
+| --- | --- | --- |
+| Plaza | 66.66 / 71.85 | 100.0 / 100.1 |
+| Project boards | 42.22 / 47.22 | 66.7 / 66.8 |
+| Return to plaza | 68.51 / 77.03 | 100.1 / 133.3 |
+| Citadel | 41.85 / 43.33 | 66.7 / 66.8 |
+
+Mobile plaza heap fell from 381.34 to 341.37 MiB and Citadel from 452.08 to
+398.43 MiB. Readiness was 118.97 versus 54.44 seconds, an unusually slow pair
+compared with the earlier runs; it is not a stable cold-start guarantee. Mobile
+smoothness therefore remains unresolved despite the memory and algorithmic-work
+reductions. Results are under `outputs/performance/oct7-retained-final-comparison-mobile`.
+Desktop and mobile captures retain the visible scene, content and controls.
+Final desktop and mobile interaction/recovery checks pass. Each camera sweep
+captured 48 rendered frames with at least 5.79 depth steps between the tested
+paving layers. Pause/resume retained one render loop (8 active, 0 paused, 8 resumed
+frames), project previews unloaded on departure, and forced graphics recovery
+preserved the document, scene, canvas and player position. Desktop rapid planet
+travel also returned to zero inactive detailed residents. Results are under
+`outputs/performance/oct7-retained-lifecycle`.
+
+The final visual review passed 11 desktop/mobile captures covering the workshop,
+quality modes, day/night lighting and movement, with no page errors or clipped
+controls. Results are in `outputs/playtest/oct7-retained-visuals-checks.json`.
+Source fingerprints still match the fully tested build. This completes the
+ranked optimization and verification pass, not the unresolved mobile frame-rate
+goal or a claim that every source file has been manually rewritten. No changes
+from this pass have been committed or pushed. The original control remains
+archived under `outputs/performance-source/oct6-smooth-control`.
+
 ## Ground-Contact Boundary In The 19:25 Recording
 
 `Recording 2026-10-06 192505.mp4` shows the straight shading boundary crossing

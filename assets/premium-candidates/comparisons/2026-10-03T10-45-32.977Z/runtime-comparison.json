@@ -1,0 +1,329 @@
+{
+  "status": "captured-awaiting-visual-review",
+  "sourceSha256": "4ad8e0811a40b0cab87268e1a25e0d93ed4606a163c716fbc39a84d5259cf965",
+  "baselineSha256": "3270584daa31d126961497be9bed56e92484189360f2828d2dc221cde33e8f09",
+  "candidateSha256": "74f7de838729ed0c4efcf96ce229a71a030d99f809be1342a5aa19db749ce6bb",
+  "views": [
+    {
+      "variant": "baseline",
+      "location": "workshop",
+      "device": "desktop",
+      "file": "baseline-workshop-desktop.png",
+      "materials": 0,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 1417,
+      "overflow": false,
+      "draws": 1130,
+      "triangles": 864351,
+      "camera": [
+        15.643933790649644,
+        17.354899868117585,
+        76.71345840646316
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "workshop",
+      "device": "mobile",
+      "file": "baseline-workshop-mobile.png",
+      "materials": 0,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 1450,
+      "overflow": false,
+      "draws": 694,
+      "triangles": 716995,
+      "camera": [
+        28.769271603333713,
+        23.538675912477345,
+        95.89871149129443
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "lantern",
+      "device": "desktop",
+      "file": "baseline-lantern-desktop.png",
+      "materials": 0,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 981,
+      "overflow": false,
+      "draws": 708,
+      "triangles": 950329,
+      "camera": [
+        309.91994207932436,
+        31.240171986357694,
+        244.51430320036138
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "lantern",
+      "device": "mobile",
+      "file": "baseline-lantern-mobile.png",
+      "materials": 0,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 927,
+      "overflow": false,
+      "draws": 372,
+      "triangles": 700001,
+      "camera": [
+        313.3248240556229,
+        37.123297331277286,
+        263.22557862244827
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "plaza",
+      "device": "desktop",
+      "file": "baseline-plaza-desktop.png",
+      "materials": 0,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 1012,
+      "overflow": false,
+      "draws": 2666,
+      "triangles": 1639517,
+      "camera": [
+        97.02313922041488,
+        28.362157585628076,
+        459.86116378595403
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "plaza",
+      "device": "mobile",
+      "file": "baseline-plaza-mobile.png",
+      "materials": 0,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 890,
+      "overflow": false,
+      "draws": 949,
+      "triangles": 946817,
+      "camera": [
+        101.64615664281737,
+        30.561211627036023,
+        469.22520359929007
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "character",
+      "device": "desktop",
+      "file": "baseline-character-desktop.png",
+      "materials": 0,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 906,
+      "overflow": false,
+      "draws": 2663,
+      "triangles": 1325085,
+      "camera": [
+        -4.799999999999999,
+        4.050000000000001,
+        42.5
+      ]
+    },
+    {
+      "variant": "baseline",
+      "location": "character",
+      "device": "mobile",
+      "file": "baseline-character-mobile.png",
+      "materials": 0,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 919,
+      "overflow": false,
+      "draws": 879,
+      "triangles": 776875,
+      "camera": [
+        -4.799999999999999,
+        4.050000000000001,
+        42.5
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "workshop",
+      "device": "desktop",
+      "file": "candidate-workshop-desktop.png",
+      "materials": 2801,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 1433,
+      "overflow": false,
+      "draws": 1130,
+      "triangles": 1088367,
+      "camera": [
+        15.643933790649644,
+        17.354899868117585,
+        76.71345840646316
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "workshop",
+      "device": "mobile",
+      "file": "candidate-workshop-mobile.png",
+      "materials": 2801,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 1460,
+      "overflow": false,
+      "draws": 700,
+      "triangles": 926211,
+      "camera": [
+        28.769271603333713,
+        23.538675912477345,
+        95.89871149129443
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "lantern",
+      "device": "desktop",
+      "file": "candidate-lantern-desktop.png",
+      "materials": 2855,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 960,
+      "overflow": false,
+      "draws": 1071,
+      "triangles": 1480839,
+      "camera": [
+        309.91994207932436,
+        31.240171986357694,
+        244.51430320036138
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "lantern",
+      "device": "mobile",
+      "file": "candidate-lantern-mobile.png",
+      "materials": 2855,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 918,
+      "overflow": false,
+      "draws": 729,
+      "triangles": 1174271,
+      "camera": [
+        313.3248240556229,
+        37.123297331277286,
+        263.22557862244827
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "plaza",
+      "device": "desktop",
+      "file": "candidate-plaza-desktop.png",
+      "materials": 2855,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 1009,
+      "overflow": false,
+      "draws": 2809,
+      "triangles": 2288021,
+      "camera": [
+        97.02313922041488,
+        28.362157585628076,
+        459.86116378595403
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "plaza",
+      "device": "mobile",
+      "file": "candidate-plaza-mobile.png",
+      "materials": 2855,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 890,
+      "overflow": false,
+      "draws": 1383,
+      "triangles": 1794107,
+      "camera": [
+        101.64615664281737,
+        30.561211627036023,
+        469.22520359929007
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "character",
+      "device": "desktop",
+      "file": "candidate-character-desktop.png",
+      "materials": 2801,
+      "canvas": [
+        1440,
+        960
+      ],
+      "colors": 885,
+      "overflow": false,
+      "draws": 2681,
+      "triangles": 1865909,
+      "camera": [
+        -4.799999999999999,
+        4.050000000000001,
+        42.5
+      ]
+    },
+    {
+      "variant": "candidate",
+      "location": "character",
+      "device": "mobile",
+      "file": "candidate-character-mobile.png",
+      "materials": 2801,
+      "canvas": [
+        390,
+        844
+      ],
+      "colors": 916,
+      "overflow": false,
+      "draws": 873,
+      "triangles": 986451,
+      "camera": [
+        -4.799999999999999,
+        4.050000000000001,
+        42.5
+      ]
+    }
+  ],
+  "errors": []
+}

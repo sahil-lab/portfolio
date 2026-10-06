@@ -8,6 +8,7 @@ import {createResidentInstances} from './resident-instances';
 import {rampHeight,type Ramp} from './traversal';
 import {createCuteResident} from './cute-resident';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
+import {createSpatialIndex} from './spatial-index';
 
 type DistrictSolid={x:number;z:number;y:number;width:number;depth:number;height:number};
 export const districtWalkways:Record<Exclude<CityDistrictKind,'lantern'>,{level:number;depth:number}>={
@@ -191,7 +192,8 @@ export function createAuthoredDistricts(parent:T.Object3D){
       }
       return null;
     };
-    const blocked=(x:number,z:number,y:number)=>solids.some(solid=>y+1.7>solid.y&&y<solid.y+solid.height-.04&&Math.abs(x-district.x-solid.x)<solid.width/2+.45&&Math.abs(z-district.z-solid.z)<solid.depth/2+.45);
+    const solidIndex=createSpatialIndex(solids,solid=>({minX:solid.x-solid.width/2-.45,maxX:solid.x+solid.width/2+.45,minZ:solid.z-solid.depth/2-.45,maxZ:solid.z+solid.depth/2+.45}),8);
+    const blocked=(x:number,z:number,y:number)=>{const localX=x-district.x,localZ=z-district.z,intersects=(solid:DistrictSolid)=>y+1.7>solid.y&&y<solid.y+solid.height-.04&&Math.abs(localX-solid.x)<solid.width/2+.45&&Math.abs(localZ-solid.z)<solid.depth/2+.45;return solidIndex.at(localX,localZ).some(intersects)||solidIndex.broad.some(intersects)};
     function update(dt:number,reduced:boolean,near:boolean,visitor:T.Vector3){
       group.visible=near;if(!near)return;if(!reduced)time+=T.MathUtils.clamp(dt,0,.1);
       for(const [index,resident] of residents.entries()){

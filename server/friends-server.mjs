@@ -13,7 +13,7 @@ const cleanName=value=>typeof value==='string'?Array.from(value.normalize('NFKC'
 const defaultPose=()=>({position:[0,.8,44],quaternion:[0,0,0,1],planet:0,mode:'courier',skating:false,scale:1});
 const validArray=(value,size,bound)=>Array.isArray(value)&&value.length===size&&value.every(item=>typeof item==='number'&&Number.isFinite(item)&&Math.abs(item)<=bound);
 const publicPlayer=player=>({id:player.id,name:player.name,color:player.color,car:player.car,ready:player.ready,connected:!!player.socket,voice:player.voice,pose:player.pose});
-const send=(socket,message)=>{if(socket?.readyState===WebSocket.OPEN&&socket.bufferedAmount<262144)socket.send(JSON.stringify(message))};
+const send=(socket,message)=>{if(socket?.readyState===WebSocket.OPEN&&socket.bufferedAmount<262144)socket.send(typeof message==='string'?message:JSON.stringify(message))};
 const localOrigins=['http://localhost:3000','http://localhost:3001','http://localhost:3002','http://127.0.0.1:3000','http://127.0.0.1:3001','http://127.0.0.1:3002'];
 
 export function createFriendsServer({database=resolve('.data/friends.sqlite'),origins=localOrigins,now=Date.now,autoTick=true,turnSecret=process.env.FRIENDS_TURN_SECRET,turnUrls=process.env.FRIENDS_TURN_URLS}={}){
@@ -40,7 +40,7 @@ export function createFriendsServer({database=resolve('.data/friends.sqlite'),or
   rooms.set(code,room);return room;
  }
  function snapshot(room){return {code:room.code,hostId:room.hostId,players:Array.from(room.players.values(),publicPlayer),setup:room.setup,match:room.match?.state??null,ship:room.ship,records:room.records,serverTime:now()}}
- function broadcast(room){const message={type:'snapshot',room:snapshot(room)};for(const player of room.players.values())send(player.socket,message)}
+ function broadcast(room){const message=JSON.stringify({type:'snapshot',room:snapshot(room)});for(const player of room.players.values())send(player.socket,message)}
  function saveResult(room){
   if(room.match?.state.phase==='finished'&&!room.match.saved){store.result(room.code,room.match.state);room.match.saved=true;room.records=store.records(room.code);for(const player of room.players.values())player.ready=false}
  }

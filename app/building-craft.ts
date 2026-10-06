@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {mergeIndexedGeometries} from './static-batching';
 import {architectureProfiles,architectureRecipe,type ArchitectureStyle} from './architecture-profiles';
 import {addFacadeCraft,type FacadeFloor} from './facade-craft';
 import {createWindowInteriorAtlas,mapWindowRoom,windowRoom} from './window-interiors';
@@ -137,9 +137,9 @@ export function bakeArchitecture(root:T.Object3D):ArchitectureSkin[]{
  root.updateWorldMatrix(true,true);const inverse=root.matrixWorld.clone().invert(),groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
  root.traverse(object=>{
   if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;
-  const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(new T.Matrix4().multiplyMatrices(inverse,object.matrixWorld));
+  const geometry=object.geometry.clone();geometry.applyMatrix4(new T.Matrix4().multiplyMatrices(inverse,object.matrixWorld));
   const list=groups.get(object.material)??[];list.push(geometry);groups.set(object.material,list);originals.add(object.geometry);
  });
- const skins=Array.from(groups,([material,geometries])=>{const geometry=mergeGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
+ const skins=Array.from(groups,([material,geometries])=>{const geometry=mergeIndexedGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
  originals.forEach(geometry=>geometry.dispose());root.clear();return skins;
 }

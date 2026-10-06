@@ -30,6 +30,11 @@ function parts(realm,prefix){
 }
 function envelope(x,z,width,depth,height){return new T.Box3(new T.Vector3(x-width/2,-4,z-depth/2),new T.Vector3(x+width/2,height,z+depth/2))}
 
+test('realm construction reuses cached bounds of shared immutable geometry',context=>{
+ const original=T.BufferGeometry.prototype.computeBoundingBox,counts=new Map();context.mock.method(T.BufferGeometry.prototype,'computeBoundingBox',function(){counts.set(this,(counts.get(this)??0)+1);return original.call(this)});
+ const {scene,realm}=build('research'),shared=new Map();realm.root.traverse(object=>{if(object.isMesh&&object.userData.realmShadowCaster!==undefined)shared.set(object.geometry,(shared.get(object.geometry)??0)+(object.isInstancedMesh?object.count:1))});const repeated=[...shared].filter(([,count])=>count>1).map(([geometry])=>geometry);assert.ok(repeated.length>5);assert.ok(repeated.some(geometry=>counts.has(geometry)));for(const geometry of repeated){assert.ok(geometry.boundingBox);assert.ok((counts.get(geometry)??0)<=1,'immutable shared bounds were recomputed')}disposeScene(scene);
+});
+
 test('research facade has framed working data, stepped fins, joined edges and grouped instruments inside existing solids',()=>{
   const {scene,realm}=build('research'),details=parts(realm,'ResearchDetail_');
   try{

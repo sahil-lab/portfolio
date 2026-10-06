@@ -5,9 +5,14 @@ import {applyAuthoredPaving} from './paving-material';
 
 export function textureKey(texture:T.Texture|null){
   if(!texture)return '';
-  if(texture.userData.blenderSceneFinish!=='premium-surface-v1')return texture.uuid;
+  if(texture.userData.blenderSceneFinish!=='premium-surface-v1'&&texture.userData.blenderSceneFinish!=='surface-normal-v1'&&!['ceramic','stone','timber','brushed'].includes(texture.userData.authoredSurface))return texture.uuid;
   if(texture.matrixAutoUpdate)texture.updateMatrix();
   return [texture.source.uuid,texture.mapping,texture.channel,texture.wrapS,texture.wrapT,texture.magFilter,texture.minFilter,texture.anisotropy,texture.format,texture.type,texture.internalFormat,texture.colorSpace,texture.flipY,texture.premultiplyAlpha,texture.unpackAlignment,texture.generateMipmaps,...texture.matrix.elements].join(',');
+}
+
+export function mergeIndexedGeometries(geometries:T.BufferGeometry[]){
+  if(geometries.some(geometry=>geometry.index))for(const geometry of geometries)if(!geometry.index){const count=geometry.attributes.position.count,indices=count>65535?new Uint32Array(count):new Uint16Array(count);for(let index=0;index<count;index++)indices[index]=index;geometry.setIndex(new T.BufferAttribute(indices,1))}
+  return mergeGeometries(geometries);
 }
 
 /** Batch immutable scenery by material and spatial tile, retaining camera collision bounds. */
@@ -40,8 +45,8 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>,op
       for(const o of list){o.removeFromParent();o.geometry.dispose();if(o.material!==mesh.material)(o.material as T.Material).dispose()}
       continue;
     }
-    const geometries=list.map(o=>{const g=o.geometry.clone();g.applyMatrix4(new T.Matrix4().multiplyMatrices(inverseRoot,o.matrixWorld));if(!g.index)return g;const flat=g.toNonIndexed();g.dispose();return flat});
-    const merged=mergeGeometries(geometries);geometries.forEach(g=>g.dispose());if(!merged)continue;
+    const geometries=list.map(o=>o.geometry.clone().applyMatrix4(new T.Matrix4().multiplyMatrices(inverseRoot,o.matrixWorld)));
+    const merged=mergeIndexedGeometries(geometries);geometries.forEach(g=>g.dispose());if(!merged)continue;
     const mesh=new T.Mesh(merged,list[0].material);mesh.name='SceneryBatch';mesh.castShadow=list[0].castShadow;mesh.receiveShadow=list[0].receiveShadow;scene.add(mesh);
     mesh.updateMatrix();mesh.matrixAutoUpdate=false;cacheStaticTransforms(mesh);
     const retained=list[0].material;

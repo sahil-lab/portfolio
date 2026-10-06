@@ -33,6 +33,7 @@
 .portfolio-sheet *,
 .machine-panel * { letter-spacing: 0; }
 
+html:has(.kingdom), body:has(.kingdom) { overscroll-behavior: none; }
 .kingdom { background: #1d4148; }
 .kingdom .vignette {
   background: linear-gradient(180deg, #12252e59 0, #12252e12 13%, transparent 26%, transparent 80%, #0b202b61 100%);

@@ -57,6 +57,17 @@ test('reconnect restores identity; only host starts games; disconnect grace give
   app.pulse();assert.equal(room.records.chess.top[0].wins,1);
  }finally{await app.close()}
 });
+test('room broadcasts encode one snapshot for every connected recipient',async context=>{
+ let time=1000;const app=createFriendsServer({database:':memory:',now:()=>time,autoTick:false}),address=await app.listen(0),url=`ws://127.0.0.1:${address.port}/friends`,clients=[];
+ try{
+  const first=await client(url);clients.push(first);first.send({type:'create',name:'First'});const welcome=await first.next('welcome');
+  for(const name of ['Second','Third']){const connection=await client(url);clients.push(connection);connection.send({type:'join',code:welcome.room.code,name});await connection.next('welcome')}
+  for(const connection of clients)await new Promise(resolve=>{connection.socket.once('pong',resolve);connection.socket.ping()});
+  const encode=JSON.stringify;let encoded=0;context.mock.method(JSON,'stringify',function(value,...args){if(value?.type==='snapshot')encoded++;return encode(value,...args)});
+  const messages=clients.map(connection=>new Promise(resolve=>connection.socket.once('message',bytes=>resolve(JSON.parse(bytes)))));time+=101;app.pulse();const delivered=await Promise.all(messages);assert.equal(encoded,1);assert.ok(delivered.every(message=>message.type==='snapshot'&&message.room.players.length===3));assert.deepEqual(delivered[0],delivered[1]);assert.deepEqual(delivered[1],delivered[2]);
+ }finally{await app.close()}
+});
+
 test('SQLite preserves only legitimate result updates, top three and last podium across restart',()=>{
  const directory=mkdtempSync(join(tmpdir(),'friends-records-')),filename=join(directory,'scores.sqlite');let store=new FriendsStore(filename);
  try{

@@ -17,6 +17,13 @@ test('the Blender kit exports bounded meshes, real vertex shading and independen
  const first=kit.worldKitGeometry('Kit_CourierHead'),second=kit.worldKitGeometry('Kit_CourierHead'),position=second.attributes.position.getX(0);first.attributes.position.setX(0,50);assert.equal(second.attributes.position.getX(0),position);assert.ok(second.attributes.color.array.every(value=>value>=.4&&value<=1));first.dispose();second.dispose();
 });
 
+test('prepared kit color variants are computed once and return independent geometry',context=>{
+ const stone=kit.worldKitRelief(),asphalt=kit.worldKitRelief('asphalt');kit.installWorldKit(exported,stone,asphalt);const clamp=T.MathUtils.clamp;let calls=0;context.mock.method(T.MathUtils,'clamp',(...args)=>{calls++;return clamp(...args)});
+ const first=kit.worldKitGeometry('Kit_ResidentHead'),computed=calls;assert.ok(computed>0);const second=kit.worldKitGeometry('Kit_ResidentHead');assert.equal(calls,computed);assert.notEqual(first.attributes.color.array.buffer,second.attributes.color.array.buffer);assert.deepEqual(first.attributes.color.array,second.attributes.color.array);first.attributes.color.setX(0,.1);assert.notEqual(second.attributes.color.getX(0),first.attributes.color.getX(0));
+ const tinted=kit.worldKitGeometry('Kit_ResidentHead',true);assert.ok(calls>computed);const prepared=calls,again=kit.worldKitGeometry('Kit_ResidentHead',true);assert.equal(calls,prepared);assert.deepEqual(tinted.attributes.color.array,again.attributes.color.array);first.dispose();const retained=kit.worldKitGeometry('Kit_ResidentHead');assert.deepEqual(retained.attributes.color.array,second.attributes.color.array);
+ kit.installWorldKit(exported,stone,asphalt);const fresh=kit.worldKitGeometry('Kit_ResidentHead');assert.ok(calls>prepared);assert.deepEqual(fresh.attributes.color.array,second.attributes.color.array);for(const geometry of [second,tinted,again,retained,fresh])geometry.dispose();
+});
+
 test('authored courier and resident bodies retain animation, recoloring and bounded accessories',()=>{
  const courier=require('../app/courier').createCourier(),{createCuteResident}=require('../app/cute-resident');
  assert.equal(courier.root.userData.authoredKit,true);assert.equal(courier.parts.body.geometry.userData.authoredKit,'Kit_CourierBody');courier.setColor('#c98a74');assert.equal(courier.parts.body.material.color.getHexString(),'c98a74');

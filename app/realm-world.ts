@@ -31,7 +31,7 @@ export function createRealmWorld(parent:T.Object3D,surface:PlanetSurface){
   function geometry(key:string,build:()=>T.BufferGeometry){let shape=geometries.get(key);if(!shape){shape=build();geometries.set(key,shape)}return shape}
   function mesh(parent:T.Object3D,name:string,shape:T.BufferGeometry,material:T.Material,x:number,y:number,z:number,dynamic=false){
     const object=new T.Mesh(shape,material);object.name=name;object.position.set(x,y,z);object.receiveShadow=true;
-    shape.computeBoundingBox();const size=shape.boundingBox!.getSize(new T.Vector3());object.userData.realmShadowCaster=Math.min(size.x,size.y,size.z)>.18&&Math.max(size.x,size.y,size.z)>1;
+    if(!shape.boundingBox)shape.computeBoundingBox();const size=shape.boundingBox!.getSize(new T.Vector3());object.userData.realmShadowCaster=Math.min(size.x,size.y,size.z)>.18&&Math.max(size.x,size.y,size.z)>1;
     object.castShadow=object.userData.realmShadowCaster;parent.add(object);if(!dynamic)staticMeshes.push(object);return object;
   }
   function box(parent:T.Object3D,name:string,material:T.Material,x:number,y:number,z:number,width:number,height:number,depth:number,dynamic=false){

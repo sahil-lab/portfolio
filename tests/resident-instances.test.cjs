@@ -12,6 +12,11 @@ test('premium-textured resident parts share draws while preserving color and UV 
  assert.equal(actors[2].instanceParts[0].layers.mask,1);assert.equal(actors[3].instanceParts[0].layers.mask,1);const color=new T.Color();mesh.getColorAt(1,color);for(const channel of ['r','g','b'])assert.ok(Math.abs(color[channel]-actors[1].instanceParts[0].material.color[channel])<1e-7);disposeScene(scene);
 });
 
+test('unlisted repeated accessories share draws only when vertex data and material behavior match',()=>{
+ const scene=new T.Scene(),parts=[],actors=Array.from({length:5},(_,index)=>{const root=new T.Group(),geometry=new T.BoxGeometry(.2,.3,.1),material=new T.MeshPhysicalMaterial({color:index%2?'#ab7788':'#7799ab'});if(index===2)geometry.attributes.position.setX(0,.4);if(index===3)material.sheen=.3;if(index===4)material.transparent=true;const accessory=new T.Mesh(geometry,material);root.position.x=index*2;root.add(accessory);scene.add(root);parts.push(accessory);return {root,instanceParts:[]}});
+ const instances=createResidentInstances(scene,actors);assert.equal(instances.batches.length,1);assert.equal(instances.batches[0].mesh.count,2);assert.deepEqual(instances.batches[0].parts.map(part=>part.source.uuid),parts.slice(0,2).map(part=>part.uuid));for(const part of parts.slice(2))assert.equal(part.layers.mask,1);const matrix=new T.Matrix4();actors[1].root.position.z=4;instances.update();instances.batches[0].mesh.getMatrixAt(1,matrix);assert.equal(matrix.elements[14],4);disposeScene(scene);
+});
+
 test('resident instancing preserves independently animated part matrices and colors',()=>{
  const scene=new T.Scene(),group=new T.Group();scene.add(group);scene.scale.setScalar(2);group.position.set(30,0,-20);
  const actors=['#d3958d','#78afa1','#87a5c6'].map((color,index)=>{const actor=createCuteResident(color,index);actor.root.position.set(index*4,0,2);batchScenery(actor.root,{parts:actor.movingParts});group.add(actor.root);return actor});
@@ -37,4 +42,12 @@ test('resident parts follow a moving vehicle parent before the renderer traverse
  vehicle.position.set(35,4,-8);vehicle.rotation.y=.8;instances.update();
  const batch=instances.batches[0],actual=new T.Matrix4();batch.mesh.getMatrixAt(0,actual);assert.deepEqual(actual.elements,Array.from(new Float32Array(batch.parts[0].source.matrixWorld.elements)));
  vehicle.visible=false;instances.update();assert.ok(instances.batches.every(({mesh})=>mesh.count===0));disposeScene(scene);
+});
+
+test('animated instance bounds contain every part and unchanged colors are not uploaded again',()=>{
+ const scene=new T.Scene(),actors=[createCuteResident('#d3958d'),createCuteResident('#78afa1')];actors.forEach((actor,index)=>{scene.add(actor.root);actor.root.position.set(index*3,0,-12)});const instances=createResidentInstances(scene,actors),versions=instances.batches.map(batch=>batch.mesh.instanceColor.version),matrix=new T.Matrix4(),point=new T.Vector3();
+ instances.update();assert.deepEqual(instances.batches.map(batch=>batch.mesh.instanceColor.version),versions);
+ for(let frame=0;frame<8;frame++){actors[1].root.position.x+=2;actors.forEach(actor=>actor.update(.05,{moving:true}));instances.update();for(const {mesh} of instances.batches){assert.equal(mesh.frustumCulled,true);for(let slot=0;slot<mesh.count;slot++){mesh.getMatrixAt(slot,matrix);const positions=mesh.geometry.attributes.position;for(let vertex=0;vertex<positions.count;vertex++){point.fromBufferAttribute(positions,vertex).applyMatrix4(matrix);assert.ok(mesh.boundingSphere.containsPoint(point),'animated part escaped its batch bounds')}}}}
+ const batch=instances.batches[0],changed=batch.parts[0].source.material.color.clone().multiplyScalar(.5);batch.parts[0].source.material.color.copy(changed);const before=batch.mesh.instanceColor.version;instances.update();assert.ok(batch.mesh.instanceColor.version>before);
+ const camera=new T.PerspectiveCamera(50,1,.1,100);camera.updateMatrixWorld();const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));actors.forEach(actor=>actor.root.position.set(12345.678,42.333,-12345.567));instances.update();scene.updateMatrixWorld(true);assert.ok(instances.batches.every(({mesh})=>!frustum.intersectsObject(mesh)));for(const {mesh} of instances.batches)for(let slot=0;slot<mesh.count;slot++){mesh.getMatrixAt(slot,matrix);for(let vertex=0;vertex<mesh.geometry.attributes.position.count;vertex++){point.fromBufferAttribute(mesh.geometry.attributes.position,vertex).applyMatrix4(matrix);assert.ok(mesh.boundingSphere.containsPoint(point),'distant Float32 pose escaped batch bounds')}}disposeScene(scene);
 });

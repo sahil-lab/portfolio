@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: kingdom-friends
+    runtime: node
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: npm install --omit=dev
+    startCommand: npm run friends:server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '>=24.14.1 <25'
+      - key: NODE_ENV
+        value: production
+      - key: FRIENDS_HOST
+        value: 0.0.0.0
+      - key: FRIENDS_PORT
+        value: '10000'
+      - key: FRIENDS_DATABASE
+        value: /var/data/friends.sqlite
+      - key: FRIENDS_ORIGINS
+        value: https://portfolio-pied-one-ko0zgnyz2r.vercel.app
+    disk:
+      name: friends-data
+      mountPath: /var/data
+      sizeGB: 1

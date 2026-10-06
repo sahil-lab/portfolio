@@ -2,23 +2,23 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {disposeScene} from './scene-resources';
 
-type KitPart={geometry:T.BufferGeometry;tint:number[]};
+type KitPart={geometry:T.BufferGeometry;tint:number[];variants:Map<boolean,T.BufferGeometry>};
 const parts=new Map<string,KitPart>();
 let relief:T.Texture|null=null,asphalt:T.Texture|null=null,pending:Promise<boolean>|null=null;
 
 export function installWorldKit(scene:T.Object3D,texture:T.Texture|null=null,roadTexture:T.Texture|null=null){
  const imported=new Map<string,KitPart>();
- scene.traverse(object=>{const mesh=object as T.Mesh;if(!mesh.isMesh||!mesh.name.startsWith('Kit_'))return;const tint=mesh.userData.kitTint;if(!Array.isArray(tint)||tint.length!==3||!tint.every(value=>Number.isFinite(value)&&value>0)||!mesh.geometry.attributes.color)return;const geometry=mesh.geometry.clone();geometry.userData.authoredKit=mesh.name;geometry.computeBoundingBox();geometry.computeBoundingSphere();imported.set(mesh.name,{geometry,tint})});
+ scene.traverse(object=>{const mesh=object as T.Mesh;if(!mesh.isMesh||!mesh.name.startsWith('Kit_'))return;const tint=mesh.userData.kitTint;if(!Array.isArray(tint)||tint.length!==3||!tint.every(value=>Number.isFinite(value)&&value>0)||!mesh.geometry.attributes.color)return;const geometry=mesh.geometry.clone();geometry.userData.authoredKit=mesh.name;geometry.computeBoundingBox();geometry.computeBoundingSphere();imported.set(mesh.name,{geometry,tint,variants:new Map()})});
  if(imported.size!==21){for(const part of imported.values())part.geometry.dispose();return false}
- for(const part of parts.values())part.geometry.dispose();parts.clear();for(const [name,part] of imported)parts.set(name,part);
+ for(const part of parts.values()){part.geometry.dispose();for(const geometry of part.variants.values())geometry.dispose()}parts.clear();for(const [name,part] of imported)parts.set(name,part);
  if(relief!==texture)relief?.dispose();if(asphalt!==roadTexture)asphalt?.dispose();relief=texture;asphalt=roadTexture;for(const map of [relief,asphalt])if(map){map.colorSpace=T.NoColorSpace;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=4;map.needsUpdate=true}return true;
 }
 
 export function worldKitGeometry(name:string,tinted=false){
- const part=parts.get(name);if(!part)return null;const geometry=part.geometry.clone(),source=geometry.attributes.color;geometry.userData.kitTint=part.tint.slice();
+ const part=parts.get(name);if(!part)return null;const cached=part.variants.get(tinted);if(cached)return cached.clone();const geometry=part.geometry.clone(),source=geometry.attributes.color;geometry.userData.kitTint=part.tint.slice();
  const colors=new Float32Array(source.count*3);for(let index=0;index<source.count;index++){const amount=T.MathUtils.clamp(source.getX(index)/part.tint[0],.4,1);colors[index*3]=tinted?source.getX(index):amount;colors[index*3+1]=tinted?source.getY(index):amount;colors[index*3+2]=tinted?source.getZ(index):amount}geometry.setAttribute('color',new T.BufferAttribute(colors,3));
  if(!geometry.attributes.uv){const positions=geometry.attributes.position,uvs=new Float32Array(positions.count*2),bounds=geometry.boundingBox!;for(let index=0;index<positions.count;index++){uvs[index*2]=Math.atan2(positions.getX(index),positions.getZ(index))/(Math.PI*2)+.5;uvs[index*2+1]=(positions.getY(index)-bounds.min.y)/Math.max(.001,bounds.max.y-bounds.min.y)}geometry.setAttribute('uv',new T.BufferAttribute(uvs,2))}
- return geometry;
+ part.variants.set(tinted,geometry);return geometry.clone();
 }
 
 export function worldKitRelief(kind:'stone'|'asphalt'='stone'){return (kind==='asphalt'?asphalt:relief)?.clone()??null}
