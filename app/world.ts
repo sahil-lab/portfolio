@@ -6,6 +6,7 @@ import {sceneryCollision} from './collision-world';
 import {disposeScene} from './scene-resources';
 import {createInteractionDispatcher} from './interactions';
 import {batchScenery} from './static-batching';
+import {suspendHiddenTransforms} from './static-transforms';
 import {bindGameInput} from './game-input';
 import {createGameCamera,planetArrivalCameraView} from './game-camera';
 import {moveCharacter,movementSpeed} from './character-controller';
@@ -132,6 +133,8 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
  // Gameplay coordinates remain local so doors, stairs, routes and collision agree.
  scene.scale.setScalar(2);player.scale.setScalar(.5);pip.scale.setScalar(.5);
  const homeScenery=scene.children.filter(object=>!(object instanceof T.Light)&&object!==sun.target&&object!==player&&object!==friends.root&&object!==activities?.root&&object!==dog.root&&object!==angel.root&&object!==goldMonument.root&&object!==transport.neighborhood.root&&object.name!=='OrbitalTransit'&&object!==weather.sky.dome&&object!==weather.sky.root&&object!==city.root);
+ for(const object of homeScenery)suspendHiddenTransforms(object);
+ for(const neighborhood of city.neighborhoods){suspendHiddenTransforms(neighborhood);for(const level of neighborhood.levels)suspendHiddenTransforms(level.object)}
  const hiddenHome=new Map<T.Object3D,boolean>();
  scene.updateMatrixWorld(true);
  scene.traverse(o=>{for(const bound of o.userData.staticCameraBounds??[])bound.applyMatrix4(scene.matrixWorld)});
@@ -148,7 +151,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   return true;
  }
  const configure=()=>{const tier=qualityTiers[effectiveTier()];renderer.shadowMap.enabled=tier.shadows;sun.shadow.radius=tier.shadowRadius;if(sun.shadow.mapSize.width!==tier.shadowMapSize){sun.shadow.mapSize.set(tier.shadowMapSize,tier.shadowMapSize);sun.shadow.map?.dispose();sun.shadow.map=null}renderer.shadowMap.needsUpdate=true;presentation.quality(tier.bloom?'balanced':'low');living.volume(settings.volume)};
- const resize=()=>{renderer.setPixelRatio(renderPixelRatio(host.clientWidth,host.clientHeight,devicePixelRatio,effectiveTier(),compactDevice));renderer.setSize(host.clientWidth,host.clientHeight);presentation.resize(host.clientWidth,host.clientHeight);projectPages.resize(host.clientWidth,host.clientHeight);camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix()};configure();resize();resetCamera(capitalCameraView);addEventListener('resize',resize);
+ const resize=()=>{renderer.setPixelRatio(renderPixelRatio(host.clientWidth,host.clientHeight,devicePixelRatio,effectiveTier(),compactDevice));renderer.setSize(host.clientWidth,host.clientHeight);presentation.resize(host.clientWidth,host.clientHeight);projectPages.resize(host.clientWidth,host.clientHeight);camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();requestFrame()};configure();resize();resetCamera(capitalCameraView);addEventListener('resize',resize);
  const describeQuality=()=>settings.quality==='auto'?`Graphics: Auto → ${qualityTiers[governor.tier].label}`:`Graphics: ${qualityTiers[settings.quality].label}`;
  const meter=createPerformanceMeter(renderer,text=>callbacks.onPerformance?.(`${text}\n${describeQuality()}`),({p95})=>{if(settings.quality==='auto'&&governor.sample(p95)){configure();resize()}});
  const shadowFollow=createShadowFollow(sun);
@@ -157,8 +160,9 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
 
  let last=performance.now(),place=0,time=0,shadowClock=0,footDistance=0,ambientClock=0,overlookSeen=false,lastCommons=false;const priorPosition=player.position.clone();const priorStages=exhibits.map(e=>e.snapshot.step);
  let lastCity:string|null=null;
+ function requestFrame(){if(!frame&&renderReady&&!disposed&&!document.hidden&&!contextLost)frame=requestAnimationFrame(tick)}
  function tick(){
-  if(disposed||!renderReady||document.hidden||contextLost)return;frame=requestAnimationFrame(tick);const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.05);last=now;
+  frame=0;if(disposed||!renderReady||document.hidden||contextLost)return;if(!paused)requestFrame();const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.05);last=now;
   activities!.setEnabled(!angel.controlled&&buildings.getInside()===null&&!transport.journey.mode&&!transport.driving&&!traversal.moving&&observedPlanet===null);
   const sharedActivity=activities!.update(dt),observedPlayer=sharedActivity?activities!.observer:angel.controlled?angel.root:player;
   const friendPose:Pose={position:observedPlayer.position.toArray(),quaternion:observedPlayer.quaternion.toArray(),planet:sharedActivity?activities!.status.planet:angel.controlled?angel.flight.state.current:transport.journey.current,mode:sharedActivity?'activity':angel.controlled?'angel':'courier',skating:settings.movementMode==='skate',scale:angel.controlled?9.4:avatar.scale.x};
@@ -202,7 +206,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   const cameraFocus=settings.cameraMode!=='far'?(transport.driving?4.35:cityName?2.8:1.65):nearCityShop?12.5*signatureShopScale:nearSignatureShop?6.5*signatureShopScale:projectGallery.near()?18:capital?.studies.selected?6.8:bulletins.prompt()?10:cityName?(player.position.y<0?3:12.5):inCommons?(player.position.z>142?14:10):nearLanding?5.8:buildings.getInside()===null&&transport.journey.current===0?(Math.hypot(player.position.x,player.position.z-19)<27?6.5:4.5):1.5;
   if(!activities!.camera(dt)){if(angel.controlled)angel.updateCamera(dt,settings);else rig.update(dt,buildings.getInside()!==null,settings,!!transport.journey.mode||transport.driving,cameraFocus)}
   if(observedPlanet!==null){const surface=transport.surfaces[observedPlanet];if(surface){const normal=transport.landscapes[observedPlanet]?.civilization?.logoNormal??new T.Vector3(0,.5,1).normalize();const center=surface.center.clone().multiplyScalar(scene.scale.x);const distance=surface.radius*scene.scale.x*Math.max(3.15,2.45/camera.aspect);camera.position.copy(center).addScaledVector(normal,distance);camera.up.set(0,1,0);camera.lookAt(center)}}
-  avatar.position.y=transport.driving?2.7:0;avatar.scale.setScalar(cityName&&!transport.driving?1.7:1);if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>=qualityTiers[effectiveTier()].shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock=0}presentation.render();projectPages.render();if(!document.hidden)meter(raw);
+  avatar.position.y=transport.driving?2.7:0;avatar.scale.setScalar(cityName&&!transport.driving?1.7:1);if(transport.inRocket)player.visible=false;shadowClock+=dt;if(shadowClock>=qualityTiers[effectiveTier()].shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock=0}presentation.render();projectPages.render(!paused&&!menuOpen&&!angel.controlled&&!activities?.active&&transport.journey.current===0&&!transport.journey.mode&&observedPlanet===null,effectiveTier()==='high'?2:1);if(!document.hidden&&!paused)meter(raw);
  }
  const dispatchInteraction=createInteractionDispatcher([
   {id:'project-bulletins',run:()=>projectGallery.interact()},
@@ -225,10 +229,10 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   {id:'building',run:()=>buildings.interact()},
  ],()=>!paused&&!menuOpen,audioGesture,()=>callbacks.onInteract(place));
  function interact(){if(activities?.active){callbacks.onFriends?.(activities.status.kind==='race'?'race':'ship');return}if(angel.controlled){if(!paused&&!menuOpen)angel.roam(!angel.flight.state.roaming);return}dispatchInteraction()}
- const visibility=()=>{cancelAnimationFrame(frame);clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();last=performance.now();if(!document.hidden&&!disposed){if(audioUnlocked&&!settings.muted&&!paused){audio.enable(true);living.sound(true)}tick()}};
+ const visibility=()=>{cancelAnimationFrame(frame);frame=0;clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();last=performance.now();if(!document.hidden&&!disposed){if(audioUnlocked&&!settings.muted&&!paused){audio.enable(true);living.sound(true)}requestFrame()}};
  document.addEventListener('visibilitychange',visibility);
- const loseContext=(event:Event)=>{event.preventDefault();contextLost=true;cancelAnimationFrame(frame);clearFlightInput();audio.enable(false);living.sound(false);callbacks.onNotice?.('Graphics paused while the browser restores its resources.');};
- const restoreContext=()=>{if(disposed)return;contextLost=false;recoveryMode=true;governor.reset('low');presentation.quality('low');configure();resize();last=performance.now();callbacks.onNotice?.('Graphics restored. Your position and progress are unchanged.');tick()};
+ const loseContext=(event:Event)=>{event.preventDefault();contextLost=true;cancelAnimationFrame(frame);frame=0;clearFlightInput();audio.enable(false);living.sound(false);callbacks.onNotice?.('Graphics paused while the browser restores its resources.');};
+ const restoreContext=()=>{if(disposed)return;contextLost=false;recoveryMode=true;governor.reset('low');presentation.quality('low');configure();resize();last=performance.now();callbacks.onNotice?.('Graphics restored. Your position and progress are unchanged.');requestFrame()};
  renderer.domElement.addEventListener('webglcontextlost',loseContext);renderer.domElement.addEventListener('webglcontextrestored',restoreContext);
  let shopVisit=0;
  const home=()=>{shopVisit++;angel.control(false);clearFlightInput();commons.voice.cancel();transport.home();player.position.set(workshopSpawn.x,workshopSpawn.y,workshopSpawn.z);player.rotation.y=Math.PI;place=0;callbacks.onPlace(0);resetCamera(astraOpeningView);input.state.clear()};
@@ -289,7 +293,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   resetProgress:()=>{living.round.reset();transport.reset();home()},
   stick:(x:number,z:number)=>{if(!paused&&!menuOpen){input.state.stick={x,y:z};audioGesture()}},
     settings:(value:Settings)=>{const next={...defaultSettings,...value},qualityChanged=settings.quality!==next.quality;if(settings.cameraMode!==next.cameraMode)rig.setMode(next.cameraMode);settings=next;weather.lighting(next.worldLighting);if(qualityChanged&&value.quality==='auto')governor.reset(bootTier);living.volume(value.volume);audio.setVolume(value.volume);commons.speaker.sound(audioUnlocked&&!value.muted&&!paused,value.volume);if(qualityChanged){recoveryMode=false;configure();resize()}if(value.muted){commons.voice.cancel();living.sound(false);audio.enable(false)}},
-    setPaused:(v:boolean)=>{paused=v;input.setEnabled(!paused&&!menuOpen);if(v){clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel()}else if(audioUnlocked&&!settings.muted){audio.enable(true);living.sound(true)}},
+    setPaused:(v:boolean)=>{paused=v;input.setEnabled(!paused&&!menuOpen);last=performance.now();if(v){clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();projectPages.render(false)}else if(audioUnlocked&&!settings.muted){audio.enable(true);living.sound(true)}requestFrame()},
   home,step:(dx:number,dz:number,cameraRelative=false)=>{if(angel.controlled){if(!paused&&!menuOpen)angel.update(.05,settings.reducedMotion,{x:dx,z:dz,lift:0,boost:false});return}if(!paused&&!menuOpen&&observedPlanet===null&&!traversal.moving&&!transport.journey.mode){audioGesture();const yaw=cameraRelative?(settings.stableCamera?rig.stableYaw:rig.yaw):0,x=dx*Math.cos(yaw)+dz*Math.sin(yaw),z=-dx*Math.sin(yaw)+dz*Math.cos(yaw),distance=cameraRelative?movementSpeed(settings.movementMode)*.12:.75;if(transport.driving)transport.update(.08,x,z,settings.reducedMotion);else if(!transport.stepSurface(x,z,distance*2.4))moveCharacter(player,x,z,distance,transport.blocked,transport.height,transport.bounds)}},
   route:(index:number)=>{if(!angel.controlled)buildings.route(index)},travel:(i:number)=>{if(angel.controlled||paused||menuOpen||!districts[i])return;commons.voice.cancel();transport.home();player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
     interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen&&observedPlanet===null);if(v){clearFlightInput();commons.voice.cancel()}},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},

@@ -3,6 +3,8 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createAssetManager} from './asset-manager';
 import {disposeScene} from './scene-resources';
 import {signatureShops,type ShopTheme} from './everyday-config';
+import {batchScenery} from './static-batching';
+import {cacheStaticTransforms} from './static-transforms';
 
 type SignatureBase={root:T.Group;hero:T.Group;solids:T.Box3[];features:Record<string,number>;theme:ShopTheme;interact:()=>string;update:(delta:number,reduced:boolean)=>void};
 type SignatureAsset={scene:T.Group;occlusion:T.Texture;url?:string};
@@ -41,6 +43,7 @@ export function createAuthoredSignatureShop(fallback:SignatureBase,name:string,t
   disposeScene(discard);
   nativeHero.removeFromParent();nativeHero.position.set(0,0,0);nativeHero.quaternion.copy(rotation);nativeHero.scale.copy(scale);
   hero.position.copy(position);hero.quaternion.identity();hero.scale.set(1,1,1);hero.add(nativeHero);
+  batchScenery(asset.scene,{}, {preserveMaterials:true});batchScenery(nativeHero,{}, {preserveMaterials:true});cacheStaticTransforms(asset.scene);cacheStaticTransforms(nativeHero);
   signs.forEach(sign=>{const side=sign.userData.displaySide??1;sign.position.copy(side<0?backPosition:signPosition);sign.position.z+=side*.008});
   asset.scene.name='Signature_AuthoredGLB';root.add(asset.scene);loaded=true;root.userData.assetState='ready';root.userData.authoredSignature=theme;root.userData.signatureVersion=nativeRoot.userData.signatureVersion??1;root.userData.assetUrl=asset.url??'/assets/signature-v'+root.userData.signatureVersion+'/'+theme+'.glb';root.userData.signatureDetails=nativeRoot.userData.signatureDetails;
   if(selection)for(const material of accents)material.color.set(['#ffffff','#86caba','#ecd078'][selection]);return true;

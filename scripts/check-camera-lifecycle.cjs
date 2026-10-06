@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},output:{type:'string'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},performance:{type:'boolean'},output:{type:'string'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(options.output??'outputs/playtest/camera-lifecycle');fs.mkdirSync(output,{recursive:true});
 async function main(){
@@ -17,6 +17,7 @@ async function main(){
  },options.quality);
  try{
   console.log('CAMERA_LIFECYCLE_START '+JSON.stringify({quality:options.quality,mobile:!!options.mobile,url:options.url??'http://127.0.0.1:3001/'}));
+  if(options.performance){await page.context().routeWebSocket(socket=>socket.origin===new URL(options.url??'http://127.0.0.1:3001/').origin.replace(/^http/,'ws'),()=>{});await page.route(/^https:\/\/(?:portfolio-resume-lake|ecofusion|cosmic-wellness|mindful-goal-seven|3d-code-pad-jp5m)\.vercel\.app\//,route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Preview lifecycle fixture</title><h1>Project preview</h1>'}))}
   await page.goto(options.url??'http://127.0.0.1:3001/?camera-lifecycle-check=1',{waitUntil:'domcontentloaded',timeout:180000});
   await page.waitForFunction(()=>document.querySelector('main.kingdom')?.getAttribute('data-ready')==='true',null,{timeout:180000});
   async function snapshot(label){
@@ -29,6 +30,13 @@ async function main(){
    });snapshots.push({label,...state});console.log('CAMERA_STATE '+JSON.stringify({label,...state}));return state;
   }
   const original=await snapshot('ready');assert.ok(original.canvas,'world canvas missing');assert.ok(original.scene,'world scene missing');
+  if(options.performance){
+   const scheduling=await page.evaluate(async()=>{const world=globalThis.__cameraLifecycleWorld,render=world.renderer.render;let count=0;world.renderer.render=function(scene,camera){if(scene===world.scene)count++;return render.call(this,scene,camera)};const frames=amount=>new Promise(resolve=>{function frame(){if(--amount>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)});try{await frames(8);const active=count;world.setPaused(true);await frames(3);const start=count;await frames(12);const paused=count-start;world.setPaused(false);const resume=count;await frames(8);return {active,paused,resumed:count-resume}}finally{world.renderer.render=render;world.setPaused(false)}});
+   assert.ok(scheduling.active>0);assert.equal(scheduling.paused,0);assert.ok(scheduling.resumed>0&&scheduling.resumed<=9,'resume started duplicate render loops');events.push({event:'frame-scheduling',...scheduling});console.log('FRAME_SCHEDULING_OK '+JSON.stringify(scheduling));
+   assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goProjectBulletins()),true);await page.waitForFunction(()=>globalThis.__cameraLifecycleWorld.projectPages.stats.loaded>0,null,{timeout:30000});
+   const gallery=await page.evaluate(()=>{const world=globalThis.__cameraLifecycleWorld;return {...world.projectPages.stats,boards:world.projectGallery.entries.length}});assert.ok(gallery.loaded<=(options.quality==='high'?2:1));assert.equal(gallery.boards,5);await snapshot('bounded-project-previews');
+   await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goCapital('plaza'));await page.waitForFunction(()=>globalThis.__cameraLifecycleWorld.projectPages.stats.loaded===0);assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.projectPages.frames.filter(frame=>frame.iframe.hasAttribute('src')).length),0);events.push({event:'project-previews-unloaded',loaded:0});console.log('PROJECT_PREVIEWS_UNLOADED');
+  }
   for(let cycle=0;cycle<3;cycle++){
    await page.getByRole('button',{name:'View controls',exact:true}).click();
    for(const mode of ['Close camera','First person camera','Far camera']){await page.getByRole('button',{name:mode,exact:true}).click();await snapshot(mode+'-'+cycle)}

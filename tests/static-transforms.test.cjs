@@ -2,6 +2,12 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{cacheStaticTransforms}=require('../app/static-transforms.ts');
 
+test('hidden branch transforms sleep and resume with current parents and local poses',()=>{
+ const {suspendHiddenTransforms}=require('../app/static-transforms.ts'),scene=new T.Scene(),branch=new T.Group(),child=new T.Object3D();scene.add(branch);branch.add(child);scene.scale.setScalar(2);child.position.set(1,2,3);let visits=0;const update=child.updateMatrixWorld.bind(child);child.updateMatrixWorld=force=>{visits++;update(force)};
+ suspendHiddenTransforms(branch);scene.updateMatrixWorld(true);assert.equal(visits,1);branch.visible=false;branch.position.x=10;child.position.z=7;for(let frame=0;frame<120;frame++)scene.updateMatrixWorld(true);assert.equal(visits,1);
+ branch.visible=true;scene.updateMatrixWorld(true);assert.equal(visits,2);assert.deepEqual(child.getWorldPosition(new T.Vector3()).toArray(),[22,4,14]);branch.visible=false;branch.position.y=5;assert.deepEqual(child.getWorldPosition(new T.Vector3()).toArray(),[22,14,14]);
+});
+
 function fixture(){
  const scene=new T.Scene(),root=new T.Group(),branch=new T.Group(),leaf=new T.Object3D();
  scene.add(root);root.add(branch);branch.add(leaf);root.position.set(2,4,8);branch.rotation.y=.8;leaf.position.set(7,3,-2);

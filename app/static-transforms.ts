@@ -1,6 +1,13 @@
 import * as T from 'three';
 
 const caches=new WeakMap<T.Object3D,{invalidate:()=>void}>();
+const visibilityCaches=new WeakSet<T.Object3D>();
+
+export function suspendHiddenTransforms(root:T.Object3D){
+ if(visibilityCaches.has(root))return;visibilityCaches.add(root);
+ const update=root.updateMatrixWorld.bind(root);let suspended=false;
+ root.updateMatrixWorld=function(force?:boolean){if(!root.visible){suspended=true;return}update(force||suspended);suspended=false};
+}
 
 export function cacheStaticTransforms(root:T.Object3D){
  root.traverse(object=>{if(object!==root){object.updateMatrix();object.matrixAutoUpdate=false}});

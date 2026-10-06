@@ -1,6 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{createPlanetLighting}=require('../app/planet-lighting.ts');
+test('turning the character or camera frame does not rotate planetary light and shadows',()=>{
+ const scene=new T.Scene(),sun=new T.DirectionalLight(),player=new T.Group();scene.add(sun);const lighting=createPlanetLighting(scene,sun);player.up.set(0,1,0);lighting.apply(player);const initial=sun.position.clone();
+ for(let step=0;step<48;step++){player.quaternion.setFromAxisAngle(player.up,step*.2);player.userData.surfaceFrame=new T.Quaternion().setFromAxisAngle(player.up,step*.37);lighting.apply(player);assert.ok(sun.position.distanceTo(initial)<1e-8)}
+ let previous=sun.position.clone();for(let step=1;step<=80;step++){player.up.set(Math.sin(step*.003),Math.cos(step*.003),0);lighting.apply(player);assert.ok(Math.abs(sun.position.dot(player.up)-52)<1e-8);assert.ok(sun.position.distanceTo(previous)<.3);previous.copy(sun.position)}lighting.root.geometry.dispose();lighting.root.material.dispose();
+});
+
 test('planetary key stays above local ground on either hemisphere without moving the character',()=>{
   const scene=new T.Scene(),sun=new T.DirectionalLight(),fill=new T.HemisphereLight();scene.add(sun,fill);const lighting=createPlanetLighting(scene,sun),player=new T.Group();player.position.set(250,400,-2200);
   for(const up of [new T.Vector3(0,1,0),new T.Vector3(1,0,0),new T.Vector3(0,-1,0)]){

@@ -12,6 +12,113 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Runtime Follow-up, 6 October 2026
+
+This pass targets retained iframe applications, hidden transform traversal,
+static draw submission, and idle scheduling. It preserves the existing world,
+models, interactions, project links, and graphics-quality choices.
+
+### October Runtime Changes
+
+- `app/project-page-previews.ts` bounds live project pages to one at Balanced
+  or Low and two at High. Frustum and occlusion checks choose nearby previews;
+  leaving the gallery, pausing, or hiding the document unloads them. Short
+  changes of view use a 2.5-second idle grace period. All five physical boards
+  retain their permanent project names and fallback displays. Visibility
+  selection runs at 250 ms intervals, blocker scans at five seconds, and CSS3D
+  rendering is skipped when neither the camera nor the preview state changed.
+- `app/static-transforms.ts` suspends matrix traversal beneath explicitly hidden
+  mainland and city LOD roots, then forces an update when they become visible.
+  Direct world-position queries still work while a root is hidden.
+- `app/world.ts` owns one demand-aware animation-frame request. Paused or hidden
+  worlds do not keep drawing; resume, resize, and context restoration request
+  the next frame without starting a second loop.
+- `app/static-batching.ts` supports exact-material batching for authored shops,
+  preserving textures and independent recoloring. Transparent authored meshes
+  retain their sorting. Batches now preserve original shadow-casting,
+  shadow-receiving, depth, and emissive roles instead of inventing casters or
+  merging incompatible state. Raised shop lettering uses fewer subdivisions
+  without changing its dimensions or glow.
+- `app/planet-lighting.ts` parallel-transports its ground tangent independently
+  of avatar heading. Turning in place no longer rotates the planetary sun.
+- `app/work-scheduler.ts` uses available idle time, retains a fixed 150 ms
+  deadline across short idle retries, and runs one queued task per callback.
+  Priority, cancellation, and the timer fallback remain. An individual task is
+  still synchronous; this does not make expensive construction preemptible.
+
+### October Production Comparison
+
+The control is commit `f08b534`, archived under
+`outputs/performance-source/oct6-matched-control` without changing the working
+tree. Both plain Vinext production builds passed and used the same dependencies,
+Chrome process, Windows/Intel Arc Pro GPU, 1440 x 960 viewport, device scale
+factor 1, and fixed Balanced graphics. The control runs first in a separate
+browser context. Each view warms for 90 frames and measures three 90-frame
+windows; the table reports the median run's mean interval and derived FPS.
+The five external project URLs use identical lightweight HTML fixtures, not
+their real network-dependent applications. CPU profiling is disabled.
+
+| View | Before ms / FPS | After ms / FPS |
+| --- | ---: | ---: |
+| Plaza | 55.55 / 18.00 | 74.26 / 13.47 |
+| Project gallery | 25.00 / 40.00 | 28.33 / 35.30 |
+| Returned plaza | 76.11 / 13.14 | 69.44 / 14.40 |
+| Planet | 34.44 / 29.03 | 30.37 / 32.93 |
+
+This run does **not** establish an overall FPS improvement. Initial plaza and
+gallery timing regressed, while the return and planet improved. Plaza p95 rose
+from 83.4 to 100 ms; returned-plaza p95 fell from 116.7 to 83.4 ms. The dense
+mainland remains below 30 FPS and its rendering bottleneck is not resolved.
+
+Sampled plaza draw submissions fell from 3,193 to 2,784, but planet submissions
+rose from 917 to 1,182; these counters include shadow/postprocessing phases.
+Post-GC plaza heap was 380.13 versus 384.27 MiB, so no heap reduction is claimed.
+The world-ready marker was 23.00 versus 19.86 seconds, but it is not standardized
+TTI or a repeated cold-cache measurement. Cache order, asset activation,
+animation phase, and machine load remain sources of variation.
+
+The reproducible lifecycle gain is bounded embedded applications: the control
+retained all five even after leaving and travelling to a planet; the candidate
+loaded one in the gallery and zero after leaving. Other boards retained their
+named fallbacks. Earlier development runs varied substantially and are not
+substituted for this production comparison.
+
+Results and screenshots are in
+`outputs/performance/oct6-matched-production-desktop/metrics.json`. With both
+builds served separately and Playwright available, reproduce the route with:
+
+```sh
+node scripts/compare-runtime.cjs --control=http://127.0.0.1:4333/ --candidate=http://127.0.0.1:4334/ --projects --label=oct6-matched-production
+```
+
+### Verification and Limits
+
+TypeScript and the seven optimized standalone runtime modules pass their scoped
+lint checks. The complete Node run passed 611 of 612 tests. The sole failure is
+the previously recorded rocket hull/porthole visibility assertion in
+`tests/transit-motion.test.cjs:145`; no vehicle geometry was changed here. After
+the final idle-deadline correction, all ten resource/planet-streaming tests
+passed, including repeated insufficient idle slots, priority, and cancellation.
+
+Desktop and mobile-viewport browser checks measured eight active draws, zero
+paused draws, and eight resumed draws. They verified bounded project previews
+and zero loaded iframes after leaving. Desktop rapid planet travel stayed within
+two detailed residents and retired to zero; mobile WebGL loss/restoration kept
+the same document, scene, player position, and canvas. Screenshots and canvas
+sampling were captured; these checks do not certify physical phones.
+
+The frozen-camera lighting probe explicitly rendered 32 samples, found 554
+quantized colors, and observed at most five changed pixels out of 16,000.
+Persistent at-rest flicker was not reproduced. This finite stationary check does
+not prove that every movement-dependent or deployed lighting issue is fixed.
+The associated CPU trace contained a long timing gap and is not used as a
+performance comparison.
+
+The Vercel client, RSC, and SSR compilation stages succeeded, but Windows Nitro
+packaging again failed with `EBUSY` while copying `content-type@2.1.0`.
+Deployment packaging therefore remains unverified; no hosting configuration was
+changed to hide that failure.
+
 ## Runtime Follow-up, 29 September 2026
 
 The follow-up targets rendering CPU cost after the visual refinement pass. The

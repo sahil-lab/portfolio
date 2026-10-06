@@ -118,3 +118,11 @@ test('project gallery arrival frames all five boards on desktop and narrow phone
  const scene=new T.Scene(),player=new T.Group(),gallery=createProjectBulletins(scene,player,()=>{}),building=new T.Mesh(new T.BoxGeometry(20,22,24),new T.MeshBasicMaterial());building.position.set(projectBulletinArrival.x,11,projectBulletinArrival.z+55);building.userData.cameraSolid=true;scene.add(player,building);scene.scale.setScalar(2);player.position.set(projectBulletinArrival.x,projectBulletinArrival.y,projectBulletinArrival.z);scene.updateMatrixWorld(true);
  try{for(const aspect of [1440/960,390/844,320/926]){const camera=new T.PerspectiveCamera(50,aspect,.1,18000),rig=createGameCamera(camera,scene,player);rig.reset(projectBulletinCameraView(aspect));rig.update(0,false,{reducedMotion:true,stableCamera:false},false,18);camera.updateMatrixWorld(true);for(const entry of gallery.entries){const bounds=new T.Box3().setFromObject(entry.group);for(const horizontal of [bounds.min.x,bounds.max.x])for(const vertical of [bounds.min.y,bounds.max.y])for(const depth of [bounds.min.z,bounds.max.z]){const point=new T.Vector3(horizontal,vertical,depth).project(camera);assert.ok(Math.abs(point.x)<.95&&Math.abs(point.y)<.95,entry.project.id+' outside '+aspect)}}}}finally{disposeScene(scene);global.document=previous}
 });
+
+test('project preview residency is bounded and leaving the gallery unloads running pages',()=>{
+ const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500);
+ assert.deepEqual(budget.update([0,1,2,3,4],0,2),{load:[0,1],unload:[],visible:[0,1]});assert.equal(budget.residents.size,2);
+ assert.deepEqual(budget.update([2,3,4],100,2),{load:[2,3],unload:[0,1],visible:[2,3]});assert.deepEqual(budget.update([],200,2),{load:[],unload:[],visible:[]});
+ assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
+ assert.deepEqual(budget.update([],3010,1,false),{load:[],unload:[4],visible:[]});assert.equal(budget.residents.size,0);
+});

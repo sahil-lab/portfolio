@@ -1,6 +1,21 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{disposeScene}=require('../app/scene-resources.ts'),{createCityLightResponse}=require('../app/world-lighting.ts'),{createKingdomPresentation,kingdomOcclusion,presentationPixelRatio,presentationPixelBudget}=require('../app/kingdom-presentation.ts');
+test('model work uses bounded idle time, keeps priority and cancels queued work',async context=>{
+ const {createWorkScheduler}=require('../app/work-scheduler.ts'),previousIdle=global.requestIdleCallback,previousCancel=global.cancelIdleCallback,callbacks=new Map(),ran=[],timeouts=[];let next=0,now=0;
+ context.mock.method(performance,'now',()=>now);
+ global.requestIdleCallback=(callback,options)=>{assert.ok(options.timeout>=0&&options.timeout<=150);timeouts.push(options.timeout);callbacks.set(++next,callback);return next};global.cancelIdleCallback=handle=>callbacks.delete(handle);
+ const scheduler=createWorkScheduler(),flush=deadline=>{const [handle,callback]=callbacks.entries().next().value;callbacks.delete(handle);callback(deadline)};
+ try{
+  const normal=scheduler.run(()=>ran.push('normal'),2),urgent=scheduler.run(()=>ran.push('urgent'),0);assert.equal(timeouts[0],150);
+  now=60;flush({didTimeout:false,timeRemaining:()=>1});assert.deepEqual(ran,[]);assert.equal(scheduler.pending,2);assert.equal(timeouts.at(-1),90);
+  now=130;flush({didTimeout:false,timeRemaining:()=>1});assert.deepEqual(ran,[]);assert.equal(timeouts.at(-1),20);
+  now=151;flush({didTimeout:false,timeRemaining:()=>0});assert.deepEqual(ran,['urgent']);flush({didTimeout:true,timeRemaining:()=>0});await Promise.all([normal,urgent]);assert.deepEqual(ran,['urgent','normal']);
+  const available=scheduler.run(()=>ran.push('available'));flush({didTimeout:false,timeRemaining:()=>6});await available;assert.deepEqual(ran,['urgent','normal','available']);
+  const pending=scheduler.run(()=>ran.push('cancelled')),rejected=assert.rejects(pending,{name:'AbortError'});scheduler.dispose();await rejected;assert.equal(callbacks.size,0);assert.equal(scheduler.pending,0);
+ }finally{scheduler.dispose();if(previousIdle===undefined)delete global.requestIdleCallback;else global.requestIdleCallback=previousIdle;if(previousCancel===undefined)delete global.cancelIdleCallback;else global.cancelIdleCallback=previousCancel}
+});
+
 test('unloaded glass materials leave the lighting registry and shader textures are disposed once',()=>{
  const scene=new T.Scene(),material=new T.MeshStandardMaterial();material.userData.surface='glass';const mesh=new T.Mesh(new T.BoxGeometry(),material);scene.add(mesh);const lights=createCityLightResponse(scene);lights.update(1,1,0);assert.equal(lights.count,1);material.dispose();mesh.removeFromParent();assert.equal(lights.count,0);lights.update(1,0,0);assert.equal(lights.count,0);
  const texture=new T.Texture(),shader=new T.ShaderMaterial({uniforms:{water:{value:texture},repeat:{value:texture}}});let released=0;texture.addEventListener('dispose',()=>released++);scene.add(new T.Mesh(mesh.geometry,shader));disposeScene(scene);assert.equal(released,1);lights.dispose();

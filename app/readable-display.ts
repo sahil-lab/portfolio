@@ -6,7 +6,7 @@ import * as typeface from '../assets/fonts/helvetiker_regular.typeface.json';
 const facadeFont=new FontLoader().parse(('default' in typeface?typeface.default:typeface) as FontData);
 
 export function createFacadeLettering(parent:T.Object3D,name:string,text:string,width:number,height:number,position:T.Vector3,color='#ff73cd'){
-  const geometry=new TextGeometry(text,{font:facadeFont,size:1,depth:.035,curveSegments:3,bevelEnabled:true,bevelThickness:.008,bevelSize:.008,bevelSegments:2});geometry.computeBoundingBox();
+  const geometry=new TextGeometry(text,{font:facadeFont,size:1,depth:.035,curveSegments:2,bevelEnabled:true,bevelThickness:.008,bevelSize:.008,bevelSegments:1});geometry.computeBoundingBox();
   const bounds=geometry.boundingBox!,size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3()),scale=Math.min(width/Math.max(size.x,.001),height/Math.max(size.y,.001));
   geometry.translate(-center.x,-center.y,-bounds.min.z);geometry.scale(scale,scale,1);geometry.computeBoundingBox();geometry.computeBoundingSphere();
   const emission=new T.Color(color);emission.multiplyScalar(1/Math.max(emission.r,emission.g,emission.b,.001));

@@ -2,6 +2,16 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{batchScenery}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('batching preserves shadow roles and depth state instead of inventing shadow casters',()=>{
+ for(const count of [2,4]){const root=new T.Group();for(const [casts,receives,depthWrite] of [[false,false,false],[false,true,true],[true,true,true]])for(let index=0;index<count;index++){const mesh=new T.Mesh(new T.BoxGeometry(),new T.MeshStandardMaterial({color:'#8aafa0',depthWrite}));mesh.position.set(1+index,1,1);mesh.castShadow=casts;mesh.receiveShadow=receives;root.add(mesh)}batchScenery(root,{});assert.equal(root.children.length,3);assert.deepEqual(root.children.map(mesh=>[mesh.castShadow,mesh.receiveShadow,mesh.material.depthWrite]),[[false,false,false],[false,true,true],[true,true,true]]);disposeScene(root)}
+});
+
+test('authored batching retains texture and material identities while combining static draw groups',()=>{
+ const root=new T.Group(),texture=new T.Texture(),first=new T.MeshStandardMaterial({map:texture,roughness:.67,alphaTest:.2}),second=first.clone();
+ for(const material of [first,second])for(let index=0;index<5;index++){const mesh=new T.Mesh(new T.BoxGeometry(),material);mesh.position.set(2+index*2,1,material===first?2:4);root.add(mesh)}
+ const before=new T.Box3().setFromObject(root);batchScenery(root,{}, {preserveMaterials:true});assert.equal(root.children.length,2);assert.ok(root.children.every(mesh=>mesh.isInstancedMesh&&mesh.count===5));assert.deepEqual(new Set(root.children.map(mesh=>mesh.material.uuid)),new Set([first.uuid,second.uuid]));assert.ok(root.children.every(mesh=>mesh.material.map===texture&&mesh.material.alphaTest===.2));assert.ok(new T.Box3().setFromObject(root).equals(before));first.color.set('#ff3333');assert.equal(second.color.getHexString(),'ffffff');disposeScene(root);
+});
+
 test('batching retains distinct returned normals and incompatible vertex layouts',()=>{
  const scene=new T.Group(),first=new T.MeshStandardMaterial({color:'#88aaaa',normalMap:new T.Texture()}),second=first.clone();second.normalMap=new T.Texture();const plain=new T.BoxGeometry(),colored=new T.BoxGeometry();colored.setAttribute('color',new T.BufferAttribute(new Float32Array(colored.attributes.position.count*3).fill(.8),3));scene.add(new T.Mesh(plain,first),new T.Mesh(plain.clone(),second),new T.Mesh(colored,first));batchScenery(scene,{});assert.equal(scene.children.length,3);assert.equal(new Set(scene.children.map(mesh=>mesh.material.normalMap)).size,2);disposeScene(scene);
 });
