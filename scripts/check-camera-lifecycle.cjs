@@ -1,13 +1,14 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},memory:{type:'boolean'},statue:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(options.output??'outputs/playtest/camera-lifecycle');fs.mkdirSync(output,{recursive:true});
 async function main(){
- const browser=await chromium.launch({channel:options.browser,headless:true}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:options.flicker?{width:1124,height:914}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
- page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));page.on('crash',()=>events.push({event:'renderer-crash'}));page.on('framenavigated',frame=>{if(frame===page.mainFrame())events.push({event:'navigation',url:frame.url()})});
+ const browser=await chromium.launch({channel:options.browser,headless:true,args:options.memory?['--enable-precise-memory-info']:[]}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:options.flicker?{width:1124,height:914}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
+ page.setDefaultTimeout(options.memory?90000:30000);page.on('pageerror',error=>errors.push(error.message));page.on('crash',()=>events.push({event:'renderer-crash'}));page.on('framenavigated',frame=>{if(frame===page.mainFrame())events.push({event:'navigation',url:frame.url()})});
  page.on('console',message=>{if(/context lost|context restored|Shader Error|out of memory|too many active webgl/i.test(message.text()))events.push({event:'console',message:message.text()})});
  await page.exposeFunction('__cameraLifecycleEvent',event=>events.push(event));
  await page.addInitScript(quality=>{
+  if(window!==window.top)return;
   localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality,cameraMode:'far',worldLighting:'day'}}));
   Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error?.({code:1})}}});
     globalThis.__cameraDocument=crypto.randomUUID();globalThis.__cameraContextsLost=0;globalThis.__cameraContextsRestored=0;globalThis.__cameraCanvasInsertions=0;
@@ -26,10 +27,36 @@ async function main(){
     while(fiber&&!world){for(let hook=fiber.memoizedState;hook;hook=hook.next)if(hook.memoizedState?.current?.renderer)world=hook.memoizedState.current;fiber=fiber.return}
     globalThis.__cameraLifecycleWorld=world;
     const canvas=document.querySelector('.world canvas'),context=canvas?.getContext('webgl2'),debug=context?.getExtension('WEBGL_debug_renderer_info');
-    return {document:globalThis.__cameraDocument,insertions:globalThis.__cameraCanvasInsertions,lost:globalThis.__cameraContextsLost,restored:globalThis.__cameraContextsRestored,canvas:!!canvas,scene:world?.scene.uuid,rendererGeometries:world?.renderer.info.memory.geometries,rendererTextures:world?.renderer.info.memory.textures,draws:world?.renderer.info.render.calls,triangles:world?.renderer.info.render.triangles,programs:world?.renderer.info.programs.length,pixelRatio:world?.renderer.getPixelRatio(),heap:performance.memory?.usedJSHeapSize,gpu:debug?context.getParameter(debug.UNMASKED_RENDERER_WEBGL):undefined,canvasSize:canvas?[canvas.width,canvas.height]:null,streaming:world?.transport.streaming?.snapshot()};
+    return {document:globalThis.__cameraDocument,insertions:globalThis.__cameraCanvasInsertions,lost:globalThis.__cameraContextsLost,restored:globalThis.__cameraContextsRestored,canvas:!!canvas,scene:world?.scene.uuid,rendererGeometries:world?.renderer.info.memory.geometries,rendererTextures:world?.renderer.info.memory.textures,draws:world?.renderer.info.render.calls,triangles:world?.renderer.info.render.triangles,programs:world?.renderer.info.programs.length,pixelRatio:world?.renderer.getPixelRatio(),heap:performance.memory?.usedJSHeapSize,gpu:debug?context.getParameter(debug.UNMASKED_RENDERER_WEBGL):undefined,canvasSize:canvas?[canvas.width,canvas.height]:null,streaming:world?.transport.streaming?.snapshot(),homeGpuRelease:world?.scene.userData.homeGpuRelease};
    });snapshots.push({label,...state});console.log('CAMERA_STATE '+JSON.stringify({label,...state}));return state;
   }
   const original=await snapshot('ready');assert.ok(original.canvas,'world canvas missing');assert.ok(original.scene,'world scene missing');
+  if(options.memory){
+   await page.evaluate(()=>Promise.allSettled([__cameraLifecycleWorld.goldMonument.ready,__cameraLifecycleWorld.dog.ready,__cameraLifecycleWorld.angel.ready]));
+   const client=await page.context().newCDPSession(page),started=Date.now(),returned=[];let cycles=0;
+   const frames=count=>page.evaluate(count=>new Promise(resolve=>{let remaining=count;function next(){if(--remaining>0)requestAnimationFrame(next);else resolve()}requestAnimationFrame(next)}),count);
+  const pixels=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const sample=document.createElement('canvas');sample.width=96;sample.height=64;const context=sample.getContext('2d');context.drawImage(document.querySelector('.world canvas'),0,0,96,64);const data=context.getImageData(0,0,96,64).data,colors=new Set();for(let offset=0;offset<data.length;offset+=4)colors.add([data[offset]>>4,data[offset+1]>>4,data[offset+2]>>4].join(','));resolve(colors.size)})));
+   const stable=state=>{assert.equal(state.document,original.document);assert.equal(state.scene,original.scene);assert.equal(state.insertions,1);assert.equal(state.lost,0);assert.ok(state.streaming.loading<=1)};
+   try{
+    do{
+     assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goProjectBulletins()),true);await frames(180);stable(await snapshot('memory-statue-'+cycles));
+     const statue=await page.evaluate(()=>({status:__cameraLifecycleWorld.goldMonument.status,iframes:__cameraLifecycleWorld.projectPages.frames.filter(frame=>frame.iframe.isConnected).length}));assert.equal(statue.status,'ready');assert.ok(statue.iframes<=(options.quality==='high'?2:1));
+     if(!cycles)await page.screenshot({path:path.join(output,'memory-statue.png')});
+     for(const destination of [1,2,7]){
+      assert.equal(await page.evaluate(destination=>__cameraLifecycleWorld.goSharedPlanet(destination),destination),true);await page.waitForFunction(destination=>__cameraLifecycleWorld.transport.streaming.ready(destination),destination,{timeout:180000});
+      for(const key of ['w','d','s','a']){await page.keyboard.down(key);try{await frames(45)}finally{await page.keyboard.up(key)}}
+      assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.transport.journey.current),destination,'planet roaming reset the destination');
+      const state=await snapshot('memory-planet-'+destination+'-'+cycles);stable(state);assert.ok(state.streaming.resident<=2);assert.ok(await pixels()>20,'planet canvas is blank after GPU cleanup');
+      if(options.mobile){assert.ok(state.homeGpuRelease);assert.ok(state.homeGpuRelease.after.geometries<state.homeGpuRelease.before.geometries,'hidden mainland GPU allocations were not released')}
+      if(!cycles&&destination===7)await page.screenshot({path:path.join(output,'memory-planet.png')});
+     }
+     assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza')),true);await page.waitForFunction(()=>__cameraLifecycleWorld.transport.streaming.snapshot().resident===0&&__cameraLifecycleWorld.projectPages.frames.every(frame=>!frame.iframe.isConnected),null,{timeout:30000});
+    await client.send('HeapProfiler.collectGarbage');const state=await snapshot('memory-return-'+cycles);stable(state);assert.ok(await pixels()>20,'mainland canvas did not recover its GPU resources');await page.screenshot({path:path.join(output,'memory-return.png')});returned.push(state.heap);if(cycles>0)assert.ok(state.heap<returned[0]+48*1024*1024,'retained heap grew by more than 48 MiB across completed travel cycles');cycles++;
+    }while(cycles<2||Date.now()-started<180000);
+    events.push({event:'memory-tour',durationMs:Date.now()-started,cycles,returnedHeap:returned,projectFixtures:!!options.performance});
+    console.log('MEMORY_TOUR_OK '+JSON.stringify(events.at(-1)));
+   }finally{await client.detach()}
+  }
   if(options.touch){
     const gestures=await page.evaluate(()=>({root:getComputedStyle(document.documentElement).overscrollBehaviorY,body:getComputedStyle(document.body).overscrollBehaviorY,canvas:getComputedStyle(document.querySelector('.world canvas')).touchAction}));assert.equal(gestures.root,'none');assert.equal(gestures.body,'none');assert.equal(gestures.canvas,'none');events.push({event:'viewport-gesture-policy',...gestures});
   const resizing=await page.evaluate(async()=>{const world=globalThis.__cameraLifecycleWorld,renderer=world.renderer,setSize=renderer.setSize,setRatio=renderer.setPixelRatio,setBuffer=renderer.setDrawingBufferSize;let sizes=0,ratios=0,buffers=0;renderer.setSize=function(...args){sizes++;return setSize.apply(this,args)};renderer.setPixelRatio=function(...args){ratios++;return setRatio.apply(this,args)};renderer.setDrawingBufferSize=function(...args){buffers++;return setBuffer.apply(this,args)};try{for(let index=0;index<8;index++)dispatchEvent(new Event('resize'));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return {sizes,ratios,buffers}}finally{renderer.setSize=setSize;renderer.setPixelRatio=setRatio;renderer.setDrawingBufferSize=setBuffer}});
@@ -37,7 +64,7 @@ async function main(){
    const client=await page.context().newCDPSession(page);
    try{for(const viewport of [{width:390,height:844},{width:844,height:390},{width:390,height:844}]){await page.setViewportSize(viewport);const bounds=await page.locator('.world canvas').boundingBox();assert.ok(bounds);const start={x:bounds.x+bounds.width*.5,y:bounds.y+bounds.height*.4};for(const horizontal of [-1,1]){await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...start,id:0,radiusX:2,radiusY:2,force:1}]});for(let step=1;step<=12;step++)await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:start.x+horizontal*bounds.width*.25*step/12,y:start.y+bounds.height*.12*step/12,id:0,radiusX:2,radiusY:2,force:1}]});await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})}await snapshot('native-touch-'+viewport.width)}events.push({event:'native-touch-swipes',swipes:6,orientations:3})}finally{await client.detach()}
   }
-  if(options.performance){
+  if(options.performance||options.statue){
    const scheduling=await page.evaluate(async()=>{const world=globalThis.__cameraLifecycleWorld,render=world.renderer.render;let count=0;world.renderer.render=function(scene,camera){if(scene===world.scene)count++;return render.call(this,scene,camera)};const frames=amount=>new Promise(resolve=>{function frame(){if(--amount>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)});try{await frames(8);const active=count;world.setPaused(true);await frames(3);const start=count;await frames(12);const paused=count-start;world.setPaused(false);const resume=count;await frames(8);return {active,paused,resumed:count-resume}}finally{world.renderer.render=render;world.setPaused(false)}});
    assert.ok(scheduling.active>0);assert.equal(scheduling.paused,0);assert.ok(scheduling.resumed>0&&scheduling.resumed<=9,'resume started duplicate render loops');events.push({event:'frame-scheduling',...scheduling});console.log('FRAME_SCHEDULING_OK '+JSON.stringify(scheduling));
    assert.equal(await page.evaluate(()=>globalThis.__cameraLifecycleWorld.goProjectBulletins()),true);await page.waitForFunction(()=>globalThis.__cameraLifecycleWorld.projectPages.stats.loaded>0,null,{timeout:30000});

@@ -126,3 +126,22 @@ test('project preview residency is bounded and leaving the gallery unloads runni
  assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
  assert.deepEqual(budget.update([],3010,1,false),{load:[],unload:[4],visible:[]});assert.equal(budget.residents.size,0);
 });
+test('stopped and failed statue-side previews detach their browsing contexts and remain reloadable',()=>{
+ const previous=global.document;
+ class Element{
+  constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document}
+  setAttribute(name,value){this[name]=value}
+  removeAttribute(name){delete this[name]}
+  appendChild(child){child.remove();this.children.push(child);child.parentNode=this;return child}
+  removeChild(child){this.children=this.children.filter(value=>value!==child);child.parentNode=null;return child}
+  remove(){this.parentNode?.removeChild(this)}
+ }
+ global.document={createElement:()=>new Element(),addEventListener(){},removeEventListener(){},hidden:false,defaultView:{Element}};
+ let previews;
+ try{
+  const {createProjectPagePreviews}=require('../app/project-page-previews.ts'),entry={project:{name:'Fixture',id:'fixture',url:'https://example.test/'},group:new T.Group()};
+  previews=createProjectPagePreviews(new Element(),new T.Scene(),new T.PerspectiveCamera(),new T.Group(),{entries:[entry],root:new T.Group()});const frame=previews.frames[0];
+  assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);
+  frame.start();assert.ok(frame.iframe.parentNode);frame.iframe.onerror();assert.equal(frame.iframe.parentNode,null);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.ok(frame.iframe.parentNode);
+ }finally{previews?.dispose();global.document=previous}
+});

@@ -33,6 +33,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  change:(s:TransitStatus)=>void;open:()=>void;notice:(s:string)=>void;sound:()=>void;
  arrive?:(destination:number)=>void;
  prepare?:(root:T.Object3D)=>Promise<void>;
+ memoryConstrained?:boolean;releaseMemory?:()=>void;
 }){
  const root=new T.Group();root.name='OrbitalTransit';scene.add(root);const fixed=new T.Group();root.add(fixed);
  const stations=transitStops.map(stop=>{
@@ -43,7 +44,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  let visited=['motherboard'];try{const raw=JSON.parse(localStorage.getItem('kingdom-transit-v1')??'null');if(raw?.version===1&&Array.isArray(raw.visited))visited=[...new Set<string>(['motherboard',...raw.visited.filter((id:unknown)=>typeof id==='string'&&transitStops.some(s=>s.id===id))])]}catch{/* Storage is optional. */}
  const obstacles:{x:number;z:number;y:number;r:number}[]=[],planetSignals:T.Mesh[]=[],rotating:T.Object3D[]=[];
  const surfaces=transitStops.map((stop,index)=>index?createPlanetSurface(stop,stop.radius):null);
- const streaming=createPlanetStreamer(fixed,surfaces,{prepare:callbacks.prepare}),landscapes=streaming.landscapes;
+ const streaming=createPlanetStreamer(fixed,surfaces,{prepare:callbacks.prepare,maxResident:callbacks.memoryConstrained?1:2,retireAfterMs:callbacks.memoryConstrained?3000:15000,onRelease:callbacks.releaseMemory}),landscapes=streaming.landscapes;
  let driveX=0,driveZ=1;
  const cars=transitStops.map((stop,index)=>{const car=kit.rover(stop.color);car.root.position.set(stop.x-10,stop.y,stop.z+3);stations[index].actors.add(car.root);return car});
  const rockets=transitStops.map((stop,index)=>{const rocket=kit.rocket(stop.color);rocket.root.position.set(stop.x+10,stop.y,stop.z+2);stations[index].actors.add(rocket.root);return rocket});
@@ -157,6 +158,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   }
  }
  function arrive(mode:TransitMode,dt=0,reduced=true){
+  streaming.protect(journey.current);
   streaming.prefetch(journey.current);
   const s=current();player.position.set(s.x+(mode==='rocket'?13.8:-4),s.y,s.z+2);resetSurfaceFrame(player);
   if(mode==='rocket'&&flightRocket){
@@ -171,7 +173,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  function start(destination:number,mode:TransitMode){
   if(carIndex!==null||journey.mode||!(mode==='metro'?nearMetro():nearRocket())){callbacks.notice('Walk to the '+(mode==='metro'?'metro platform':'rocket pad')+' to board.');return false}
   if(!journey.start(destination,mode))return false;callbacks.sound();flightOrigin=journey.current;activePath=pathFor(journey.current,destination);metroReversed=metro.carriages[0].body.position.z>current().z;
-  streaming.prefetch(destination);
+  streaming.protect(journey.current,destination);streaming.prefetch(destination);
   resetSurfaceFrame(player);metro.root.visible=mode==='metro';if(mode==='metro')showJourneyRails(journey.current,destination);else clearJourneyRails();
   flightRocket=mode==='rocket'?rockets[journey.current]:null;if(flightRocket){root.add(flightRocket.root);flightRocket.root.visible=true;rockets[destination].root.visible=false}
   poseJourney(0,false);updateStationDetails();publish(true);return true;

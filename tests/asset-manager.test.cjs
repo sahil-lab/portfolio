@@ -5,6 +5,13 @@ test('asset requests are priority-ordered, deduplicated, bounded and reference-c
  const manager=createAssetManager({concurrency:1,paused:true}),started=[],released=[];const request=(id,priority)=>manager.acquire(id,async()=>{started.push(id);return {id}},value=>released.push(value.id),priority);
  const optional=request('optional',4),critical=request('critical',0),duplicate=request('critical',2);assert.deepEqual(started,[]);manager.start();assert.equal(await critical.promise,await duplicate.promise);await optional.promise;assert.deepEqual(started,['critical','optional']);critical.release();assert.deepEqual(released,[]);duplicate.release();assert.deepEqual(released,['critical']);optional.release();assert.equal(manager.snapshot().resources,0);manager.dispose();
 });
+test('a cancelled request cannot evict its replacement or underflow released leases',async()=>{
+ const manager=createAssetManager({concurrency:2});let failOld,loads=0;
+ const old=manager.acquire('same-model',()=>new Promise((_resolve,reject)=>{failOld=reject}),()=>{}),rejected=assert.rejects(old.promise);await Promise.resolve();old.release();
+ const current=manager.acquire('same-model',async()=>{loads++;return {ready:true}},()=>{}),value=await current.promise;failOld(new Error('Late aborted request'));await rejected;
+ const duplicate=manager.acquire('same-model',async()=>{loads++;return {ready:true}},()=>{});assert.equal(await duplicate.promise,value);assert.equal(loads,1);assert.equal(manager.snapshot().resources,1);
+ manager.dispose();current.release();duplicate.release();assert.equal(current.references,0);assert.equal(duplicate.references,0);assert.equal(manager.snapshot().resources,0);
+});
 test('releasing or disposing queued and in-flight requests never leaves retained resources',async()=>{
  const manager=createAssetManager({paused:true}),queued=manager.acquire('queued',async()=>1,()=>{});const cancelled=assert.rejects(queued.promise,{name:'AbortError'});queued.release();await cancelled;
  let finish,disposed=0;const loading=manager.acquire('loading',()=>new Promise(resolve=>{finish=resolve}),()=>disposed++);manager.start();await Promise.resolve();manager.dispose();finish({});await assert.rejects(loading.promise,{name:'AbortError'});assert.equal(disposed,1);assert.equal(manager.snapshot().resources,0);

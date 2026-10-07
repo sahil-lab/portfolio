@@ -3,7 +3,7 @@ import {createDistrictMachines} from './district-machines';
 import {KingdomAudio} from './kingdom-audio';
 import {exhibits} from './exhibit-state';
 import {sceneryCollision} from './collision-world';
-import {disposeScene} from './scene-resources';
+import {disposeScene,releaseHiddenGpuResources} from './scene-resources';
 import {createInteractionDispatcher} from './interactions';
 import {batchScenery} from './static-batching';
 import {suspendHiddenTransforms} from './static-transforms';
@@ -125,7 +125,7 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
  const rig=createGameCamera(camera,scene,player);let observedPlanet:number|null=null,radioPlaying=false;
  rig.setMode(settings.cameraMode);
  const resetCamera=(view:NonNullable<Parameters<typeof rig.reset>[0]>|((aspect:number)=>NonNullable<Parameters<typeof rig.reset>[0]>)={})=>{const frame=typeof view==='function'?view(camera.aspect):view;rig.reset(settings.cameraMode==='far'?frame:{yaw:frame.yaw},settings.cameraMode==='far'&&typeof view==='function'?view:undefined)};
- const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>projectGallery.blocked(x,z,y)||!!streetLife?.blocked(new T.Vector3(x,y,z))||!!activities?.blocked(x,z,y)||!!capital?.blocked(x,z,y)||!!civicLife?.blocked(x,z,y)||cityGardens.blocked(x,z,y)||resumeBooks.blocked(x,z,y)||goldMonument.blocked(x,z,y)||city.blocked(x,z,y)||workshop.blocked(x,z,y)||bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:(x,z,y)=>capital?.height(x,z,y)??cityGardens.height(x,z,y)??city.height(x,z,y)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,y)??traversal.height(x,z,y)),change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup'),arrive:destination=>{if(destination>0)resetCamera(planetArrivalCameraView)},prepare:presentation.prepare});
+ const transport=createTransitWorld(scene,player,{blocked:(x,z,y)=>projectGallery.blocked(x,z,y)||!!streetLife?.blocked(new T.Vector3(x,y,z))||!!activities?.blocked(x,z,y)||!!capital?.blocked(x,z,y)||!!civicLife?.blocked(x,z,y)||cityGardens.blocked(x,z,y)||resumeBooks.blocked(x,z,y)||goldMonument.blocked(x,z,y)||city.blocked(x,z,y)||workshop.blocked(x,z,y)||bulletins.blocked(x,z,y)||(y<4?(buildings.blocked(x,z)||collideScenery(x,z,y)):collideScenery(x,z,y)),ground:(x,z,y)=>capital?.height(x,z,y)??cityGardens.height(x,z,y)??city.height(x,z,y)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,y)??traversal.height(x,z,y)),change:s=>callbacks.onTransit?.(s),open:()=>callbacks.onTransitOpen?.(),notice:s=>callbacks.onNotice?.(s),sound:()=>audio.cue('pickup'),arrive:destination=>{if(destination>0)resetCamera(planetArrivalCameraView)},prepare:presentation.prepare,memoryConstrained:compactDevice||bootTier==='low',releaseMemory:()=>renderer.renderLists.dispose()});
  constructionDisposers.push(()=>transport.dispose());if(startup)yield;
  const dog=createRoamingDog(scene,player,{height:referenceModelHeight,load:()=>assets.model('dog'),prepare:presentation.prepare,ground:(x,z)=>city.height(x,z,.8)??(city.lowerLevelAt(x,z)?null:workshop.height(x,z,.8)??traversal.height(x,z,.8)),blocked:(x,z)=>buildings.blocked(x,z)||[.8,3,5.2,7.4,9.6,11.8,14,16.2].some(y=>resumeBooks.blocked(x,z,y)||city.blocked(x,z,y)||cityGardens.blocked(x,z,y)||workshop.blocked(x,z,y)||collideScenery(x,z,y)||awe.blocked(x,z,y)||weather.blocked(x,z,y)||commons.blocked(x,z,y)||bulletins.blocked(x,z,y)||artMoments.blocked(x,z,y)||chronicle.blocked(x,z,y)),bark:(distance,pan)=>audio.bark(distance,pan),notice:text=>callbacks.onNotice?.(text)});
  const angel=createFlyingAngel(scene,camera,{dogHeight:dog.height,load:()=>assets.model('angel'),prepare:presentation.prepare,surfaces:transport.surfaces,change:status=>callbacks.onAngel?.(status),
@@ -158,7 +158,7 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
  const homeScenery=scene.children.filter(object=>!(object instanceof T.Light)&&object!==sun.target&&object!==player&&object!==friends.root&&object!==activities?.root&&object!==dog.root&&object!==angel.root&&object!==goldMonument.root&&object!==transport.neighborhood.root&&object.name!=='OrbitalTransit'&&object!==weather.sky.dome&&object!==weather.sky.root&&object!==city.root);
  for(const object of homeScenery)suspendHiddenTransforms(object);
  for(const neighborhood of city.neighborhoods){suspendHiddenTransforms(neighborhood);for(const level of neighborhood.levels)suspendHiddenTransforms(level.object)}
- const hiddenHome=new Map<T.Object3D,boolean>();
+ const hiddenHome=new Map<T.Object3D,boolean>();let homeGpuReleased=false;
  scene.updateMatrixWorld(true);
  scene.traverse(o=>{for(const bound of o.userData.staticCameraBounds??[])bound.applyMatrix4(scene.matrixWorld)});
  let audioUnlocked=false;const audioGesture=()=>{audioUnlocked=true;audio.setVolume(settings.volume);audio.enable(!settings.muted&&!paused);living.volume(settings.volume);living.sound(!settings.muted&&!paused);commons.speaker.sound(!settings.muted&&!paused,settings.volume)};
@@ -212,7 +212,10 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
     workshop.update(weather.visual.night>.5,onMotherboard&&!angel.controlled&&!sharedActivity&&buildings.getInside()===null?player.position:undefined);
     cityGardens.update(dt,settings.reducedMotion,{night:weather.visual.night,wet,wind:weather.snapshot.wind});
     city.update(dt,settings.reducedMotion,observer,onMotherboard,camera);
-    if(onMotherboard||sharedActivity||transport.journey.mode||angel.controlled&&angel.flight.state.destination!==null){for(const [object,visible] of hiddenHome)object.visible=visible;hiddenHome.clear()}else for(const object of homeScenery){if(!hiddenHome.has(object))hiddenHome.set(object,object.visible);object.visible=false}
+    if(onMotherboard||sharedActivity||transport.journey.mode||angel.controlled&&angel.flight.state.destination!==null){for(const [object,visible] of hiddenHome)object.visible=visible;hiddenHome.clear();homeGpuReleased=false}else{
+     for(const object of homeScenery){if(!hiddenHome.has(object))hiddenHome.set(object,object.visible);object.visible=false}
+    if(!homeGpuReleased&&(compactDevice||bootTier==='low')){const before={...renderer.info.memory},released=releaseHiddenGpuResources(scene,[...homeScenery,city.root,dog.root,angel.root,goldMonument.root]);scene.userData.homeGpuRelease={...released,before,after:{...renderer.info.memory}};renderer.renderLists.dispose();homeGpuReleased=true}
+    }
   if(!settings.reducedMotion){time+=dt;animated.fans.forEach((f:T.Object3D)=>f.rotation.y+=dt*.5);animated.gpu!.rotation.y+=dt*.35;pip.rotation.y=Math.sin(time*.7)*.2}awe.update(time,settings.reducedMotion);architecturalDetails.update(time,settings.reducedMotion);artMoments.update(time,settings.reducedMotion,weather.snapshot,onMotherboard);
   if(radioPlaying)audio.duck(.5);
   if(!angel.controlled&&!sharedActivity)buildings.update(dt);exhibits.forEach((e,i)=>{if(e.snapshot.step!==priorStages[i]){if(buildings.getInside()===i)audio.cue('demo');priorStages[i]=e.snapshot.step}});const distance=player.position.distanceTo(priorPosition);if(!sharedActivity&&!skating&&distance<1)footDistance+=distance;priorPosition.copy(player.position);if(footDistance>.9){audio.cue('footstep');footDistance=0}ambientClock+=dt;if(ambientClock>12){ambientClock=0;audio.cue('creature')}audio.tick(place,transitStops[sharedActivity?activities!.status.planet:angel.controlled?angel.flight.state.current:transport.journey.current]?.id);const lifePrompt=angel.controlled||sharedActivity?'':living.update(dt,buildings.getInside()!==null,settings.reducedMotion);
@@ -253,13 +256,14 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   {id:'building',run:()=>buildings.interact()},
  ],()=>!paused&&!menuOpen,audioGesture,()=>callbacks.onInteract(place));
  function interact(){if(activities?.active){callbacks.onFriends?.(activities.status.kind==='race'?'race':'ship');return}if(angel.controlled){if(!paused&&!menuOpen)angel.roam(!angel.flight.state.roaming);return}dispatchInteraction()}
- const visibility=()=>{cancelAnimationFrame(frame);frame=0;clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();last=performance.now();if(!document.hidden&&!disposed){if(audioUnlocked&&!settings.muted&&!paused){audio.enable(true);living.sound(true)}requestFrame()}};
+ const releaseInactiveMemory=()=>{transport.streaming.flush([transport.journey.current,transport.journey.mode?transport.journey.destination:transport.journey.current,...observedPlanet===null?[]:[observedPlanet],...angel.controlled?[angel.flight.state.current]:[]]);projectPages.render(false);renderer.renderLists.dispose()};
+ const visibility=()=>{cancelAnimationFrame(frame);frame=0;clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();last=performance.now();if(document.hidden)releaseInactiveMemory();if(!document.hidden&&!disposed){if(audioUnlocked&&!settings.muted&&!paused){audio.enable(true);living.sound(true)}requestFrame()}};
  document.addEventListener('visibilitychange',visibility);
  let restoreVersion=0;
- const loseContext=(event:Event)=>{event.preventDefault();restoreVersion++;contextLost=true;renderReady=false;cancelAnimationFrame(frame);frame=0;clearFlightInput();audio.enable(false);living.sound(false);callbacks.onNotice?.('Graphics paused while the browser restores its resources.');};
+ const loseContext=(event:Event)=>{event.preventDefault();restoreVersion++;contextLost=true;renderReady=false;cancelAnimationFrame(frame);frame=0;clearFlightInput();releaseInactiveMemory();assets.manager.pause();audio.enable(false);living.sound(false);callbacks.onNotice?.('Graphics paused while the browser restores its resources.');};
  const restoreContext=()=>{
   if(disposed)return;const version=++restoreVersion;renderReady=false;recoveryMode=true;viewportWidth=0;governor.reset('low');presentation.quality('low');configure();resize();
-  void presentation.prepare(scene,true).catch(error=>{if(!disposed&&version===restoreVersion)console.warn('Restored shader preparation failed',error)}).then(()=>{if(disposed||version!==restoreVersion)return;contextLost=false;renderReady=true;last=performance.now();callbacks.onNotice?.('Graphics restored. Your position and progress are unchanged.');requestFrame()});
+  void presentation.prepare(scene,true).catch(error=>{if(!disposed&&version===restoreVersion)console.warn('Restored shader preparation failed',error)}).then(()=>{if(disposed||version!==restoreVersion)return;contextLost=false;renderReady=true;assets.start();last=performance.now();callbacks.onNotice?.('Graphics restored. Your position and progress are unchanged.');requestFrame()});
  };
  renderer.domElement.addEventListener('webglcontextlost',loseContext);renderer.domElement.addEventListener('webglcontextrestored',restoreContext);
  let shopVisit=0;

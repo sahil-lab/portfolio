@@ -21,11 +21,12 @@ export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:
     const element=document.createElement('div'),iframe=document.createElement('iframe');
     Object.assign(element.style,{width:'1440px',height:'496px',overflow:'hidden',pointerEvents:'none',background:'transparent'});
     iframe.title=entry.project.name+' website';iframe.dataset.projectBulletin=entry.project.id;iframe.referrerPolicy='no-referrer';iframe.tabIndex=-1;
-    iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups');Object.assign(iframe.style,{width:'100%',height:'100%',border:'0',pointerEvents:'none',opacity:'0',background:'transparent'});element.appendChild(iframe);
+    iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups');Object.assign(iframe.style,{width:'100%',height:'100%',border:'0',pointerEvents:'none',opacity:'0',background:'transparent'});
     const object=new CSS3DObject(element);element.style.pointerEvents='none';object.visible=false;pages.add(object);let timer:ReturnType<typeof setTimeout>|undefined,started=false;
-    const fallback=()=>{if(disposed)return;clearTimeout(timer);iframe.style.opacity='0';entry.group.userData.previewState='fallback'};
+    const stop=()=>{if(!started)return;started=false;clearTimeout(timer);iframe.style.opacity='0';iframe.removeAttribute('src');iframe.remove();entry.group.userData.previewState='fallback'};
+    const fallback=()=>{if(!disposed)stop()};
     iframe.onerror=fallback;iframe.onload=()=>{if(disposed||!started)return;clearTimeout(timer);iframe.style.opacity='1';entry.group.userData.previewState='frame-loaded'};
-    return {entry,iframe,object,start(){if(started||disposed)return;started=true;entry.group.userData.previewState='loading';iframe.src=entry.project.url;timer=setTimeout(fallback,18000)},stop(){if(!started)return;started=false;clearTimeout(timer);iframe.style.opacity='0';iframe.removeAttribute('src');entry.group.userData.previewState='fallback'},dispose(){clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.removeAttribute('src');element.remove()}};
+    return {entry,iframe,object,start(){if(started||disposed)return;started=true;entry.group.userData.previewState='loading';element.appendChild(iframe);iframe.src=entry.project.url;timer=setTimeout(fallback,18000)},stop,dispose(){clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.removeAttribute('src');iframe.remove();element.remove()}};
   });
   function visible(object:T.Object3D){for(let current:T.Object3D|null=object;current;current=current.parent)if(!current.visible)return false;return true}
   function render(active=true,limit=2){

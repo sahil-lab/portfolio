@@ -8,6 +8,21 @@ test('planets start as lightweight proxies, deduplicate builds, and unload inact
  time=5;await streamer.load(2);streamer.trim([2]);assert.equal(stats.disposed,1);assert.equal(streamer.ready(1),false);assert.equal(streamer.snapshot().resident,1);assert.equal(streamer.landscapes[1].root,roots[1]);assert.equal(streamer.landscapes[1].proxy.visible,true);await streamer.load(1);assert.equal(stats.builds,3);streamer.trim([1]);assert.equal(streamer.snapshot().resident,1);
  time=2000;streamer.trim();assert.equal(streamer.snapshot().resident,0);assert.equal(stats.disposed,3);streamer.dispose();assert.equal(scene.children.length,0);
 });
+test('inactive world resources are released before constructing the next destination',async()=>{
+ let live=0,peak=0;
+ const scene=new T.Scene(),streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,4).map(stop=>createPlanetSurface(stop,stop.radius))],{maxResident:1,factory:async()=>function*(parent){
+  const root=new T.Group(),geometry=new T.BoxGeometry(),material=new T.MeshStandardMaterial();parent.add(root);root.add(new T.Mesh(geometry,material));live++;peak=Math.max(peak,live);geometry.addEventListener('dispose',()=>live--);yield 'geometry';return {root,update(){},blocked:()=>false};
+ }});
+ try{streamer.protect(1);assert.equal(await streamer.load(1),true);streamer.protect(2);assert.equal(await streamer.load(2),true);assert.equal(peak,1,'old and incoming worlds overlapped the configured memory budget');assert.equal(streamer.ready(1),false);assert.equal(streamer.ready(2),true)}finally{streamer.dispose()}
+ assert.equal(live,0);
+});
+test('destination builds stay serialized through shader preparation and queued cancellations allocate nothing',async()=>{
+ const stats={builds:0,disposed:0,updates:0},scene=new T.Scene();let finish,started;
+ const preparing=new Promise(resolve=>{started=resolve}),streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,4).map(stop=>createPlanetSurface(stop,stop.radius))],{factory:factory(stats),prepare:()=>{if(stats.builds===1){started();return new Promise(resolve=>{finish=resolve})}return Promise.resolve()}});
+ const first=streamer.load(1);await preparing;const second=streamer.load(2),third=streamer.load(3);
+ assert.equal(streamer.snapshot().loading,1);assert.equal(streamer.snapshot().queued,2);assert.equal(stats.builds,1);
+ streamer.landscapes[2].unload();assert.equal(await second,false);assert.equal(stats.builds,1);finish();assert.equal(await first,true);assert.equal(await third,true);assert.equal(stats.builds,2);streamer.dispose();
+});
 test('cancelled planet construction disposes partial resources and never attaches to a dead world',async()=>{
  const stats={builds:0,disposed:0,updates:0},scene=new T.Scene(),streamer=createPlanetStreamer(scene,[null,createPlanetSurface(transitStops[1],78)],{factory:factory(stats)});const pending=streamer.load(1);streamer.dispose();assert.equal(await pending,false);assert.equal(scene.children.length,0);assert.equal(streamer.snapshot().resident,0);
 });
@@ -18,12 +33,18 @@ test('streamed geometry remains detached until shaders are ready and cancelled p
  streamer.landscapes[1].unload();finish();assert.equal(await pending,false);assert.equal(streamer.ready(1),false);assert.equal(stats.disposed,1);streamer.dispose();
 });
 test('abandoned background builds are cancelled when the visitor changes destination',async()=>{
- let time=0,resolveFactory;const stats={builds:0,disposed:0,updates:0},scene=new T.Scene(),builder=factory(stats),streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,4).map(stop=>createPlanetSurface(stop,stop.radius))],{now:()=>time,factory:()=>new Promise(resolve=>{resolveFactory=resolve})});
- const pending=streamer.load(1);time=2000;streamer.trim([2]);resolveFactory(await builder());assert.equal(await pending,false);assert.equal(stats.builds,0);assert.equal(streamer.snapshot().resident,0);assert.equal(streamer.landscapes[1].state,'unloaded');streamer.dispose();
+ let time=0,resolveFactory,markStarted;const started=new Promise(resolve=>{markStarted=resolve}),stats={builds:0,disposed:0,updates:0},scene=new T.Scene(),builder=factory(stats),streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,4).map(stop=>createPlanetSurface(stop,stop.radius))],{now:()=>time,factory:()=>new Promise(resolve=>{resolveFactory=resolve;markStarted()})});
+ const pending=streamer.load(1);await started;time=2000;streamer.trim([2]);resolveFactory(await builder());assert.equal(await pending,false);assert.equal(stats.builds,0);assert.equal(streamer.snapshot().resident,0);assert.equal(streamer.landscapes[1].state,'unloaded');streamer.dispose();
 });
 test('sleeping planets stop per-frame work and interactive demo progress survives unloading',async()=>{
  const {createRealmDemo}=require('../app/realm-demos.ts');let updates=0;
  const scene=new T.Scene(),streamer=createPlanetStreamer(scene,[null,createPlanetSurface(transitStops[7],128)],{factory:async()=>function*(parent){const root=new T.Group();parent.add(root);const demo=createRealmDemo('research');yield 'ready';return {root,update(){updates++},blocked:()=>false,realm:{demo,restore:index=>demo.restore(index)}}}}),observer=new T.Group();assert.equal(await streamer.load(1),true);
  const planet=streamer.landscapes[1];planet.realm.demo.activate();planet.realm.demo.activate();planet.update(.1,false,observer,true);planet.update(.1,false,observer,false);const sleepingUpdates=updates;for(let frame=0;frame<60;frame++)planet.update(.1,false,observer,false);assert.equal(updates,sleepingUpdates);
  planet.unload();assert.equal(await planet.load(),true);assert.equal(planet.realm.demo.snapshot.index,1);assert.equal(planet.realm.demo.activate().index,2);streamer.dispose();
+});
+test('memory flushing preserves protected and observed planets and releases only inactive resources',async()=>{
+ const stats={builds:0,disposed:0,updates:0},scene=new T.Scene();let flushed=0;
+ const streamer=createPlanetStreamer(scene,[null,...transitStops.slice(1,3).map(stop=>createPlanetSurface(stop,stop.radius))],{factory:factory(stats),onRelease:()=>flushed++});
+ await streamer.load(1);await streamer.load(2);streamer.landscapes[1].root.userData.observed=true;streamer.flush([2]);assert.equal(flushed,0);assert.equal(streamer.ready(1),true);assert.equal(streamer.ready(2),true);
+ streamer.landscapes[1].root.userData.observed=false;streamer.flush([2]);assert.equal(flushed,1);assert.equal(streamer.ready(1),false);assert.equal(streamer.ready(2),true);streamer.flush([2]);assert.equal(flushed,1);streamer.dispose();
 });

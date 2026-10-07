@@ -8,6 +8,7 @@ import {finishKingdomMaterials} from './kingdom-art';
 import type {createPlanetLandscape,buildPlanetLandscape} from './planet-surface';
 import type {ForgeSnapshot} from './forge-feed';
 import {loadAuthoredTerrain,type AuthoredTerrain} from './authored-terrain';
+import {createAssetManager} from './asset-manager';
 
 type Landscape=ReturnType<typeof createPlanetLandscape>;
 type Builder=typeof buildPlanetLandscape;
@@ -17,17 +18,18 @@ function createOrbitalProxy(surface:PlanetSurface){
  for(let index=0;index<position.count;index++){normal.fromBufferAttribute(position,index).normalize();planetPoint(surface,normal,point).sub(surface.center);position.setXYZ(index,point.x,point.y,point.z);color.copy(land).lerp(patch,(Math.sin(normal.x*9+normal.z*3)*Math.cos(normal.y*12-normal.x*4)+1)*.22).toArray(colors,index*3)}
  geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));mesh.name='Planet_StreamingSilhouette';mesh.position.copy(surface.center);return mesh;
 }
-export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain}={}){
+export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;beforeLoad?:()=>void;onRelease?:()=>void;runLoad?:(work:()=>Promise<boolean>,priority:number,signal:AbortSignal)=>Promise<boolean>}={}){
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
  function unload(){
-    generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
+   generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
  }
  async function load(priority=1):Promise<boolean>{
   if(disposed)return false;if(value){lastUse=now();return true}if(pending)return pending;
   const token=++generation,staging=new T.Group(),controller=new AbortController();terrainController=controller;state='loading';lastUse=now();let terrain:AuthoredTerrain|null=null;
-  pending=(async()=>{
+   const work=async()=>{
    try{
+      options.beforeLoad?.();
    const factory=await (options.factory??(async()=>{const landscapeModule=await import('./planet-surface');return landscapeModule.buildPlanetLandscape}))();
     if(disposed||token!==generation)return false;terrain=options.terrain?await options.terrain(surface,controller.signal):options.factory?null:await loadAuthoredTerrain(surface,controller.signal);if(disposed||token!==generation)return false;
     const builder=factory(staging,surface,terrain??undefined);let result:IteratorResult<string,Landscape>;
@@ -41,7 +43,8 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
     if(repositoryData)value.civilization?.setRepositories(repositoryData);if(realmState!==null)value.realm?.restore(realmState);return true;
    }catch{if(!disposed&&token===generation)state='failed';return false}
   finally{if(terrain)disposeScene(terrain.root);disposeScene(staging);staging.clear();pending=null;if(terrainController===controller)terrainController=null}
-  })();return pending;
+   };
+   pending=(options.runLoad?options.runLoad(work,priority,controller.signal):work()).catch(()=>{if(!disposed&&token===generation)state='failed';return false}).finally(()=>{pending=null;if(terrainController===controller)terrainController=null});return pending;
  }
  return {root,rotation,proxy,load,unload,get loaded(){return value!==null},get state(){return state},get lastUse(){return lastUse},get pending(){return pending},
   get globe(){return value?.globe??proxy},get infrastructure(){return value?.infrastructure},get publicSpaces(){return value?.publicSpaces},get population(){return value?.population},get civilization(){return value?.civilization},get realm(){return value?.realm},get vegetation(){return value?.vegetation},get outposts(){return value?.outposts??[]},get details(){return value?.details},get distant(){return value?.distant??proxy},get streetLife(){return value?.streetLife},
@@ -57,24 +60,37 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
   dispose(){if(disposed)return;disposed=true;unload();disposeScene(proxy);root.removeFromParent()},
  };
 }
-export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain}={}){
- const scheduler=createWorkScheduler(),now=options.now??(()=>performance.now()),landscapes=surfaces.map(surface=>surface?createStreamedPlanet(parent,surface,scheduler,options):null);let lastSweep=-Infinity;
+export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;onRelease?:()=>void}={}){
+ let protectedWorlds=new Set<number>();
+ const scheduler=createWorkScheduler(),loads=createAssetManager({concurrency:1}),now=options.now??(()=>performance.now()),landscapes=surfaces.map((surface,index)=>surface?createStreamedPlanet(parent,surface,scheduler,{...options,beforeLoad:()=>makeRoom(index),runLoad:(work,priority,signal)=>runLoad(index,work,priority,signal)}):null);let lastSweep=-Infinity;
  const maxResident=options.maxResident??2,retireAfter=options.retireAfterMs??15000;
+ async function runLoad(index:number,work:()=>Promise<boolean>,priority:number,signal:AbortSignal){
+  signal.throwIfAborted();const lease=loads.acquire('planet/'+index,work,()=>{},priority),abort=()=>lease.release();signal.addEventListener('abort',abort,{once:true});
+  try{return await lease.promise}finally{signal.removeEventListener('abort',abort);lease.release()}
+ }
+ function makeRoom(incoming:number){
+  const keep=new Set(protectedWorlds);keep.add(incoming);landscapes.forEach((landscape,index)=>{if(landscape?.root.userData.observed)keep.add(index)});
+  const residents=landscapes.flatMap((landscape,index)=>landscape?.loaded?[{landscape,index}]:[]).sort((first,second)=>first.landscape.lastUse-second.landscape.lastUse);let count=residents.length;
+  for(const {landscape,index} of residents)if(!keep.has(index)&&count>=maxResident){landscape.unload();count--}
+ }
  function trim(keep:Set<number>){
   const residents=landscapes.flatMap((landscape,index)=>landscape?.loaded?[{landscape,index}]:[]).sort((first,second)=>first.landscape.lastUse-second.landscape.lastUse);let count=residents.length;
   for(const {landscape,index} of residents)if(!keep.has(index)&&(count>maxResident||now()-landscape.lastUse>retireAfter)){landscape.unload();count--}
    landscapes.forEach((landscape,index)=>{if(landscape?.state==='loading'&&!keep.has(index)&&now()-landscape.lastUse>1000)landscape.unload()});
  }
  return {landscapes,ready:(index:number)=>!index||!!landscapes[index]?.loaded,
+  protect(current:number|null,destination:number|null=null){protectedWorlds=new Set<number>();if(current)protectedWorlds.add(current);if(destination)protectedWorlds.add(destination)},
   load:(index:number)=>index?landscapes[index]?.load(0)??Promise.resolve(false):Promise.resolve(true),prefetch:(index:number)=>{if(index&&landscapes[index]?.state!=='failed')void landscapes[index]?.load(1)},
   update(delta:number,reduced:boolean,observer:T.Group,current:number|null,destination:number|null=null){
    const keep=new Set<number>();if(current)keep.add(current);if(destination)keep.add(destination);
-   landscapes.forEach((landscape,index)=>{if(!landscape)return;if(landscape.root.userData.observed)keep.add(index);landscape.update(delta,reduced,observer,current===index)});
+   landscapes.forEach((landscape,index)=>{if(landscape?.root.userData.observed)keep.add(index)});protectedWorlds=keep;
+   landscapes.forEach((landscape,index)=>landscape?.update(delta,reduced,observer,current===index));
    if(destination)void landscapes[destination]?.load(0);
    if(now()-lastSweep>500){lastSweep=now();let nearest=0,distance=160;surfaces.forEach((surface,index)=>{if(!surface)return;const separation=observer.position.distanceTo(surface.center)-surface.radius;if(separation<distance){nearest=index;distance=separation}});if(nearest){keep.add(nearest);void landscapes[nearest]?.load(1)}trim(keep)}
   },
   trim:(keep:number[]=[])=>trim(new Set(keep)),
-  snapshot:()=>({resident:landscapes.filter(planet=>planet?.loaded).length,pending:scheduler.pending,zones:landscapes.flatMap(planet=>planet?[{id:planet.root.name,state:planet.state}]:[])}),
-  dispose(){scheduler.dispose();landscapes.forEach(planet=>planet?.dispose())},
+   flush(keep:number[]=[]){const protectedSet=new Set(keep);landscapes.forEach((landscape,index)=>{if(landscape?.root.userData.observed)protectedSet.add(index)});landscapes.forEach((landscape,index)=>{if(landscape&&!protectedSet.has(index)&&(landscape.loaded||landscape.pending))landscape.unload()})},
+   snapshot:()=>({resident:landscapes.filter(planet=>planet?.loaded).length,pending:scheduler.pending,loading:loads.snapshot().active,queued:loads.snapshot().queued,zones:landscapes.flatMap(planet=>planet?[{id:planet.root.name,state:planet.state}]:[])}),
+   dispose(){scheduler.dispose();landscapes.forEach(planet=>planet?.dispose());loads.dispose()},
  };
 }

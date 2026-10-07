@@ -12,6 +12,59 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Mobile Travel Memory, 7 October 2026
+
+The reported mobile reset happens near the gold statue and after roaming planets.
+This follow-up reduces concrete resource-lifetime and allocation risks; it does not
+claim to have reproduced the reset on the user's physical phone.
+
+- Planet terrain decoding, construction and shader preparation share a one-load queue. Abandoned queued destinations allocate no geometry.
+- Unprotected inactive planets are evicted before the next planet allocates, rather than only after it has loaded. Arrivals immediately update the protected destination; active, observed and in-transit worlds are preserved.
+- Constrained devices retain one inactive-cache slot and use a three-second retirement delay instead of the desktop two-world/fifteen-second policy. No world content or detail level is removed.
+- Explicit inactive-world flushing runs on visibility loss and graphics-context loss. Released worlds clear renderer draw-list references, and optional model loads pause during context recovery.
+- Cancelled asset completions can no longer remove a replacement cache entry. Late lease releases cannot make reference counts negative.
+- Statue-side preview iframes are attached only while running and detached on stop, error or timeout. Revisiting can start them again; the five boards and their links remain.
+- When a constrained device leaves the mainland, GPU allocations exclusive to hidden mainland and companion roots are released once. CPU vertex data, scene objects and materials remain for re-upload on return. Visible shared geometry, ordinary/interleaved attributes, textures and the scene environment are protected. Material disposal is deliberately not used for this temporary release.
+
+### Sustained Travel Verification
+
+The final isolated Chrome mobile-emulation run used Balanced quality, a 390 x 844
+viewport with device scale 2, the existing pixel budget and real embedded project
+pages, not response fixtures. It completed 194.8 seconds and five cycles: five
+statue visits, fifteen planet visits with WASD movement, and five plaza returns.
+There was one document, one scene and one canvas throughout, with no unexpected
+context loss or page errors. Native touch/orientation, camera-mode changes and
+forced context recovery then passed without replacing the app.
+
+Each visited planet was the only resident detailed planet; returning to the plaza
+retired all planet details and detached all preview iframes. Post-GC retained heap
+across returns was 333.26, 336.07, 335.98, 335.53 and 337.17 MiB. Garbage collection
+was requested by the diagnostic only; the application does not attempt to force GC.
+
+On the first off-mainland release, the renderer's resident geometry allocation
+count fell from 1,730 to 298 and texture allocation count from 123 to 44. These are
+allocation counts, not measured VRAM bytes. The helper also encounters unuploaded
+resources, so its disposal-attempt counts are not reported as GPU savings.
+Planet and returned-mainland frames remained nonblank, and screenshots confirmed
+the statue, world content and restored plaza. Eleven separate desktop/mobile
+day/night/quality/movement visual checks passed.
+
+TypeScript, scoped lint, 69 focused asset/planet/statue/travel/resource tests and
+the production build passed. Source fingerprints are recorded in
+`outputs/performance/oct7-memory-final-source.json`; browser results are under
+`outputs/performance/oct7-memory-final-tour` and
+`outputs/playtest/oct7-memory-final-visuals-checks.json`. An earlier soak had stable
+memory but failed its error gate because test initialization ran inside sandboxed
+iframes; the harness now initializes only the top-level page. The final run above
+passed with real embeds.
+
+This is local Chrome emulation on the available GPU, not physical-phone or hosted
+deployment certification. No universal 10,000-times speedup or prevention of every
+OS/browser tab discard is claimed. A whole-document restart can still initialize
+at the plaza; this change reduces memory pressure rather than hiding a restart.
+The full suite and Vercel deployment packaging were not rerun for this follow-up.
+These measurements describe the local build and do not certify the hosted deployment.
+
 ## Progressive Visibility, 7 October 2026
 
 The latest requirement is to show the live scene within roughly 7-8 seconds and
