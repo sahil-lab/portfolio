@@ -75,7 +75,9 @@ async function main(){
       await context.routeWebSocket(socket=>socket.origin===new URL(url).origin.replace(/^http/,'ws'),()=>{});
       await page.route('**/assets/collectible-press-study.glb',route=>route.fulfill({path:path.resolve('assets/premium-candidates/packet-press-collectible.glb'),contentType:'model/gltf-binary'}));
     }
-    await page.goto(url+'/?visual-review=1',{waitUntil:'domcontentloaded',timeout:90000});
+    const reviewUrl=new URL(url);reviewUrl.searchParams.set('visual-review','1');
+    await page.goto(reviewUrl.href,{waitUntil:'domcontentloaded',timeout:90000});
+    await page.waitForFunction(()=>document.querySelector('main.kingdom')?.getAttribute('data-ready')==='true',null,{timeout:90000});
     await page.locator('.loading').waitFor({state:'hidden',timeout:worldKitOnly?45000:90000}).catch(async error=>{fs.writeFileSync(path.join(output,`${prefix}-startup-failure.json`),JSON.stringify({error:error.message,errors,body:await page.locator('body').innerText()},null,2));console.error(JSON.stringify({errors},null,2));throw error});
     if(process.argv.includes('--ao-control'))assert.equal(controlledOcclusion,true,'The comparison must intercept the active renderer module');
     await page.evaluate(()=>{

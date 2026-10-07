@@ -26,3 +26,19 @@ test('material batching preserves unique building shape in seven or fewer draw g
   skins.forEach(skin=>baked.add(new T.Mesh(skin.geometry,skin.material)));const after=new T.Box3().setFromObject(baked);assert.ok(before.min.distanceTo(after.min)<1e-5&&before.max.distanceTo(after.max)<1e-5);assert.ok(skins.length<=7);disposeScene(baked);
  }
 });
+test('owned neighborhood geometry bakes without redundant copies and preserves every attribute',()=>{
+ function bake(consume){
+  const building=createCraftedBuilding({style:'atelier',address:'owned-bake',detail:false}),source=building.envelope.children[0],duplicate=new T.Mesh(source.geometry,source.material);duplicate.position.copy(source.position).add(new T.Vector3(10,0,0));building.envelope.add(duplicate);
+  building.root.position.set(17,2,-9);building.root.rotation.y=.73;building.envelope.rotation.y=.19;
+  const geometries=new Set();building.root.traverse(object=>{if(object.isMesh)geometries.add(object.geometry)});let copies=0;
+  for(const geometry of geometries){const clone=geometry.clone.bind(geometry);geometry.clone=()=>{copies++;return clone()}}
+  return {skins:bakeArchitecture(building.root,consume),copies};
+ }
+ const reference=bake(false),owned=bake(true);assert.ok(owned.copies<reference.copies*.25,JSON.stringify({before:reference.copies,after:owned.copies}));assert.equal(owned.skins.length,reference.skins.length);
+ for(const [index,skin] of reference.skins.entries()){
+  const actual=owned.skins[index];assert.equal(actual.material.color.getHex(),skin.material.color.getHex());assert.deepEqual(actual.geometry.index?.array??null,skin.geometry.index?.array??null);
+  assert.deepEqual(Object.keys(actual.geometry.attributes),Object.keys(skin.geometry.attributes));
+  for(const name of Object.keys(skin.geometry.attributes))assert.deepEqual(actual.geometry.attributes[name].array,skin.geometry.attributes[name].array,name);
+ }
+ for(const result of [reference,owned])for(const skin of result.skins){skin.geometry.dispose();skin.material.dispose()}
+});

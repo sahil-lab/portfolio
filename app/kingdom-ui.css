@@ -235,6 +235,10 @@ html:has(.kingdom), body:has(.kingdom) { overscroll-behavior: none; }
 .kingdom .loading { z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #142b31; color: #d5ecd9; font: 500 21px 'Fraunces', serif; text-align: center; padding: 24px; }
 .kingdom .loading svg { color: var(--hud-gold); }
 .kingdom .loading small { color: #adc5bd; font: 11px 'Space Grotesk', sans-serif; }
+.kingdom[data-visible=true] .loading { inset: auto 16px 76px auto; width: 164px; padding: 10px 12px; gap: 8px; border: 1px solid var(--hud-line); border-radius: 6px; background: #142b31d9; pointer-events: none; }
+.kingdom[data-visible=true] .loading > svg, .kingdom[data-visible=true] .loading > span { display: none; }
+.kingdom[data-visible=true] .loading .boot-line { width: 100%; }
+.kingdom[data-ready=false] .location, .kingdom[data-ready=false] .controls, .kingdom[data-ready=false] .screen-movement { visibility: hidden; pointer-events: none; }
 .kingdom .boot-line { width: 112px; height: 2px; background: #a4caba25; overflow: hidden; margin-top: 10px; }
 .kingdom .boot-line::after { content: ''; display: block; width: 50%; height: 100%; background: var(--hud-gold); animation: kingdom-boot 1.5s ease-in-out infinite alternate; }
 @keyframes kingdom-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

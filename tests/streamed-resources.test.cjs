@@ -1,6 +1,24 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{disposeScene}=require('../app/scene-resources.ts'),{createCityLightResponse}=require('../app/world-lighting.ts'),{createKingdomPresentation,kingdomOcclusion,presentationPixelRatio,presentationPixelBudget}=require('../app/kingdom-presentation.ts');
+test('world construction yields between visible stages and retains the final result',async()=>{
+ const {runCreationStages}=require('../app/work-scheduler.ts'),events=[];
+ function* stages(){events.push('ground');yield;events.push('city');yield Promise.resolve();events.push('ready');return 42}
+ const result=await runCreationStages(stages(),{onStage:()=>events.push('paint'),yieldControl:async()=>{events.push('yield')}});
+ assert.equal(result,42);assert.deepEqual(events,['ground','paint','yield','city','paint','yield','ready']);
+});
+test('cancelling construction releases partial work without waiting for pending assets',async()=>{
+ const {runCreationStages}=require('../app/work-scheduler.ts'),controller=new AbortController();let released=false,continued=false;
+ function* stages(){try{yield new Promise(()=>{});continued=true;return 1}finally{released=true}}
+ const pending=runCreationStages(stages(),{signal:controller.signal});controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(released,true);assert.equal(continued,false);
+});
+test('the early live view draws real geometry and restores render state before construction continues',()=>{
+ const {createStartupView}=require('../app/startup-view.ts'),oldFrame=global.requestAnimationFrame,oldCancel=global.cancelAnimationFrame,frames=new Map();let identifier=0,draws=0,visible=0;
+ global.requestAnimationFrame=callback=>{frames.set(++identifier,callback);return identifier};global.cancelAnimationFrame=handle=>frames.delete(handle);
+ const scene=new T.Scene(),renderer={shadowMap:{enabled:true},getRenderTarget:()=>null,setRenderTarget(){},setPixelRatio(value){assert.equal(value,1)},setSize(){},render(actual,camera){draws++;assert.equal(actual,scene);assert.equal(scene.scale.x,2);assert.ok(camera.aspect>0);let meshes=0;scene.traverse(object=>{if(object.isMesh)meshes++});assert.ok(meshes>10)}};
+ const flush=now=>{const [handle,callback]=frames.entries().next().value;frames.delete(handle);callback(now)};
+ let view;try{view=createStartupView({clientWidth:390,clientHeight:844},scene,renderer,()=>visible++);assert.equal(draws,1);assert.equal(visible,1);assert.deepEqual(scene.scale.toArray(),[1,1,1]);assert.equal(renderer.shadowMap.enabled,true);view.beginConstruction();flush(performance.now()+1000);assert.equal(draws,2);flush(performance.now()+2000);assert.equal(draws,2,'unchanged construction stage redrew the whole scene');view.invalidate();flush(performance.now()+3000);assert.equal(draws,3);view.clear();assert.equal(scene.children.length,0);view.dispose();assert.equal(frames.size,0)}finally{view?.dispose();if(oldFrame===undefined)delete global.requestAnimationFrame;else global.requestAnimationFrame=oldFrame;if(oldCancel===undefined)delete global.cancelAnimationFrame;else global.cancelAnimationFrame=oldCancel}
+});
 test('model work uses bounded idle time, keeps priority and cancels queued work',async context=>{
  const {createWorkScheduler}=require('../app/work-scheduler.ts'),previousIdle=global.requestIdleCallback,previousCancel=global.cancelIdleCallback,callbacks=new Map(),ran=[],timeouts=[];let next=0,now=0;
  context.mock.method(performance,'now',()=>now);
@@ -20,6 +38,11 @@ test('unloaded glass materials leave the lighting registry and shader textures a
  const scene=new T.Scene(),material=new T.MeshStandardMaterial();material.userData.surface='glass';const mesh=new T.Mesh(new T.BoxGeometry(),material);scene.add(mesh);const lights=createCityLightResponse(scene);lights.update(1,1,0);assert.equal(lights.count,1);material.dispose();mesh.removeFromParent();assert.equal(lights.count,0);lights.update(1,0,0);assert.equal(lights.count,0);
  const texture=new T.Texture(),shader=new T.ShaderMaterial({uniforms:{water:{value:texture},repeat:{value:texture}}});let released=0;texture.addEventListener('dispose',()=>released++);scene.add(new T.Mesh(mesh.geometry,shader));disposeScene(scene);assert.equal(released,1);lights.dispose();
 });
+test('initial HTML preloads only the required model libraries with reusable fetch credentials',()=>{
+ const source=ts.createSourceFile('layout.tsx',fs.readFileSync('app/layout.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),links=[];function visit(node){if(ts.isJsxSelfClosingElement(node)&&node.tagName.getText(source)==='link'){const attributes=Object.fromEntries(node.attributes.properties.filter(ts.isJsxAttribute).map(attribute=>[attribute.name.getText(source),attribute.initializer?.text]));if(attributes.rel==='preload')links.push(attributes)}ts.forEachChild(node,visit)}visit(source);
+ assert.deepEqual(links.map(link=>link.href),['/assets/world-v1/kingdom-world-kit.glb','/assets/premium-v1/architecture-kit.glb','/assets/world-v1/craft-kit.glb','/assets/life-v1/life-kit.glb']);for(const link of links){assert.equal(link.as,'fetch');assert.equal(link.crossOrigin,'anonymous');assert.equal(link.fetchPriority,'low');assert.ok(fs.existsSync('public'+link.href))}
+});
+
 test('bloom render targets stay within a fixed pixel budget on large high-DPI screens',()=>{
  for(const [width,height,ratio] of [[1440,960,1.5],[3840,2160,2],[390,844,3]]){const effective=presentationPixelRatio(width,height,ratio);assert.ok(effective<=ratio);assert.ok(width*height*effective*effective<=presentationPixelBudget+1)}
  assert.equal(presentationPixelRatio(800,600,1),1);

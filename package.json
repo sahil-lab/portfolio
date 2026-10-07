@@ -7,8 +7,10 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "build:city-shells": "node scripts/build-city-shells.cjs",
+    "prebuild": "npm run build:city-shells",
     "build": "vinext build",
-    "prebuild:vercel": "npm run friends:prepare",
+    "prebuild:vercel": "node scripts/build-city-shells.cjs --prepare-friends",
     "build:vercel": "vite build --config vite.vercel.config.ts",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",

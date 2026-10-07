@@ -12,6 +12,141 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Progressive Visibility, 7 October 2026
+
+The latest requirement is to show the live scene within roughly 7-8 seconds and
+continue filling it in, rather than keep an opaque cover until the entire world
+is ready. This supersedes the earlier full-readiness-only target below.
+
+Startup now draws a lightweight live plaza and animated fountain on the same
+WebGL canvas before preparing the bulk assets. Independent asset preparation
+still runs in parallel after that first draw. Model preload hints use low priority
+so they do not outrank application startup. World construction yields through
+browser frames between sections; the early renderer draws newly available scene
+content on demand instead of repeatedly redrawing an unchanged construction stage.
+
+The full-screen cover becomes a compact loading status when real geometry is
+visible. The page remains `aria-busy`, and gameplay controls remain unavailable
+until full initialization completes. The temporary plaza is removed when the real
+capital exists; the ordinary renderer and unchanged effects take over at readiness.
+The early view is not a claim that all content or effects have already loaded.
+Cancellation closes the staged builder and releases partial resources, while the
+existing synchronous world-creation API remains available.
+
+| Final Local Check | First Visible Scene | Full World Ready |
+| --- | --- | --- |
+| Mobile, cold cache / 4x CPU / 80 ms latency / 10 Mbps down / 2 Mbps up | **6.28 s** | 95.98 s |
+| Desktop, unthrottled | **1.29 s** | 37.54 s |
+
+These are single local Chrome runs, not physical-phone guarantees. Full readiness
+is still expensive and is not advertised as a 7-8 second result. The visible-first
+path changes scheduling and adds interim rendering, so it should not be compared
+with earlier complete-startup timings as an overall throughput improvement.
+
+Both early captures contained real nonblank geometry while `data-ready` was false,
+used one canvas, hid the movement controls, and retained the loading status. At
+completion all 85 sign textures matched the preceding build pixel-for-pixel, all
+five routes matched, all 236 prebuilt neighborhoods were used, and temporary startup
+geometry was absent. Mobile native gestures, orientation/camera changes, preview
+lifetimes and forced context restoration passed after handoff. Eleven desktop/mobile
+day/night/quality/movement visual checks passed with no page errors.
+
+TypeScript, scoped lint, production builds, 40 focused controls/rendering/resource
+tests and the additional staged-cancellation/redraw checks passed. The full suite
+and Vercel packaging were not rerun for this progressive follow-up. Final reports
+are under `outputs/performance/oct7-progressive-verified-*`, with source hashes in
+`outputs/performance/oct7-progressive-source.json`; lifecycle and visual evidence
+use the `oct7-progressive` prefix. These measurements describe the local build;
+they do not certify the hosted deployment.
+
+## Slow-Device Follow-up, 7 October 2026
+
+Before progressive visibility, finished rover/rocket assemblies were reused with
+independent paint and moving parts, and sign text fitting switched from a linear
+font-size scan to a binary search over the same candidates. All 39 focused tests
+passed. A completed matched throttled pair improved full readiness from 64.30 to
+57.40 seconds (10.7%), with all 85 sign textures and all five routes unchanged.
+That separate pair is under `outputs/performance/oct7-slow-device-verified-mobile`;
+it must not be mixed with other runs to infer a larger isolated gain.
+
+## Loading-Time Pass, 7 October 2026
+
+This pass targets time to the existing ready marker and a nonblank composited
+first view. The loader still waits for world construction and shader preparation;
+it is not dismissed early. Existing post-ready model downloads remain post-ready.
+No resolution, geometry, texture, population or effect quality was reduced.
+
+### Retained Changes
+
+- The four required model libraries are discovered from HTML preload hints. The browser reuses those requests, with no duplicate model downloads.
+- Architecture model parsing, relief-image decoding and normal-map requests overlap instead of forming a serial waterfall.
+- City planting reuses immutable canopy bounds and scratch boxes. All 944 street trees and four large banyan trees remain, with the same clearance checks.
+- Capital walkway planning reuses exact external collision answers during construction. Five routes captured from the published world are validated with the same collision predicates before use; invalid hints fall back to the existing A* search. Local lamp colliders stay live.
+- Neighborhood baking can consume uniquely owned geometry instead of cloning it immediately before disposal. Shared geometry and the default public behavior retain copying; every tested position, normal, color, UV and index matches.
+- Fixed city shells are baked from the actual city builder: 236 neighborhoods and 2,585 material batches. The compact cache stores aligned typed arrays, exact bounds and material slots; it does not recreate a temporary GLTF scene. Runtime materials, nearby detail streaming and procedural fallback remain unchanged.
+
+The binary cache contains 35,199,000 uncompressed bytes and downloads as
+3,624,097 losslessly gzip-compressed bytes. Local build-time decode took about
+54-60 ms. This is an additional download, traded against repeated CPU construction;
+it is not a claim of lower total asset bytes. Templates are consumed and unused
+entries released. Unsupported decompression or a failed request uses the original
+procedural path. A content-hashed URL avoids reusing an older generated cache.
+
+`npm run build:city-shells` regenerates the asset and manifest. Both production
+prebuild paths run it, and the Vercel path still runs Friends preparation.
+`node scripts/build-city-shells.cjs --check` verifies every source attribute/index
+hash and the generated asset version. An intermediate GLTF-cache implementation
+was replaced because it created unnecessary temporary scene objects. The payload
+uses a `.bin` URL: Vinext treats `.gz` files as compression sidecars, not standalone
+resources.
+
+### Matched Results
+
+Control is published commit `0294aff`; candidate is the local loading pass.
+Each pair used isolated contexts in one Chrome process, Balanced quality, DPR 1,
+the same viewport, no CPU profiler, and the unchanged ready marker followed by
+actual composited-canvas pixel and screenshot checks.
+
+| Startup Case | Before | After | Reduction |
+| --- | --- | --- | --- |
+| Mobile viewport, unthrottled | 28.36 s | 11.44 s | 59.7% |
+| Desktop viewport, unthrottled | 30.11 s | 16.21 s | 46.2% |
+| Mobile, 4x CPU / 80 ms latency / 10 Mbps down / 2 Mbps up | 172.78 s | 94.99 s | 45.0% |
+
+The throttled pair also disables browser caching. Mobile viewport is 390 x 844;
+desktop is 1440 x 960. All three candidates used all 236 prepared neighborhoods,
+retained identical five walkway routes, rendered nonblank canvases and had no page
+errors or context loss. Results are under `outputs/performance/oct7-loading-final-*`;
+runtime and asset hashes are in `outputs/performance/oct7-loading-source.json`.
+
+These are single paired local Chrome measurements, not physical-phone or field
+certification. Control ran first; shared-machine and shader-cache variation remain.
+Slow-CPU startup is still substantial, and this pass does not claim instant loading
+or a general FPS improvement. Other world construction and first-use GPU work remain
+on the critical path. The hosted deployment has not been tested or changed.
+
+### Verification And Research
+
+The full suite passed 636 of 637 tests; its only failure was JSON-import interop in
+the new cache test. That import was corrected to the repository's namespace style,
+and all four neighborhood/cache tests then passed. The full suite was not rerun
+after that one-line fix. TypeScript, scoped lint, Vercel packaging, plain production
+build and reproducible cache generation passed.
+
+Production mobile checks passed native swipes, portrait/landscape changes, camera
+cycles, paused-loop behavior, bounded project previews and forced context recovery
+without replacing the document, scene or canvas. Eleven desktop/mobile visual
+captures covered day/night, quality settings and movement. The visual harness now
+normalizes trailing-slash URLs and waits for actual world readiness.
+
+Research used [web.dev long-task guidance](https://web.dev/articles/optimize-long-tasks),
+[MDN lazy loading](https://developer.mozilla.org/en-US/docs/Web/Performance/Guides/Lazy_loading)
+and [Three.js BufferGeometry](https://threejs.org/docs/pages/BufferGeometry.html).
+Yielding improves responsiveness but does not itself eliminate construction work;
+this pass prioritizes precomputation, exact reuse and overlapping independent work.
+No worker, new transit-station streaming or reduced-quality startup mode is claimed.
+These measurements describe the local build, not deployed field performance.
+
 ## Mobile Stability And Research, 7 October 2026
 
 This follow-up targets camera changes, native touch swipes and mobile rendering
@@ -85,7 +220,8 @@ production build passed for this follow-up. The earlier 629-test full-suite gate
 describes the preceding ranked pass, not a new full-suite run here. Source hashes
 in `outputs/performance/oct7-mobile-stability-source.json` were verified after
 the browser tests. The exact reported phone/browser reload remains unconfirmed;
-the test evidence is local Chrome touch emulation. This follow-up is not pushed.
+the test evidence is local Chrome touch emulation. This follow-up was published
+in `0294aff`.
 
 ## Complexity-Ranked Algorithmic Pass
 

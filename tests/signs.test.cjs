@@ -5,9 +5,10 @@ const {createWoodenSign}=require('../app/wooden-sign.ts');
 const {disposeScene}=require('../app/scene-resources.ts');
 const {createReadableDisplay}=require('../app/readable-display.ts');
 const draws=[];
+let measurements=0;
 global.document={createElement:()=>{
   const canvas={width:0,height:0};
-  const context={font:'',measureText(text){return {width:text.length*parseFloat(this.font.split(' ')[1])*.6}},fillText(text,x,y){draws.push({text,x,y,width:this.measureText(text).width,font:this.font,color:this.fillStyle,canvas})}};
+  const context={font:'',measureText(text){measurements++;return {width:text.length*parseFloat(this.font.split(' ')[1])*.6}},fillText(text,x,y){draws.push({text,x,y,width:this.measureText(text).width,font:this.font,color:this.fillStyle,canvas})}};
   canvas.getContext=()=>context;return canvas;
 }};
 
@@ -71,6 +72,16 @@ test('district lettering is heavy, fills the face and has an uncluttered high-co
   assert.ok(ink.every(draw=>parseFloat(draw.font.split(' ')[1])/draw.canvas.height>.23));
   const face=sign.getObjectByName('RecessedFace');assert.equal(face.material.map,null);
   assert.ok(face.material.emissiveIntensity>=.15);assert.ok(face.material.color.r>.8);disposeScene(sign);
+});
+test('sign fitting preserves the linear-search layout with far fewer canvas measurements',()=>{
+ for(const text of ['SYSTEM INFORMATION E','NEIGHBOR METRO','Catalog service requests the matching record from the local store','W'.repeat(140),''])for(const [width,height,shape] of [[2.1,1.35,'shield'],[3.2,1.3,'arrow'],[2.25,2.3,'arch']]){
+  draws.length=0;measurements=0;const sign=createWoodenSign(text,{width,height,shape}),actual=draws.filter((_,index)=>index%2===1),calls=measurements,canvas=sign.getObjectByName('EngravedLettering').material.map.image,maxWidth=canvas.width*.92,maxHeight=canvas.height*.88;
+  let size=Math.floor(Math.min(200,maxHeight/1.12)),lines=[],renderedSize=size,referenceCalls=0;
+  const measure=value=>{referenceCalls++;return value.length*size*.6};
+  for(;size>=12;size-=2){renderedSize=size;lines=[];let line='';for(const word of text.toUpperCase().trim().split(/\s+/)){const next=line?line+' '+word:word;if(line&&measure(next)>maxWidth){lines.push(line);line=word}else line=next}if(line)lines.push(line);if(lines.length*size*1.12<=maxHeight&&lines.every(value=>measure(value)<=maxWidth))break}
+  assert.deepEqual(actual.map(draw=>({text:draw.text,font:draw.font,y:draw.y})),lines.map((line,index)=>({text:line,font:`900 ${renderedSize}px "Trebuchet MS", sans-serif`,y:canvas.height/2+(index-(lines.length-1)/2)*size*1.12})),text+' '+shape);
+  if(referenceCalls>100)assert.ok(calls<referenceCalls*.35,JSON.stringify({text,shape,calls,referenceCalls}));disposeScene(sign);
+ }
 });
 
 test('RAM terminal clears the entire stair and rail footprint while keeping a reachable interaction',()=>{

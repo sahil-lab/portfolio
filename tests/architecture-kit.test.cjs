@@ -4,6 +4,15 @@ global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({
 const T=require('three'),kit=require('../app/architecture-kit'),{disposeScene}=require('../app/scene-resources');
 test.before(async()=>{const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),bytes=fs.readFileSync(path.resolve(__dirname,'../public/assets/architecture-kit.glb')),asset=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;assert.equal(kit.installArchitectureKit(asset),true);disposeScene(asset);const worldBytes=fs.readFileSync(path.resolve(__dirname,'../public/assets/kingdom-world-kit.glb')),worldAsset=(await new GLTFLoader().parseAsync(worldBytes.buffer.slice(worldBytes.byteOffset,worldBytes.byteOffset+worldBytes.byteLength),'')).scene;assert.equal(require('../app/world-kit').installWorldKit(worldAsset),true);disposeScene(worldAsset);kit.installArchitectureSurfaces(Object.fromEntries(['ceramic','stone','timber','brushed'].map(kind=>[kind,new T.DataTexture(new Uint8Array([128,240,255,255]),1,1)])))});
 
+test('architecture startup requests normal maps before the model response finishes',async context=>{
+ const filename=require.resolve('../app/architecture-kit.ts'),previousModule=require.cache[filename];delete require.cache[filename];const fresh=require(filename);require.cache[filename]=previousModule;
+ const premium=require('../app/premium-materials.ts');context.mock.method(premium,'preparePremiumSurfaces',async()=>false);
+ const previousBitmap=global.createImageBitmap,requests=[],release=[];global.createImageBitmap=async()=>({width:2,height:2,close(){}});
+ context.mock.method(global,'fetch',url=>{requests.push(String(url));return new Promise(resolve=>release.push(()=>resolve(String(url).endsWith('.glb')?new Response(fs.readFileSync('public/assets/architecture-kit.glb')):new Response(new Uint8Array([0])))))});
+ const pending=fresh.prepareArchitectureKit();
+ try{await Promise.resolve();assert.equal(requests.filter(url=>url.includes('/world-finish/')).length,4,'normal-map requests waited for model parsing');assert.equal(release.length,9)}finally{for(const resolve of release)resolve();while(release.length<9){await new Promise(resolve=>setImmediate(resolve));for(const resolve of release)resolve()}await pending;if(previousBitmap===undefined)delete global.createImageBitmap;else global.createImageBitmap=previousBitmap}
+});
+
 test('Blender structural modules preserve requested bounds and bounded edge radii',()=>{
  for(const [width,height,depth,radius] of [[4,9,3,.12],[.06,5,.08,0],[28,.2,16,.025]]){const geometry=kit.authoredBlock(width,height,depth,radius),size=geometry.boundingBox.getSize(new T.Vector3());assert.ok(Math.abs(size.x-width)<.00001&&Math.abs(size.y-height)<.00001&&Math.abs(size.z-depth)<.00001);assert.ok(geometry.userData.authoredArchitecture);assert.ok((geometry.index?.count??geometry.attributes.position.count)/3<=60);geometry.dispose()}
 });

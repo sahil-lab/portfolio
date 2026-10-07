@@ -20,6 +20,13 @@ export const capitalCameraView=(aspect:number)=>({yaw:aspect<.85?-.035:-.12,pitc
 export const capitalLookout={x:75,z:178,width:12,depth:14,level:6.2};
 export const capitalStair:Ramp={id:'capital-lookout',x:75,width:2.2,startZ:207,endZ:185,bottom:.8,top:6.2,steps:30};
 export type CapitalDestination='plaza'|'gallery'|'lookout'|'project-garden'|'waterfront';
+const routeHints:Record<string,[number,number][]>= {
+ 'willow-park':[[52,209],[51,210],[-37,210],[-37,288],[-38,288],[-38,290],[-50,290],[-50,291],[-50,286.4]],
+ 'play-garden':[[52,209],[53,210],[53,243],[55,243],[55,244],[57,244],[57,254],[55,254],[55,255],[50,255],[50,290],[50,285.4]],
+ 'lantern-mall':[[52,209],[53,210],[144,210],[144,256],[145,256],[145,258],[150,258],[150,292],[150,287.4]],
+ 'weekend-market':[[52,209],[51,208],[-117,208],[-117,204],[-118,204],[-118,202],[-150,202],[-150,191],[-150,186.4]],
+ 'public-library':[[52,209],[51,208],[-117,208],[-117,204],[-118,204],[-118,202],[-137,202],[-137,86],[-138,86],[-138,84],[-140,84],[-140,70],[-142,70],[-142,68],[-143,68],[-143,44],[-145,44],[-145,43],[-150,43],[-150,-9],[-150,-13.6]],
+};
 
 export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{blocked:(x:number,z:number)=>boolean;notice:(message:string)=>void;portfolio:(page:number)=>void;cue:()=>void;study?:(study:Exhibit|null)=>void}){
  const root=new T.Group();root.name='Sahil_DigitalCapital';scene.add(root);const fixed=new T.Group();fixed.name='Capital_StaticStreetscape';root.add(fixed);
@@ -96,10 +103,16 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   }
   return fountain.blocked(x-52,z-180,y)||!!solidCells.get(Math.floor(x/12)+','+Math.floor(z/12))?.some(bound=>y<bound.max.y&&y>bound.min.y-.2&&x>bound.min.x-.35&&x<bound.max.x+.35&&z>bound.min.z-.35&&z<bound.max.z+.35)||y<.9&&x>canalBounds.min.x&&x<canalBounds.max.x&&z>canalBounds.min.z&&z<canalBounds.max.z&&!(x>=23&&x<=36&&Math.abs(z-180)<1.8)&&canalPoints.some(point=>Math.hypot(x-point.x,z-point.z)<1.3);
  }
- const forbidden=(x:number,z:number)=>callbacks.blocked(x,z)||blocked(x,z,.8);
+ const routeObstacles=new Map<number,Map<number,boolean>>();
+ const forbidden=(x:number,z:number)=>{
+  let column=routeObstacles.get(x);if(!column){column=new Map();routeObstacles.set(x,column)}
+  let external=column.get(z);if(external===undefined){external=callbacks.blocked(x,z);column.set(z,external)}
+  return external||blocked(x,z,.8);
+ };
  for(const id of ['willow-park','play-garden','lantern-mall','weekend-market','public-library']){
   const site=cityEverydaySites.find(site=>site.id===id)!,footprint=everydayFootprint(site.kind),goal={x:site.x,z:site.z+footprint.depth/2-2.6};
-  const forecourt={x:site.x,z:site.z+footprint.depth/2+2},promenade=planWalkingRoute({x:52,z:209},forecourt,(x,z)=>forbidden(x,z)||[[1.5,0],[-1.5,0],[0,1.5],[0,-1.5]].some(([horizontal,vertical])=>forbidden(x+horizontal,z+vertical))),entrance=planWalkingRoute(forecourt,goal,forbidden);
+  const hint=routeHints[id]?.map(([x,z])=>({x,z}));
+  const forecourt={x:site.x,z:site.z+footprint.depth/2+2},promenade=planWalkingRoute({x:52,z:209},forecourt,(x,z)=>forbidden(x,z)||[[1.5,0],[-1.5,0],[0,1.5],[0,-1.5]].some(([horizontal,vertical])=>forbidden(x+horizontal,z+vertical)),hint?.slice(0,-1)),entrance=planWalkingRoute(forecourt,goal,forbidden,hint?.slice(-2));
   if(promenade.length<2||entrance.length<2)continue;const path=[...promenade,...entrance.slice(1)];routes.push({name:site.name,points:path});
   for(let index=1;index<path.length;index++){
   const start=path[index-1],end=path[index],length=Math.hypot(end.x-start.x,end.z-start.z),walk=kit.box(fixed,'Capital_ConnectedPromenade',new T.Vector3((start.x+end.x)/2,.043,(start.z+end.z)/2),[index<promenade.length?3:1.5,.025,length+.05],materials.stone);walk.rotation.y=Math.atan2(end.x-start.x,end.z-start.z);walk.castShadow=false;
@@ -110,6 +123,7 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
   }
   }
  }
+ routeObstacles.clear();
  for(const [x,z,yaw] of [[52,229,0],[100,294,Math.PI/2],[-100,250,Math.PI/2]]){
   for(let stripe=0;stripe<8;stripe++){const crossing=kit.box(fixed,'Capital_RaisedCrosswalk',new T.Vector3(x+(stripe-3.5)*.8,.09,z),[.4,.06,10],materials.stone);crossing.rotation.y=yaw;crossing.castShadow=false}
   for(const side of [-1,1]){const signal=kit.box(fixed,'Capital_TrafficSignal',new T.Vector3(x+side*5.8,2.8,z+3.5),[.28,.9,.25],materials.ink);kit.box(fixed,'Capital_TrafficSignalLamp',signal.position.clone().add(new T.Vector3(0,-.2,.14)),[.16,.16,.03],materials.leaf)}

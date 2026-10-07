@@ -2,7 +2,7 @@ import {motherboardBounds} from './world-config';
 export type GroundPoint={x:number;z:number};
 // Bounded grid search uses the same collision predicate as player movement.
 // Only cardinal edges are used, so routes cannot cut diagonally through corners.
-export function planWalkingRoute(start:GroundPoint,end:GroundPoint,blocked:(x:number,z:number)=>boolean):GroundPoint[]{
+export function planWalkingRoute(start:GroundPoint,end:GroundPoint,blocked:(x:number,z:number)=>boolean,hint?:readonly GroundPoint[]):GroundPoint[]{
  const legacy=[start,end].every(point=>Math.abs(point.x)<=50&&point.z>=-50&&point.z<=209),scale=legacy?2:1;
  const minX=legacy?-100:Math.floor(Math.max(motherboardBounds.minX+1,Math.min(start.x,end.x)-32)),maxX=legacy?100:Math.ceil(Math.min(motherboardBounds.maxX-1,Math.max(start.x,end.x)+32));
  const minZ=legacy?-100:Math.floor(Math.max(motherboardBounds.minZ+1,Math.min(start.z,end.z)-32)),maxZ=legacy?418:Math.ceil(Math.min(motherboardBounds.maxZ-1,Math.max(start.z,end.z)+32));
@@ -15,6 +15,7 @@ export function planWalkingRoute(start:GroundPoint,end:GroundPoint,blocked:(x:nu
  const clear=(a:GroundPoint,b:GroundPoint)=>{const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.1));for(let i=0;i<=steps;i++){const t=i/steps;if(occupied(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t))return false}return true};
  const sx=Math.round(start.x*scale),sz=Math.round(start.z*scale),ex=Math.round(end.x*scale),ez=Math.round(end.z*scale);
  if(!inside(sx,sz)||!inside(ex,ez))return [];
+ if(hint&&hint.length>1&&hint[0].x===start.x&&hint[0].z===start.z&&hint.at(-1)!.x===end.x&&hint.at(-1)!.z===end.z&&hint.every((position,index)=>inside(Math.round(position.x*scale),Math.round(position.z*scale))&&(!index||clear(hint[index-1],position))))return hint.map(position=>({...position}));
  const target=id(ex,ez),parents=new Int32Array(side*rows).fill(-2),costs=new Float64Array(side*rows).fill(Infinity),closed=new Uint8Array(side*rows);
  type Candidate={key:number;cost:number;priority:number;remaining:number};
  const queue:Candidate[]=[],better=(first:Candidate,second:Candidate)=>first.priority<second.priority||first.priority===second.priority&&first.remaining<second.remaining;

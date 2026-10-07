@@ -132,13 +132,15 @@ export function createCraftedBuilding(options:BuildingCraftOptions){
 }
 
 export type ArchitectureSkin={geometry:T.BufferGeometry;material:T.Material};
-export function bakeArchitecture(root:T.Object3D):ArchitectureSkin[]{
+export function bakeArchitecture(root:T.Object3D,consumeGeometry=false):ArchitectureSkin[]{
  completeArchitectureAttributes(root);
  root.updateWorldMatrix(true,true);const inverse=root.matrixWorld.clone().invert(),groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
+ const uses=new Map<T.BufferGeometry,number>();
+ if(consumeGeometry)root.traverse(object=>{if(object instanceof T.Mesh&&!Array.isArray(object.material))uses.set(object.geometry,(uses.get(object.geometry)??0)+1)});
  root.traverse(object=>{
   if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;
-  const geometry=object.geometry.clone();geometry.applyMatrix4(new T.Matrix4().multiplyMatrices(inverse,object.matrixWorld));
-  const list=groups.get(object.material)??[];list.push(geometry);groups.set(object.material,list);originals.add(object.geometry);
+  const geometry=consumeGeometry&&uses.get(object.geometry)===1?object.geometry:object.geometry.clone();geometry.applyMatrix4(new T.Matrix4().multiplyMatrices(inverse,object.matrixWorld));
+  const list=groups.get(object.material)??[];list.push(geometry);groups.set(object.material,list);if(geometry!==object.geometry)originals.add(object.geometry);
  });
  const skins=Array.from(groups,([material,geometries])=>{const geometry=mergeIndexedGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
  originals.forEach(geometry=>geometry.dispose());root.clear();return skins;

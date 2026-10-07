@@ -14,6 +14,7 @@ import {cacheStaticTransforms} from './static-transforms';
 import {createVisibleGeometry,type VisibleGeometryPart,type GeometryVisibility} from './visible-geometry';
 import {createPocketGarden} from './city-gardens';
 import {completeArchitectureAttributes} from './architecture-kit';
+import {clearArchitectureShells} from './architecture-shells';
 
 type Lot={address:string;x:number;z:number;scale:number;variant:number;yaw:number;width:number;depth:number;height:number};
 type Skin={geometry:T.BufferGeometry;material:T.Material};
@@ -28,7 +29,7 @@ function bakeModel(root:T.Object3D):Skin[]{
   originals.forEach(geometry=>geometry.dispose());return skins;
 }
 
-export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)=>Promise<void>){
+export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)=>Promise<void>,captureShells?:(shells:T.Group)=>void){
   const root=new T.Group();root.name='Motherboard_LivingCity';parent.add(root);
   const authored=createAuthoredDistricts(root);
   const quarter=createCityLandmarks(root),colors=['#f0a18d','#8bc9b0','#89badb','#eccb7c','#dca8ad','#b9d9d3'],heights=[5.6,7.2,8.4,6.5,4.8,7.6];
@@ -39,6 +40,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
   const cube=new T.BoxGeometry(1,1,1),treeShapes={full:createCanopyAsset('tree','full'),distant:createCanopyAsset('tree','distant')},treeMaterials=createCanopyMaterials();
   const gardenSkins=bakeModel(createPocketGarden(10.5,8.5,5).root);
   const dummy=new T.Object3D(),lots:Lot[]=[],cells=new Map<string,Lot[]>(),neighborhoods:T.LOD[]=[],cameraBounds:T.Box3[]=[];
+  const plantingBounds=new T.Box3(),transformedCrown=new T.Box3();
   const streetTrees:{x:number;z:number;height:number}[]=[],treeCells=new Map<string,typeof streetTrees>();
   const architecture:{town:ReturnType<typeof createArchitectureNeighborhood>;x:number;z:number}[]=[];
   const scheduler=createWorkScheduler();
@@ -84,6 +86,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     }
     const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),105,sharedFinishes,{scheduler,prepare});
     architecture.push({town,x:centerX,z:centerZ});
+    captureShells?.(town.shells);
     const regionKey=Math.floor(centerX/300)+','+Math.floor(centerZ/300);let region=farRegions.get(regionKey);
     if(!region){region={root:new T.Group(),blocks:[],consolidated:false};region.root.name='City_RegionalSkyline_'+regionKey;region.root.visible=false;root.add(region.root);farRegions.set(regionKey,region)}
     const state={visible:true,castShadow:true};region.blocks.push({lod,far,town,state});
@@ -93,7 +96,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     for(const tree of trees){
       for(const offset of [0,1,2,3]){
         const horizontal=Math.sign(tree.x)*(35+offset),forward=Math.sign(tree.z)*(35+offset);dummy.position.set(centerX+horizontal,tree.y,centerZ+forward);dummy.rotation.set(0,tree.yaw,0);dummy.scale.set(tree.sx,tree.sy,tree.sz);dummy.updateMatrix();
-        const bounds=new T.Box3();for(const shape of [treeShapes.full,treeShapes.distant]){shape.crown.computeBoundingBox();bounds.union(shape.crown.boundingBox!.clone().applyMatrix4(dummy.matrix))}
+        const bounds=plantingBounds.makeEmpty();for(const shape of [treeShapes.full,treeShapes.distant]){if(!shape.crown.boundingBox)shape.crown.computeBoundingBox();bounds.union(transformedCrown.copy(shape.crown.boundingBox!).applyMatrix4(dummy.matrix))}
         const occupied=localLots.some(lot=>bounds.intersectsBox(new T.Box3(new T.Vector3(lot.x-lot.width/2,0,lot.z-lot.depth/2),new T.Vector3(lot.x+lot.width/2,lot.height,lot.z+lot.depth/2))))||cityEverydaySites.some(site=>{const footprint=everydayFootprint(site.kind);return bounds.max.x>site.x-footprint.width/2&&bounds.min.x<site.x+footprint.width/2&&bounds.max.z>site.z-footprint.depth/2&&bounds.min.z<site.z+footprint.depth/2});
         if(!occupied&&bounds.min.x>centerX-44&&bounds.max.x<centerX+44&&bounds.min.z>centerZ-44&&bounds.max.z<centerZ+44){tree.x=horizontal;tree.z=forward;break}
       }
@@ -125,6 +128,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
   root.userData.staticCameraBounds=cameraBounds;
   const roofscape=createVisibleGeometry(root,silhouettes);for(const part of silhouettes)part.geometry.dispose();silhouettes.length=0;
   for(const {town} of architecture)town.shells.clear();
+  clearArchitectureShells();
   const populationSkins=colors.slice(0,3).map((color,index)=>bakeModel(createCuteResident(color,index).root));
   const crowds=populationSkins.map((skins,index)=>skins.map(skin=>{const mesh=new T.InstancedMesh(skin.geometry,skin.material,24);mesh.name='City_StrollingResidents_'+index;mesh.count=0;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;mesh.castShadow=true;root.add(mesh);return mesh}));
   let clock=0;const architectureObserver=new T.Vector3(),cameraPosition=new T.Vector3(),blockPosition=new T.Vector3();

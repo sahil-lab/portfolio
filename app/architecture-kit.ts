@@ -77,10 +77,18 @@ export function completeArchitectureAttributes(root:T.Object3D){
 export function prepareArchitectureKit(){
  if(architectureKitReady())return Promise.resolve(true);if(pending)return pending;
  pending=(async()=>{let scene:T.Group|undefined;const loaded:T.Texture[]=[];try{
-  const kinds=['ceramic','stone','timber','brushed'] as const,signal=AbortSignal.timeout(12000),premiumReady=preparePremiumSurfaces(),model=(async()=>{for(const url of ['/assets/premium-v1/architecture-kit.glb','/assets/architecture-kit.glb']){try{const response=await fetch(url,{signal,credentials:'same-origin',cache:'force-cache'});if(response.ok)return response}catch{}}throw new Error('Architecture kit unavailable')})(),responses=await Promise.all([model,...kinds.map(kind=>fetch('/assets/architecture-'+kind+'-relief.png',{signal,credentials:'same-origin',cache:'force-cache'}))]);if(responses.some(response=>!response.ok))return false;
-  scene=(await new GLTFLoader().parseAsync(await responses[0].arrayBuffer(),'/assets/')).scene;
-  for(const response of responses.slice(1)){const image=await createImageBitmap(await response.blob()),texture=new T.Texture(image);texture.flipY=false;loaded.push(texture)}
-  const normals:Partial<Record<ArchitectureSurface,T.Texture>>={};await Promise.all(kinds.map(async kind=>{try{const response=await fetch('/assets/world-finish/'+kind+'-normal.png',{signal,credentials:'same-origin',cache:'force-cache'});if(!response.ok)return;const image=await createImageBitmap(await response.blob()),texture=new T.Texture(image);texture.flipY=false;normals[kind]=texture;loaded.push(texture)}catch{}}));
-  await premiumReady;if(!installArchitectureKit(scene))return false;installArchitectureSurfaces(Object.fromEntries(kinds.map((kind,index)=>[kind,loaded[index]])) as Record<ArchitectureSurface,T.Texture>,normals);loaded.length=0;return true;
+  const kinds=['ceramic','stone','timber','brushed'] as const,signal=AbortSignal.timeout(12000),premiumReady=preparePremiumSurfaces(),request={signal,credentials:'same-origin' as const,cache:'force-cache' as const};
+  const model=(async()=>{for(const url of ['/assets/premium-v1/architecture-kit.glb','/assets/architecture-kit.glb']){try{const response=await fetch(url,request);if(response.ok)return response}catch{}}throw new Error('Architecture kit unavailable')})();
+  const reliefRequests=kinds.map(kind=>fetch('/assets/architecture-'+kind+'-relief.png',request)),normalRequests=kinds.map(kind=>fetch('/assets/world-finish/'+kind+'-normal.png',request).then(response=>response.ok?response:null,()=>null));
+  const responses=await Promise.all([model,...reliefRequests]);if(responses.some(response=>!response.ok))return false;
+  const maps:Partial<Record<ArchitectureSurface,T.Texture>>={},normals:Partial<Record<ArchitectureSurface,T.Texture>>={};
+  const decode=async(response:Response)=>{const image=await createImageBitmap(await response.blob()),texture=new T.Texture(image);texture.flipY=false;loaded.push(texture);return texture};
+  const results=await Promise.allSettled([
+   (async()=>{scene=(await new GLTFLoader().parseAsync(await responses[0].arrayBuffer(),'/assets/')).scene})(),
+   ...kinds.map(async(kind,index)=>{maps[kind]=await decode(responses[index+1])}),
+   ...kinds.map(async(kind,index)=>{try{const response=await normalRequests[index];if(response)normals[kind]=await decode(response)}catch{}}),
+  ]);
+  await premiumReady;if(results.some((result,index)=>index<=kinds.length&&result.status==='rejected')||!scene||!installArchitectureKit(scene))return false;
+  installArchitectureSurfaces(maps as Record<ArchitectureSurface,T.Texture>,normals);loaded.length=0;return true;
  }catch{return false}finally{for(const texture of loaded){texture.dispose();(texture.image as ImageBitmap)?.close?.()}if(scene)disposeScene(scene);pending=null}})();return pending;
 }

@@ -25,7 +25,9 @@ test('the gallery destination and its central interior remain accessible with a 
  disposeScene(scene);
 });
 test('all five promenades stay clear of the canal, planted edges, and their own street lamps',()=>{
- const scene=new T.Scene(),world=createCapitalWorld(scene,new T.Group(),{blocked:()=>false,notice:()=>{},portfolio:()=>{},cue:()=>{}});assert.equal(world.routes.length,5);
+ const queries=new Set();let repeated=0;
+ const scene=new T.Scene(),world=createCapitalWorld(scene,new T.Group(),{blocked:(x,z)=>{const key=x+','+z;if(queries.has(key))repeated++;queries.add(key);return false},notice:()=>{},portfolio:()=>{},cue:()=>{}});assert.equal(world.routes.length,5);
+ assert.ok(queries.size>100);assert.equal(repeated,0,'startup rescanned external city obstacles at identical coordinates');
  for(const route of world.routes){let height=.8;for(let index=1;index<route.points.length;index++){
   const start=route.points[index-1],end=route.points[index],steps=Math.ceil(Math.hypot(end.x-start.x,end.z-start.z)/.35);
   for(let step=0;step<=steps;step++){const x=start.x+(end.x-start.x)*step/steps,z=start.z+(end.z-start.z)*step/steps;height=world.height(x,z,height)??.8;assert.equal(world.blocked(x,z,height),false,JSON.stringify({route:route.name,x,z,height}))}

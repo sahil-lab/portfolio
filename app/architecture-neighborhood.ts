@@ -3,6 +3,8 @@ import {architectureMaterials,bakeArchitecture,createCraftedBuilding,type Buildi
 import {architectureRecipe,type ArchitectureStyle} from './architecture-profiles';
 import type {WorkScheduler} from './work-scheduler';
 import {cacheStaticTransforms} from './static-transforms';
+import {takeArchitectureShells} from './architecture-shells';
+import {architectureKitReady} from './architecture-kit';
 
 export type BuildingPlacement={address:string;position:T.Vector3;rotation:T.Quaternion;width:number;height:number;depth:number;accent?:string;scale?:number};
 const exportBuilders=new WeakMap<T.Object3D,()=>T.Group>();
@@ -20,17 +22,25 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
  });
  exportBuilders.set(root,()=>{const result=new T.Group();result.name=root.name;result.matrix.copy(root.matrix);result.matrixAutoUpdate=false;result.userData={architectureStyle:style,buildingAddresses:records.map(record=>record.address),exportRebuilt:true};for(const record of records){const building=createCraftedBuilding(record.options);building.root.position.copy(record.position);building.root.quaternion.copy(record.rotation);building.root.scale.setScalar(record.scale??1);result.add(building.root)}return result});
  function batch(target:T.Group){
-  const skins=bakeArchitecture(target);
+  const skins=bakeArchitecture(target,true);
   for(const skin of skins){const mesh=new T.Mesh(skin.geometry,skin.material);mesh.name='Architecture_MaterialBatch';mesh.castShadow=mesh.receiveShadow=true;target.add(mesh)}
   cacheStaticTransforms(target);
  }
  const bounds:T.Box3[]=[];
- for(const record of records){
+ const shellKey=JSON.stringify([style,architectureKitReady(),records.map(record=>[record.address,record.width,record.height,record.depth,record.scale??1,record.accent??null,record.position.toArray(),record.rotation.toArray()])]),shellMaterials=[...new Set(records.flatMap(record=>Object.values(record.options.materials!)))];
+ const prepared=stream?takeArchitectureShells(shellKey,shellMaterials):null;
+ root.userData.prebuiltShells=!!prepared;
+ if(prepared){
+  for(const skin of prepared.skins){const material=shellMaterials[skin.materialIndex];material.vertexColors=skin.vertexColors;if(skin.authoredArchitecture)material.userData.authoredArchitecture=true;const mesh=new T.Mesh(skin.geometry,material);mesh.name='Architecture_MaterialBatch';mesh.castShadow=mesh.receiveShadow=true;shells.add(mesh)}
+  bounds.push(...prepared.bounds);cacheStaticTransforms(shells);
+ }else for(const record of records){
     const building=createCraftedBuilding({...record.options,detail:false,distant:!!stream});building.root.position.copy(record.position);building.root.quaternion.copy(record.rotation);building.root.scale.setScalar(record.scale??1);shells.add(building.root);
   const local=new T.Box3(new T.Vector3(-building.width/2-.7,0,-building.depth/2-.65),new T.Vector3(building.width/2+.7,building.height+3,building.depth/2+.65));
     bounds.push(local.applyMatrix4(new T.Matrix4().compose(record.position,record.rotation,new T.Vector3().setScalar(record.scale??1))));
  }
- batch(shells);root.userData.buildingAddresses=records.map(record=>record.address);root.userData.recipes=records.map(record=>record.recipe);
+ if(!prepared)batch(shells);shells.userData.shellKey=shellKey;shells.userData.shellBounds=bounds.map(bound=>[...bound.min.toArray(),...bound.max.toArray()]);
+ for(const object of shells.children){const material=(object as T.Mesh).material as T.MeshStandardMaterial;object.userData.shellMaterial=shellMaterials.indexOf(material);object.userData.shellVertexColors=material.vertexColors;object.userData.shellAuthoredArchitecture=!!material.userData.authoredArchitecture}
+ root.userData.buildingAddresses=records.map(record=>record.address);root.userData.recipes=records.map(record=>record.recipe);
  let ready=false,pending=false,wanted=false,disposed=false,generation=0;
  function loadDetail(){
   for(const record of records){
