@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},streaming:{type:'boolean'},memory:{type:'boolean'},mainland:{type:'boolean'},statue:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},resilience:{type:'boolean'},streaming:{type:'boolean'},memory:{type:'boolean'},mainland:{type:'boolean'},statue:{type:'boolean'},websites:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(options.output??'outputs/playtest/camera-lifecycle');fs.mkdirSync(output,{recursive:true});
 async function main(){
@@ -31,6 +31,43 @@ async function main(){
    });snapshots.push({label,...state});console.log('CAMERA_STATE '+JSON.stringify({label,...state}));return state;
   }
   const original=await snapshot('ready');assert.ok(original.canvas,'world canvas missing');assert.ok(original.scene,'world scene missing');
+  if(options.websites){
+   assert.equal(options.performance,undefined,'Website diagnosis must use real pages, not fixtures');
+   const requests=[],failures=[],navigation=[],samples=[];
+   page.on('request',request=>{if(request.resourceType()==='document'&&request.frame()!==page.mainFrame())requests.push({url:request.url(),at:Date.now()})});
+   page.on('requestfailed',request=>{if(request.resourceType()==='document'&&request.frame()!==page.mainFrame())failures.push({url:request.url(),error:request.failure()?.errorText})});
+   page.on('framenavigated',frame=>navigation.push({top:frame===page.mainFrame(),url:frame.url(),at:Date.now()}));
+   await page.evaluate(()=>{
+    const world=__cameraLifecycleWorld;globalThis.__websiteReview={tasks:[],frames:[],last:0,finished:false,camera:null,render:world.renderer.render};
+    const state=__websiteReview;state.observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())state.tasks.push({start:entry.startTime,duration:entry.duration,name:entry.name,attribution:entry.attribution?.map(value=>({name:value.name,src:value.containerSrc}))})});state.observer.observe({type:'longtask'});
+    const frame=time=>{if(state.finished)return;if(state.last)state.frames.push(time-state.last);state.last=time;requestAnimationFrame(frame)};requestAnimationFrame(frame);
+    world.renderer.render=function(scene,camera){if(camera===world.camera&&state.camera){camera.up.set(0,1,0);camera.position.copy(state.camera.position);camera.lookAt(state.camera.target);camera.updateMatrixWorld(true)}return state.render.call(this,scene,camera)};
+   });
+   try{
+    for(let index=0;index<5;index++){
+     await page.evaluate(index=>{
+      const world=__cameraLifecycleWorld;world.goCapital('plaza');world.projectPages.render(false);if(!world.goProjectBulletins())throw Error('Gallery travel failed');
+      const entry=world.projectGallery.entries[index];world.player.position.copy(entry.approach);world.scene.updateMatrixWorld(true);const target=entry.faces.front.getWorldPosition(world.player.position.clone()),normal=world.player.position.clone().set(0,0,1).transformDirection(entry.faces.front.matrixWorld),distance=Math.max(80,40/world.camera.aspect);
+      __websiteReview.camera={target,position:target.clone().addScaledVector(normal,distance)};__websiteReview.tasks=[];__websiteReview.frames=[];__websiteReview.last=0;globalThis.__websiteStart=performance.now();
+     },index);
+     await page.waitForFunction(index=>__cameraLifecycleWorld.projectPages.frames[index].iframe.isConnected,index,{timeout:30000});
+     await page.waitForFunction(index=>__cameraLifecycleWorld.projectPages.frames[index].entry.group.userData.previewState!=='loading',index,{timeout:25000,polling:100});
+     const selector='iframe[data-project-bulletin]',elements=await page.locator(selector).all(),children=[];
+     for(const element of elements){const frame=await (await element.elementHandle()).contentFrame();if(frame)try{children.push(await frame.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,canvasCount:document.querySelectorAll('canvas').length,nestedFrames:document.querySelectorAll('iframe').length,isKingdom:!!document.querySelector('main.kingdom'),heap:performance.memory?.usedJSHeapSize})))}catch(error){children.push({error:error.message})}}
+     await page.evaluate(()=>new Promise(resolve=>{let frames=90;const frame=()=>{if(--frames)requestAnimationFrame(frame);else resolve()};requestAnimationFrame(frame)}));
+     const details=await page.evaluate(index=>{
+      const world=__cameraLifecycleWorld,frame=world.projectPages.frames[index],timings=__websiteReview.frames.slice().sort((first,second)=>first-second),canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const context=canvas.getContext('2d');world.renderer.render(world.scene,world.camera);context.drawImage(world.renderer.domElement,0,0,96,64);const pixels=context.getImageData(0,0,96,64).data,colors=new Set();for(let offset=0;offset<pixels.length;offset+=4)colors.add([pixels[offset]>>4,pixels[offset+1]>>4,pixels[offset+2]>>4].join(','));
+      return {id:frame.entry.project.id,url:frame.entry.project.url,state:frame.entry.group.userData.previewState,connected:frame.iframe.isConnected,stats:{...world.projectPages.stats},durationMs:performance.now()-__websiteStart,frameCount:timings.length,p95:timings[Math.floor(timings.length*.95)],largestFrame:timings.at(-1),longTasks:__websiteReview.tasks,position:world.player.position.toArray(),colors:colors.size};
+     },index);
+    const siteLoaded=children.some(child=>child.url?.startsWith('https://')&&child.readyState==='complete');
+    const state=await snapshot('website-'+index);assert.equal(state.document,original.document);assert.equal(state.scene,original.scene);assert.equal(state.lost,0);assert.equal(state.insertions,1);assert.ok(details.colors>20);assert.ok(details.stats.loaded<=(options.quality==='high'?2:1));samples.push({...details,children,siteLoaded});console.log('WEBSITE_SAMPLE '+JSON.stringify({id:details.id,state:details.state,siteLoaded,children,largestFrame:details.largestFrame,longTasks:details.longTasks.length}));await page.screenshot({path:path.join(output,'website-'+index+'.png')});
+     if(children.some(child=>child.isKingdom)){await page.evaluate(()=>__cameraLifecycleWorld.projectPages.render(false));throw Error('A project preview recursively embeds another full Kingdom world')}
+    }
+    await page.evaluate(()=>{__websiteReview.camera=null;__cameraLifecycleWorld.goCapital('plaza')});await page.waitForFunction(()=>__cameraLifecycleWorld.projectPages.frames.every(frame=>!frame.iframe.isConnected));assert.equal(navigation.filter(event=>event.top).length,0);events.push({event:'real-website-loads',requests,failures,navigation,samples});console.log('WEBSITE_DIAGNOSIS_COMPLETE '+JSON.stringify({attempted:samples.length,loaded:samples.filter(sample=>sample.siteLoaded).length,realSitesVerified:samples.length===5&&samples.every(sample=>sample.siteLoaded)}));
+   }finally{
+    fs.writeFileSync(path.join(output,'website-loads.json'),JSON.stringify({requests,failures,navigation,samples,errors,realSitesVerified:samples.length===5&&samples.every(sample=>sample.siteLoaded)},null,2)+'\n');await page.evaluate(()=>{const state=globalThis.__websiteReview;if(state){state.finished=true;state.observer.disconnect();__cameraLifecycleWorld.renderer.render=state.render}}).catch(()=>{});
+   }
+  }
   if(options.mainland){
    await page.evaluate(()=>Promise.allSettled([__cameraLifecycleWorld.goldMonument.ready,__cameraLifecycleWorld.dog.ready,__cameraLifecycleWorld.angel.ready]));
    const client=await page.context().newCDPSession(page),started=Date.now(),returned=[],route=[[-100,.8,79],[300,.8,279],[0,.8,-600],[500,.8,1179]];let cycles=0,turns=0;
@@ -158,6 +195,27 @@ async function main(){
     }
   await page.screenshot({path:path.join(output,options.quality+(options.mobile?'-mobile':'-desktop')+'.png')});
     for(const sample of snapshots){assert.equal(sample.document,original.document,'page reloaded');assert.equal(sample.insertions,original.insertions,'world canvas replaced');assert.equal(sample.lost,sample.label==='context-restored'?1:0,'unexpected WebGL context loss');assert.equal(sample.scene,original.scene,'scene recreated')}
+  if(options.resilience){
+   const before=await page.evaluate(()=>({document:__cameraDocument,scene:__cameraLifecycleWorld.scene.uuid}));
+   await page.getByRole('link',{name:"Sahil Upadhyay's Living Computer Kingdom",exact:true}).click();
+   assert.deepEqual(await page.evaluate(()=>({document:__cameraDocument,scene:__cameraLifecycleWorld.scene.uuid})),before);events.push({event:'brand-keeps-world'});
+   await page.evaluate(()=>{const world=__cameraLifecycleWorld;globalThis.__resilienceUpdate=world.streetLife.update;globalThis.__resiliencePosition=world.player.position.toArray();world.streetLife.update=()=>{throw Error('Expected frame-recovery probe')};world.setPaused(false)});
+   await page.waitForFunction(()=>__cameraLifecycleWorld.scene.userData.frameFaultCount===1);
+   const stopped=await page.evaluate(()=>new Promise(resolve=>{let remaining=12;const next=()=>{if(--remaining)requestAnimationFrame(next);else resolve({faults:__cameraLifecycleWorld.scene.userData.frameFaultCount,document:__cameraDocument,scene:__cameraLifecycleWorld.scene.uuid,position:__cameraLifecycleWorld.player.position.toArray()})};requestAnimationFrame(next)}));
+   assert.equal(stopped.faults,1);assert.equal(stopped.document,before.document);assert.equal(stopped.scene,before.scene);assert.deepEqual(stopped.position,await page.evaluate(()=>__resiliencePosition));
+   await page.evaluate(()=>{__cameraLifecycleWorld.streetLife.update=__resilienceUpdate});await page.getByRole('button',{name:'System controls',exact:true}).click();await page.getByRole('button',{name:'Resume',exact:true}).click();await page.keyboard.press('Escape');
+   const resumed=await page.evaluate(()=>new Promise(resolve=>{const world=__cameraLifecycleWorld,render=world.renderer.render;let count=0,remaining=8;world.renderer.render=function(scene,camera){if(scene===world.scene)count++;return render.call(this,scene,camera)};const next=()=>{if(--remaining)requestAnimationFrame(next);else{world.renderer.render=render;resolve({count,faults:world.scene.userData.frameFaultCount})}};requestAnimationFrame(next)}));assert.ok(resumed.count>0&&resumed.count<=9);assert.equal(resumed.faults,1);events.push({event:'frame-fault-paused-and-resumed',...resumed});
+   for(const destination of [0,3]){
+    if(destination){assert.equal(await page.evaluate(destination=>__cameraLifecycleWorld.goSharedPlanet(destination),destination),true);await page.waitForFunction(destination=>__cameraLifecycleWorld.transport.streaming.ready(destination),destination,{timeout:180000})}
+    else assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goProjectBulletins()),true);
+    await page.waitForFunction(()=>{const world=__cameraLifecycleWorld,current=world.captureRecovery();if(!current)return false;const raw=sessionStorage.getItem('living-computer-kingdom:recovery:v1');if(!raw)return false;const saved=JSON.parse(raw).location;return saved.world===current.world&&saved.position.every((value,index)=>Math.abs(value-current.position[index])<.01)},null,{timeout:30000});
+    const saved=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('living-computer-kingdom:recovery:v1')).location),document=await page.evaluate(()=>__cameraDocument);
+    await page.reload({waitUntil:'domcontentloaded',timeout:180000});await page.waitForFunction(()=>document.querySelector('main.kingdom')?.getAttribute('data-ready')==='true',null,{timeout:240000});
+    await page.waitForFunction(expected=>{const main=document.querySelector('main.kingdom');let fiber=main?.[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next){const world=hook.memoizedState?.current;if(world?.captureRecovery){globalThis.__cameraLifecycleWorld=world;const current=world.captureRecovery();return current?.world===expected.world&&current.position.every((value,index)=>Math.abs(value-expected.position[index])<.12)}}fiber=fiber.return}return false},saved,{timeout:180000});
+    const restored=await page.evaluate(()=>({document:__cameraDocument,position:__cameraLifecycleWorld.player.position.toArray(),world:__cameraLifecycleWorld.transport.journey.current,view:__cameraLifecycleWorld.captureRecovery()?.view,canvases:__cameraCanvasInsertions}));assert.notEqual(restored.document,document);assert.equal(restored.canvases,1);for(const key of ['yaw','pitch','zoom'])assert.ok(Math.abs(restored.view[key]-saved.view[key])<.01,key+' camera state was lost');events.push({event:'explicit-reload-restored',destination,saved,restored});await page.screenshot({path:path.join(output,'restored-location-'+destination+'.png')});
+   }
+   console.log('WORLD_RESILIENCE_OK');
+  }
   assert.deepEqual(errors,[]);assert.equal(events.filter(event=>event.event==='renderer-crash').length,0);console.log('CAMERA_LIFECYCLE_OK');
  }catch(error){errors.push(error.message);const state=await page.evaluate(()=>({hidden:document.hidden,lost:globalThis.__cameraContextsLost,restored:globalThis.__cameraContextsRestored,contextLost:globalThis.__cameraLifecycleWorld?.renderer.getContext().isContextLost(),draws:globalThis.__cameraLifecycleWorld?.renderer.info.render.calls,notice:document.body.innerText.slice(-1200)})).catch(()=>null);events.push({event:'failure-state',...state});console.error('CAMERA_FAILURE_STATE '+JSON.stringify(state));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});throw error}
  finally{fs.writeFileSync(path.join(output,options.quality+(options.mobile?'-mobile':'-desktop')+'.json'),JSON.stringify({events,errors,snapshots},null,2)+'\n');await browser.close()}

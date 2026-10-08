@@ -102,6 +102,10 @@ export function createStreetLife(parent:T.Object3D,options:StreetLifeOptions){
     for(const [wing,side] of [[group.left,-1],[group.right,1]] as const){fold.setFromAxisAngle(forwardAxis,side*flap);offset.set(side*.16,0,0).applyQuaternion(fold).applyQuaternion(yaw);put(wing,slot,site,position,offset,yaw.clone().multiply(fold))}
   }
   const renderedBirds:StreetBird[]=[],stats={butterflies:0,ambientButterflies:0,fireflies:0,birds:0,bats:0,performers:performers.length};root.userData.streetLifeCounts=stats;root.userData.performerKinds=performers.map(entry=>entry.performer.kind);root.userData.birdSpecies=Object.keys(streetBirdSpecies);
+  const wildlifeMeshes={butterflies:Object.values(butterflies),ambientButterflies:Object.values(ambientButterflies),bats:Object.values(bats),fireflies:Object.values(fireflies),birds:Object.values(birds)};
+  function publishInstances(meshes:T.InstancedMesh[],count:number,colors=false){
+    for(const mesh of meshes){mesh.count=count;mesh.visible=count>0;if(count){mesh.instanceMatrix.needsUpdate=true;if(colors&&mesh.instanceColor)mesh.instanceColor.needsUpdate=true}}
+  }
   function update(delta:number,reduced:boolean,active:boolean,observer:T.Vector3,environment:StreetLifeEnvironment,quality:StreetLifeQuality='balanced'){
     root.visible=active;if(!active)return;
     const step=Number.isFinite(delta)?Math.max(0,Math.min(delta,.1)):0;if(!reduced)time+=step;
@@ -141,12 +145,8 @@ export function createStreetLife(parent:T.Object3D,options:StreetLifeOptions){
       for(const [leg,foot,side] of [[birds.leftLeg,birds.leftFoot,-1],[birds.rightLeg,birds.rightFoot,1]] as const){putBird(leg,birdCount,site,position,offset.set(side*.07,flying?-.10:-.16,flying?-.08:0),yaw);putBird(foot,birdCount,site,position,offset.set(side*.07,flying?-.175:-.235,flying?-.02:.06),yaw)}
       const flap=flying?(reduced?.12:Math.sin(time*(8/profile.size)+index)*.55):-1.15;for(const [wing,side] of [[birds.left,-1],[birds.right,1]] as const){fold.setFromAxisAngle(forwardAxis,side*flap);if(flying)offset.set(side*.27*profile.wingSpan,.04,0).applyQuaternion(fold);else offset.set(side*.13,.015,-.04);putBird(wing,birdCount,site,position,offset,fold,profile.wingSpan*(flying?1:.45),1,flying?1:1.1)}birdCount++;
     }
-    for(const object of Object.values(butterflies)){object.count=butterflyCount;object.instanceMatrix.needsUpdate=true}
-    for(const object of Object.values(ambientButterflies)){object.count=ambientButterflyCount;object.instanceMatrix.needsUpdate=true}
-    for(const object of Object.values(bats)){object.count=batCount;object.instanceMatrix.needsUpdate=true}
-    for(const object of Object.values(fireflies)){object.count=fireflyCount;object.instanceMatrix.needsUpdate=true}
-    for(const object of Object.values(birds)){object.count=birdCount;object.instanceMatrix.needsUpdate=true;if(object.instanceColor)object.instanceColor.needsUpdate=true}
-    haloGeometry.setDrawRange(0,fireflyCount);haloPositions.needsUpdate=haloColors.needsUpdate=true;halos.visible=fireflyCount>0;
+    publishInstances(wildlifeMeshes.butterflies,butterflyCount);publishInstances(wildlifeMeshes.ambientButterflies,ambientButterflyCount);publishInstances(wildlifeMeshes.bats,batCount);publishInstances(wildlifeMeshes.fireflies,fireflyCount);publishInstances(wildlifeMeshes.birds,birdCount,true);
+    haloGeometry.setDrawRange(0,fireflyCount);if(fireflyCount)haloPositions.needsUpdate=haloColors.needsUpdate=true;halos.visible=fireflyCount>0;
     Object.assign(stats,{butterflies:butterflyCount,ambientButterflies:ambientButterflyCount,fireflies:fireflyCount,birds:birdCount,bats:batCount});root.userData.motionTime=time;
   }
   update(0,true,false,new T.Vector3(),{morning:1,night:0});

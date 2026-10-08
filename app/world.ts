@@ -16,7 +16,7 @@ import {qualityTiers,createQualityGovernor,initialQuality,renderPixelRatio,type 
 import {createWorldAssets} from './world-assets';
 import {createShadowFollow} from './lighting-rig';
 import {createPlanetLighting} from './planet-lighting';
-import {defaultSettings,type Settings} from './persistence';
+import {defaultSettings,clearRecovery,type Settings,type RecoveryLocation} from './persistence';
 import type {DeliverySnapshot} from './delivery-state';
 import {buildWorldScenery} from './world-scenery';
 import {createAweWorld} from './awe-world';
@@ -184,7 +184,14 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
 
  let last=performance.now(),place=0,time=0,shadowClock=0,footDistance=0,ambientClock=0,overlookSeen=false,lastCommons=false;const priorPosition=player.position.clone();const priorStages=exhibits.map(e=>e.snapshot.step);
  let lastCity:string|null=null;
- function requestFrame(){if(!frame&&renderReady&&!disposed&&!document.hidden&&!contextLost)frame=requestAnimationFrame(tick)}
+ let frameFaulted=false;
+ function requestFrame(){if(!frame&&renderReady&&!disposed&&!document.hidden&&!contextLost&&!(frameFaulted&&paused))frame=requestAnimationFrame(guardFrame)}
+ function guardFrame(){
+  try{tick()}catch(error){
+   cancelAnimationFrame(frame);frame=0;frameFaulted=true;const notify=!paused;paused=true;input.setEnabled(false);input.state.clear();audio.enable(false);living.sound(false);
+   scene.userData.frameFaultCount=(scene.userData.frameFaultCount??0)+1;console.error('World paused after a frame error',error);callbacks.onNotice?.('The world paused after a rendering error. Resume from System when ready.');if(notify)callbacks.onPauseToggle?.();
+  }
+ }
  function tick(){
   frame=0;if(disposed||!renderReady||document.hidden||contextLost)return;if(!paused)requestFrame();const now=performance.now(),raw=(now-last)/1000,dt=Math.min(raw,.05);last=now;
   activities!.setEnabled(!angel.controlled&&buildings.getInside()===null&&!transport.journey.mode&&!transport.driving&&!traversal.moving&&observedPlanet===null);
@@ -280,6 +287,24 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   if(!transport.arriveShared(destination))return false;
   if(destination===0){player.position.set(0,.8,237);resetCamera()}player.visible=true;priorPosition.copy(player.position);return true;
  }
+ function captureRecovery():RecoveryLocation|null {
+  if(disposed||!renderReady||contextLost||angel.controlled||activities?.active||transport.journey.mode||transport.driving||traversal.moving||observedPlanet!==null||buildings.getInside()!==null||!transport.streaming.ready(transport.journey.current))return null;
+  if(transport.journey.current===0){const floor=transport.height(player.position.x,player.position.z,player.position.y);if(floor===null||Math.abs(floor-player.position.y)>.6)return null}
+  return {world:transport.journey.current,position:player.position.toArray(),rotation:player.quaternion.toArray(),up:player.up.toArray(),surfaceFrame:player.userData.surfaceFrame?.toArray(),view:rig.snapshot()};
+ }
+ async function restoreRecovery(location:RecoveryLocation){
+  if(disposed||!renderReady||contextLost||!transitStops[location.world]||!goSharedPlanet(location.world))return false;
+  const request=shopVisit,waiting=player.position.clone(),view=rig.snapshot();
+  const loaded=location.world===0||await transport.streaming.load(location.world),currentView=rig.snapshot();
+  if(!loaded||disposed||contextLost||request!==shopVisit||transport.journey.current!==location.world||transport.journey.mode||angel.controlled||activities?.active||player.position.distanceToSquared(waiting)>.04||currentView.yaw!==view.yaw||currentView.pitch!==view.pitch||currentView.zoom!==view.zoom)return false;
+  const position=new T.Vector3().fromArray(location.position),up=new T.Vector3().fromArray(location.up).normalize();
+  if(location.world===0){const floor=transport.height(position.x,position.z,position.y);if(floor===null||Math.abs(floor-position.y)>2)return false;position.y=floor}
+  else{const surface=transport.surfaces[location.world];if(!surface)return false;const distance=position.distanceTo(surface.center);if(distance<surface.radius-8||distance>surface.radius+80)return false}
+  if(transport.groundBlocked(position.clone().addScaledVector(up,-.8),.4,location.world))return false;
+  player.position.copy(position);player.quaternion.fromArray(location.rotation).normalize();player.up.copy(up);
+  if(location.surfaceFrame)player.userData.surfaceFrame=new T.Quaternion().fromArray(location.surfaceFrame).normalize();else delete player.userData.surfaceFrame;
+  if(location.world>0)transport.stepSurface(0,0,0);resetCamera(location.view);priorPosition.copy(player.position);input.state.clear();callbacks.onNotice?.('Your last safe location has been restored.');return true;
+ }
  async function goSignatureShop(planet:string){
   const destination=transitStops.findIndex(stop=>stop.id===planet);
   if(destination<0||disposed||angel.controlled||activities!.active||paused||observedPlanet!==null||buildings.getInside()!==null||transport.journey.mode||transport.driving)return false;
@@ -293,12 +318,13 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
  }
  callbacks.onPlace(0);callbacks.onCommons?.(false);let assetStart=0;
  rig.update(0,false,settings,false,settings.cameraMode==='far'?12.5:2.8);camera.updateMatrixWorld(true);scene.traverseVisible(object=>{if(object instanceof T.LOD)object.update(camera)});
- void presentation.prepare(scene,true).catch(error=>{if(!disposed)console.warn('Initial shader preparation failed',error)}).then(()=>{if(disposed)return;preview?.dispose();renderReady=true;last=performance.now();tick();callbacks.onReady();assetStart=requestAnimationFrame(()=>{if(!disposed)assets.start()})});
+ void presentation.prepare(scene,true).catch(error=>{if(!disposed)console.warn('Initial shader preparation failed',error)}).then(()=>{if(disposed)return;preview?.dispose();renderReady=true;last=performance.now();guardFrame();callbacks.onReady();assetStart=requestAnimationFrame(()=>{if(!disposed)assets.start()})});
  queueMicrotask(()=>{if(!disposed)weatherFeed=watchLocalWeather(value=>{if(!disposed)weather.set(value)})});
  queueMicrotask(()=>{if(!disposed)bulletinFeed=watchBulletins({market:bulletins.setMarket,news:bulletins.setNews},{active:()=>!disposed&&!paused&&!document.hidden&&transport.journey.current===0&&!transport.journey.mode})});
  queueMicrotask(()=>{if(!disposed)forgeFeed=watchForge(snapshot=>{if(disposed)return;chronicle.set(snapshot);transport.landscapes[1]?.setRepositories(snapshot)},{active:()=>!disposed&&!paused&&!document.hidden&&(transport.journey.current===0||transport.journey.current===1||observedPlanet===1)})});
  constructed=true;constructionDisposers.length=0;return {
   get renderReady(){return renderReady&&!contextLost&&!disposed},
+  captureRecovery,restoreRecovery,
   streetLife,
   projectGallery,projectPages,goProjectBulletins:()=>{if(disposed||!renderReady||angel.controlled||activities?.active||paused||observedPlanet!==null||buildings.getInside()!==null||transport.journey.mode||transport.driving)return false;shopVisit++;commons.voice.cancel();transport.home();player.position.set(projectBulletinArrival.x,projectBulletinArrival.y,projectBulletinArrival.z);resetCamera(projectBulletinCameraView);input.state.clear();priorPosition.copy(player.position);return true},
   friends,activities,attachFriends:(client:FriendsClient|null)=>{friends.attach(client);activities!.attach(client)},setFriendsOverlay:(_value:boolean)=>{input.state.clear()},
@@ -324,10 +350,10 @@ function* createWorldStages(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   simulation,closeMachine:()=>{machineOpen=false},machineRefresh:()=>machines.update(),
   focusSkill:(key:string)=>{const site=awe.activateSkill(key);if(site)callbacks.onNotice?.(`${key} signal active in the kingdom. Close this panel to see its beacon.`)},
   deliver:()=>{if(!angel.controlled&&!paused&&!menuOpen)living.deliver()},nextRound:()=>{if(!angel.controlled&&!paused)living.nextRound()},
-  resetProgress:()=>{living.round.reset();transport.reset();home()},
+  resetProgress:()=>{clearRecovery();living.round.reset();transport.reset();home()},
   stick:(x:number,z:number)=>{if(!paused&&!menuOpen){input.state.stick={x,y:z};audioGesture()}},
     settings:(value:Settings)=>{const next={...defaultSettings,...value},qualityChanged=settings.quality!==next.quality;if(settings.cameraMode!==next.cameraMode)rig.setMode(next.cameraMode);settings=next;weather.lighting(next.worldLighting);if(qualityChanged&&value.quality==='auto')governor.reset(bootTier);living.volume(value.volume);audio.setVolume(value.volume);commons.speaker.sound(audioUnlocked&&!value.muted&&!paused,value.volume);if(qualityChanged){recoveryMode=false;configure();resize()}if(value.muted){commons.voice.cancel();living.sound(false);audio.enable(false)}},
-    setPaused:(v:boolean)=>{paused=v;input.setEnabled(!paused&&!menuOpen);last=performance.now();if(v){clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();projectPages.render(false)}else if(audioUnlocked&&!settings.muted){audio.enable(true);living.sound(true)}requestFrame()},
+    setPaused:(v:boolean)=>{paused=v;input.setEnabled(!paused&&!menuOpen);last=performance.now();if(v){clearFlightInput();living.sound(false);audio.enable(false);commons.voice.cancel();projectPages.render(false)}else{frameFaulted=false;if(audioUnlocked&&!settings.muted){audio.enable(true);living.sound(true)}}requestFrame()},
   home,step:(dx:number,dz:number,cameraRelative=false)=>{if(angel.controlled){if(!paused&&!menuOpen)angel.update(.05,settings.reducedMotion,{x:dx,z:dz,lift:0,boost:false});return}if(!paused&&!menuOpen&&observedPlanet===null&&!traversal.moving&&!transport.journey.mode){audioGesture();const yaw=cameraRelative?(settings.stableCamera?rig.stableYaw:rig.yaw):0,x=dx*Math.cos(yaw)+dz*Math.sin(yaw),z=-dx*Math.sin(yaw)+dz*Math.cos(yaw),distance=cameraRelative?movementSpeed(settings.movementMode)*.12:.75;if(transport.driving)transport.update(.08,x,z,settings.reducedMotion);else if(!transport.stepSurface(x,z,distance*2.4))moveCharacter(player,x,z,distance,transport.blocked,transport.height,transport.bounds)}},
   route:(index:number)=>{if(!angel.controlled)buildings.route(index)},travel:(i:number)=>{if(angel.controlled||paused||menuOpen||!districts[i])return;commons.voice.cancel();transport.home();player.position.set(districtDestinations[i].x,districtDestinations[i].y,districtDestinations[i].z);input.state.clear()},
     interact,pause:(v:boolean)=>{menuOpen=v;input.setEnabled(!paused&&!menuOpen&&observedPlanet===null);if(v){clearFlightInput();commons.voice.cancel()}},key:(k:string,v:boolean)=>v?input.state.keys.add(k):input.state.keys.delete(k),sound:(enabled:boolean)=>{audioUnlocked=true;if(!enabled)commons.voice.cancel();living.sound(enabled&&!paused);audio.enable(enabled&&!paused);commons.speaker.sound(enabled&&!paused,settings.volume)},

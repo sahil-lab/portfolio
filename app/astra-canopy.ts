@@ -11,8 +11,18 @@ const branchTips=[
 export type CanopyKind='tree'|'banyan';
 export type CanopyDetail='full'|'distant';
 
+function canopyBranchTips(kind:CanopyKind){
+  return kind==='banyan'?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
+}
+
+export function canopyTrunks(kind:CanopyKind){
+  const trunks=[{x:0,z:0,radius:kind==='banyan'?.8:.42,height:7}];
+  if(kind==='banyan')for(const [horizontal,height,forward] of canopyBranchTips(kind)){const spread=Math.max(.72,2.25/Math.hypot(horizontal,forward));trunks.push({x:horizontal*spread,z:forward*spread,radius:.26,height:height-.65})}
+  return trunks;
+}
+
 export function createCanopyFruitGeometry(kind:CanopyKind,detail:CanopyDetail){
-  const tips=kind==='banyan'?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
+  const tips=canopyBranchTips(kind);
   const pieces:T.BufferGeometry[]=[],centers:number[][]=[],color=new T.Color(),radius=kind==='banyan'?.25:.32;
   function painted(source:T.BufferGeometry,paint:string){
     const geometry=source.index?source.toNonIndexed():source;if(geometry!==source)source.dispose();geometry.deleteAttribute('uv');
@@ -45,11 +55,9 @@ export function createAstraCanopy(name:string,scale=1,kind:CanopyKind='tree',det
   root.userData.canopyStyle='astra-layered-leaf';root.userData.treeKind=kind;
   const fruitGeometry=createCanopyFruitGeometry(kind,detail),fruitMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.65,metalness:0}),fruit=new T.InstancedMesh(fruitGeometry,fruitMaterial,1);fruitMaterial.userData.surface='natural';fruit.name='Canopy_HangingFruit';fruit.setMatrixAt(0,new T.Matrix4());fruit.castShadow=fruit.receiveShadow=true;fruit.computeBoundingSphere();root.add(fruit);root.userData.fruitCount=fruitGeometry.userData.fruitCount;
   const banyan=kind==='banyan',segments=detail==='full'?18:6,sides=detail==='full'?7:5,leavesPerBranch=detail==='full'?42:12;
-  const tips=banyan?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
-  const trunks=[{x:0,z:0,radius:banyan?.8:.42,height:7}];
+  const tips=canopyBranchTips(kind),trunks=canopyTrunks(kind);
   const prefix='Kit_'+(banyan?'Banyan':'Tree')+'_'+(detail==='full'?'Full':'Distant'),woodGeometry=worldKitGeometry(prefix+'_Wood',true),crownGeometry=worldKitGeometry(prefix+'_Crown',true);
   if(woodGeometry&&crownGeometry){
-    if(banyan)for(const [horizontal,height,forward] of tips){const spread=Math.max(.72,2.25/Math.hypot(horizontal,forward));trunks.push({x:horizontal*spread,z:forward*spread,radius:.26,height:height-.65})}
     const wood=new T.Mesh(woodGeometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.92,metalness:.035})),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:.01}),wind={value:0},time={value:0};wood.name='Astra_TreeLivingTrunk';wood.material.userData.surface=leaf.userData.surface='natural';wood.castShadow=wood.receiveShadow=true;root.add(wood);
     leaf.onBeforeCompile=shader=>{shader.uniforms.astraWind=wind;shader.uniforms.astraTime=time;shader.vertexShader='uniform float astraWind;uniform float astraTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.z+=sin(astraTime*.7+position.x*.8+position.z)*astraWind*clamp(position.y/11.0,0.0,1.0);')};leaf.customProgramCacheKey=()=> 'blender-direct-canopy-v1';
     const crown=new T.InstancedMesh(crownGeometry,leaf,1);crown.name='Astra_TreeLayeredCanopy';crown.setMatrixAt(0,new T.Matrix4());crown.castShadow=crown.receiveShadow=true;crown.computeBoundingSphere();if(crown.boundingSphere)crown.boundingSphere.radius+=.2;root.add(crown);root.userData.authoredKit=true;
@@ -88,7 +96,7 @@ export function createAstraCanopy(name:string,scale=1,kind:CanopyKind='tree',det
     }
     if(banyan){
       const supportSpread=Math.max(.72,2.25/Math.hypot(x,z)),horizontal=x*supportSpread,depth=z*supportSpread,height=y-.65;
-      const prop=new T.Mesh(taperedBranch([new T.Vector3(horizontal,-.35,depth),new T.Vector3(horizontal+.17,1.5,depth-.12),new T.Vector3(horizontal-.12,height*.65,depth+.1),new T.Vector3(horizontal,height,depth)],.22,segments,sides),bark);prop.name='Banyan_RootColumn';prop.castShadow=prop.receiveShadow=true;root.add(prop);trunks.push({x:horizontal,z:depth,radius:.26,height});
+      const prop=new T.Mesh(taperedBranch([new T.Vector3(horizontal,-.35,depth),new T.Vector3(horizontal+.17,1.5,depth-.12),new T.Vector3(horizontal-.12,height*.65,depth+.1),new T.Vector3(horizontal,height,depth)],.22,segments,sides),bark);prop.name='Banyan_RootColumn';prop.castShadow=prop.receiveShadow=true;root.add(prop);
       const buttress=new T.Mesh(taperedBranch([new T.Vector3(horizontal*.22,-.25,depth*.22),new T.Vector3(horizontal*.13,.35,depth*.13),new T.Vector3(0,1.9,0)],.24,detail==='full'?8:4,sides),bark);buttress.name='Banyan_SurfaceRoot';buttress.castShadow=buttress.receiveShadow=true;root.add(buttress);
       if(detail==='full')for(let strand=0;strand<3;strand++){
         const hanging=new T.Mesh(taperedBranch([new T.Vector3(x*.89+strand*.27,y-.18,z*.9),new T.Vector3(x*.89+strand*.27+.12,y-1.6,z*.9+.08),new T.Vector3(x*.89+strand*.27-.1,1.8+strand*.75,z*.9+.2)],.04,8,4),bark);hanging.name='Banyan_HangingRoot';root.add(hanging);

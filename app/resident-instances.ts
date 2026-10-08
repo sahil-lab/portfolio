@@ -1,6 +1,7 @@
 import * as T from 'three';
 import type {createCuteResident} from './cute-resident';
 import {textureKey} from './static-batching';
+import {cacheStaticTransforms,updateWorldTransformOnce} from './static-transforms';
 
 type Resident=Pick<ReturnType<typeof createCuteResident>,'root'|'instanceParts'>;
 
@@ -33,25 +34,32 @@ export function createResidentInstances(parent:T.Object3D,residents:Resident[]){
   for(const part of parts)part.source.layers.disableAll();
   return {mesh,parts};
  });
+ const visible=new Set<Resident>(),updatedTransforms=new Set<T.Object3D>();
  function update(){
-  parent.updateWorldMatrix(true,false);inverse.copy(parent.matrixWorld).invert();
-  const visible=new Set<Resident>();
+  updatedTransforms.clear();updateWorldTransformOnce(parent,updatedTransforms);inverse.copy(parent.matrixWorld).invert();
+  visible.clear();
     for(const resident of attached){
    let ancestor:T.Object3D|null=resident.root,shown=true;
    while(ancestor&&ancestor!==parent){if(!ancestor.visible){shown=false;break}ancestor=ancestor.parent}
-    if(shown&&ancestor===parent){resident.root.updateWorldMatrix(true,true);visible.add(resident)}
+    if(shown&&ancestor===parent){if(resident.root.parent)updateWorldTransformOnce(resident.root.parent,updatedTransforms);resident.root.updateWorldMatrix(false,true);updatedTransforms.add(resident.root);visible.add(resident)}
   }
   for(const {mesh,parts} of batches){
-  let count=0,colorsChanged=false;mesh.boundingSphere!.makeEmpty();
+  let count=0,colorsChanged=false,matricesChanged=false;const previousCount=mesh.count,matrices=mesh.instanceMatrix.array;
    for(const {source,resident} of parts){
     if(!visible.has(resident))continue;
     let ancestor:T.Object3D|null=source,shown=true;while(ancestor&&ancestor!==resident.root){if(!ancestor.visible){shown=false;break}ancestor=ancestor.parent}
     if(!shown||!ancestor)continue;
-    matrix.multiplyMatrices(inverse,source.matrixWorld);mesh.setMatrixAt(count,matrix);partBounds.copy(mesh.geometry.boundingSphere!).applyMatrix4(matrix);partBounds.radius+=Math.max(1,partBounds.center.length(),partBounds.radius)*.000001;mesh.boundingSphere!.union(partBounds);
+    matrix.multiplyMatrices(inverse,source.matrixWorld);const start=count*16;
+    for(let component=0;component<16;component++){const value=Math.fround(matrix.elements[component]);if(matrices[start+component]!==value){matrices[start+component]=value;matricesChanged=true}}
     const color=(source.material as T.MeshStandardMaterial).color,colors=mesh.instanceColor?.array,offset=count*3;if(!colors||colors[offset]!==Math.fround(color.r)||colors[offset+1]!==Math.fround(color.g)||colors[offset+2]!==Math.fround(color.b)){mesh.setColorAt(count,color);colorsChanged=true}count++;
    }
-     mesh.count=count;mesh.instanceMatrix.needsUpdate=true;if(colorsChanged&&mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+    mesh.count=count;
+    if(matricesChanged||count!==previousCount||mesh.boundingSphere!.isEmpty()&&count>0){
+     mesh.boundingSphere!.makeEmpty();
+     for(let slot=0;slot<count;slot++){mesh.getMatrixAt(slot,matrix);partBounds.copy(mesh.geometry.boundingSphere!).applyMatrix4(matrix);partBounds.radius+=Math.max(1,partBounds.center.length(),partBounds.radius)*.000001;mesh.boundingSphere!.union(partBounds)}
+    }
+    if(matricesChanged)mesh.instanceMatrix.needsUpdate=true;if(colorsChanged&&mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   }
  }
- update();return {root,batches,update};
+ cacheStaticTransforms(root);update();return {root,batches,update};
 }

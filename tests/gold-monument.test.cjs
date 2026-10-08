@@ -119,8 +119,18 @@ test('project gallery arrival frames all five boards on desktop and narrow phone
  try{for(const aspect of [1440/960,390/844,320/926]){const camera=new T.PerspectiveCamera(50,aspect,.1,18000),rig=createGameCamera(camera,scene,player);rig.reset(projectBulletinCameraView(aspect));rig.update(0,false,{reducedMotion:true,stableCamera:false},false,18);camera.updateMatrixWorld(true);for(const entry of gallery.entries){const bounds=new T.Box3().setFromObject(entry.group);for(const horizontal of [bounds.min.x,bounds.max.x])for(const vertical of [bounds.min.y,bounds.max.y])for(const depth of [bounds.min.z,bounds.max.z]){const point=new T.Vector3(horizontal,vertical,depth).project(camera);assert.ok(Math.abs(point.x)<.95&&Math.abs(point.y)<.95,entry.project.id+' outside '+aspect)}}}}finally{disposeScene(scene);global.document=previous}
 });
 
+test('statue website previews settle before loading and do not churn on rapid camera changes',()=>{
+ const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,900,1200);
+ for(let frame=0;frame<12;frame++){const result=budget.update([frame%3],frame*250,1);assert.deepEqual(result.load,[],'a passing camera view started a full website')}
+ assert.deepEqual(budget.update([4],3000,1).load,[]);assert.deepEqual(budget.update([4],3899,1).load,[]);assert.deepEqual(budget.update([4],3900,1).load,[4]);
+ assert.deepEqual(budget.update([3],4000,1).load,[]);assert.deepEqual(budget.update([3],4900,1).load,[],'another website started during the load cooldown');
+ assert.deepEqual(budget.update([3],5100,1),{load:[3],unload:[4],visible:[3]});
+ assert.deepEqual(budget.update([],5200,0,false),{load:[],unload:[3],visible:[]});assert.equal(budget.residents.size,0);
+ const high=createProjectPreviewBudget(2500,900,1200);assert.deepEqual(high.update([0,1],0,2).load,[]);assert.deepEqual(high.update([0,1],900,2).load,[0]);assert.deepEqual(high.update([0,1],2099,2).load,[]);assert.deepEqual(high.update([0,1],2100,2).load,[1]);
+});
+
 test('project preview residency is bounded and leaving the gallery unloads running pages',()=>{
- const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500);
+ const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,0,0);
  assert.deepEqual(budget.update([0,1,2,3,4],0,2),{load:[0,1],unload:[],visible:[0,1]});assert.equal(budget.residents.size,2);
  assert.deepEqual(budget.update([2,3,4],100,2),{load:[2,3],unload:[0,1],visible:[2,3]});assert.deepEqual(budget.update([],200,2),{load:[],unload:[],visible:[]});
  assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});

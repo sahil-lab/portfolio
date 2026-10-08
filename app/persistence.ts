@@ -32,3 +32,24 @@ export function parseSave(raw:string|null):SaveData {
 }
 export function loadSave():SaveData {try{const raw=localStorage.getItem(SAVE_KEY);const saved=parseSave(raw);if(!raw)saved.settings.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;return saved}catch{return parseSave(null)}}
 export function writeSave(settings:Settings,delivery:DeliverySnapshot|null):boolean {try{localStorage.setItem(SAVE_KEY,JSON.stringify({version:1,settings,delivery}));return true}catch{return false}}
+
+export type RecoveryLocation={world:number;position:[number,number,number];rotation:[number,number,number,number];up:[number,number,number];surfaceFrame?:[number,number,number,number];view:{yaw:number;pitch:number;zoom:number;focusHeight:number}};
+export type RecoverySave={version:1;savedAt:number;location:RecoveryLocation};
+export const RECOVERY_KEY='living-computer-kingdom:recovery:v1';
+export function parseRecovery(raw:string|null,now=Date.now()):RecoveryLocation|null {
+  try{
+    if(!raw||raw.length>4096)return null;const saved=JSON.parse(raw) as RecoverySave,location=saved.location;
+    if(saved.version!==1||!Number.isFinite(saved.savedAt)||saved.savedAt>now+60000||now-saved.savedAt>8*60*60*1000||!location)return null;
+    if(!Number.isInteger(location.world)||location.world<0||location.world>9)return null;
+    const vector=(value:unknown,length:number):value is number[]=>Array.isArray(value)&&value.length===length&&value.every(component=>typeof component==='number'&&Number.isFinite(component)&&Math.abs(component)<100000);
+    if(!vector(location.position,3)||!vector(location.rotation,4)||!vector(location.up,3))return null;
+    if(Math.abs(Math.hypot(...location.rotation)-1)>.01||Math.abs(Math.hypot(...location.up)-1)>.01)return null;
+    if(location.surfaceFrame!==undefined&&(!vector(location.surfaceFrame,4)||Math.abs(Math.hypot(...location.surfaceFrame)-1)>.01))return null;
+    const view=location.view;if(!view||![view.yaw,view.pitch,view.zoom,view.focusHeight].every(value=>typeof value==='number'&&Number.isFinite(value)))return null;
+    if(Math.abs(view.yaw)>100000||Math.abs(view.pitch)>1.5||view.zoom<.5||view.zoom>5000||view.focusHeight<0||view.focusHeight>100)return null;
+    return {world:location.world,position:[...location.position],rotation:[...location.rotation],up:[...location.up],surfaceFrame:location.surfaceFrame?[...location.surfaceFrame]:undefined,view:{...view}};
+  }catch{return null}
+}
+export function loadRecovery():RecoveryLocation|null {try{return parseRecovery(sessionStorage.getItem(RECOVERY_KEY))}catch{return null}}
+export function writeRecovery(location:RecoveryLocation,now=Date.now()):boolean {try{const raw=JSON.stringify({version:1,savedAt:now,location});if(!parseRecovery(raw,now))return false;sessionStorage.setItem(RECOVERY_KEY,raw);return true}catch{return false}}
+export function clearRecovery(){try{sessionStorage.removeItem(RECOVERY_KEY)}catch{}}

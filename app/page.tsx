@@ -15,7 +15,7 @@ import {emptyTransit,type TransitStatus} from './transit-state';
 import {transitStops} from './transit-config';
 import {TouchControls} from './touch-controls';
 import {ComfortSettings} from './comfort-settings';
-import {defaultSettings,loadSave,writeSave,type Settings} from './persistence';
+import {defaultSettings,loadSave,writeSave,loadRecovery,writeRecovery,type Settings} from './persistence';
 
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {Users,Radio,Coffee,ChevronDown} from 'lucide-react';
@@ -77,6 +77,14 @@ export default function Home(){
  useEffect(()=>{game.current?.setPaused(paused)},[paused,ready]);
  useEffect(()=>{if(ready)game.current?.settings(settings)},[settings,ready]);
  useEffect(()=>{if(ready&&game.current)setSaveError(!writeSave(settings,delivery))},[settings,delivery,ready]);
+ useEffect(()=>{
+  const world=game.current;if(!ready||!world)return;let active=true,restoring=true,lastSnapshot='';
+  const save=()=>{if(!active||restoring)return;const location=world.captureRecovery();if(!location)return;const serialized=JSON.stringify(location);if(serialized!==lastSnapshot&&writeRecovery(location))lastSnapshot=serialized};
+  const saved=loadRecovery(),query=new URLSearchParams(location.search),explicit=query.has('project')||query.has('room')||query.has('friends');
+  void (saved&&!explicit?world.restoreRecovery(saved):Promise.resolve(false)).catch(()=>false).finally(()=>{if(active){restoring=false;save()}});
+  const hidden=()=>{if(document.hidden)save()},timer=setInterval(save,2000);window.addEventListener('pagehide',save);document.addEventListener('visibilitychange',hidden);
+  return()=>{save();active=false;clearInterval(timer);window.removeEventListener('pagehide',save);document.removeEventListener('visibilitychange',hidden)};
+ },[ready]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),9000);return()=>clearTimeout(timer)},[notice]);
  const categoryProps=(name:NonNullable<typeof category>)=>({open:category===name,change:(open:boolean)=>setCategory(current=>open?name:current===name?null:current)});
  const openPanel=(value:NonNullable<typeof panel>)=>{setCategory(null);setPanel(value)};
@@ -93,7 +101,7 @@ export default function Home(){
  {nearbyAction&&!projectStudy&&!controlsDisabled&&!angel.controlled&&observing===null&&category===null&&<button type="button" className="scene-action" aria-label={'Interact: '+nearbyAction} title={nearbyAction} onClick={()=>game.current?.interact()}><Hand size={18}/><span>{nearbyAction}</span><kbd aria-hidden="true">E</kbd></button>}
  {angel.controlled&&<section className="location angel-heading"><div className="eyebrow"><span className="location-line"/>{angel.locomotion==='grounded'?'ANGEL / ON FOOT':'ANGEL FLIGHT'}</div><h1>{angel.destination!==null?'Between worlds':transitStops[angel.current].name}</h1></section>}
  {observing!==null&&<CivilizationObservation destination={observing} close={()=>{game.current?.stopObservation();setObserving(null)}}/>}
- <header className="topbar"><a className="brand" href="/" aria-label="Sahil Upadhyay's Living Computer Kingdom"><span className="brandmark"><Cpu size={23}/></span><span><small>Living Computer Kingdom</small><b>Sahil Upadhyay</b></span></a><nav aria-label="Kingdom navigation">
+ <header className="topbar"><a className="brand" href="/" aria-label="Sahil Upadhyay's Living Computer Kingdom" onClick={event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();game.current?.goCapital('plaza')}}><span className="brandmark"><Cpu size={23}/></span><span><small>Living Computer Kingdom</small><b>Sahil Upadhyay</b></span></a><nav aria-label="Kingdom navigation">
  <HudCategory label="World" icon={Compass} {...categoryProps('World')}>
  <section className="hud-section hud-section-primary"><h3>Portfolio</h3><div className="hud-action-grid">
  <button className="nav-projects" aria-label="Projects" title="Project collection" onClick={()=>openPanel('projects')}><FolderCode size={17}/><span>Projects</span></button>

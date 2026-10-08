@@ -12,6 +12,134 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Frame Work And Recovery, 8 October 2026
+
+This pass preserves scene geometry, textures, populations, animation, lighting,
+shadows, postprocessing and quality settings. It removes repeated work in shared
+update paths rather than lowering visual quality or disabling the website boards.
+
+- Camera obstruction bounds are reused only for rigid, childless meshes with unchanged world transforms, geometry, position attributes and local bounds. Moving doors, grouped objects, skinned/instanced objects and morph targets retain the exact update path. A stationary-wall regression reduced 121 bounds reconstructions to one across 120 updates.
+- Camera and resident updates refresh shared ancestors once within each update pass. The 32-sibling obstruction regression reduced parent refreshes from 32 to one without changing the resulting world transforms.
+- Resident instance matrices are compared at Float32 GPU precision. Unchanged matrices and colors are not uploaded again, unchanged bounds are reused, and batch-object transforms use the existing immutable-transform cache. Tests retain exact animation, parent movement, visibility compaction and conservative bounds.
+- Empty wildlife batches no longer enter renderer setup or upload unused buffers. Day/night transitions restore visibility from the existing nonzero counts; no wildlife populations or effects were removed.
+- Loaded authored canopies read shared trunk-layout data directly instead of constructing and discarding another complete tree/fruit scene. Procedural fallback geometry, physical roots, fruit and leaf animation remain unchanged.
+
+### Reload Resilience
+
+An ordinary header-logo click now returns to the plaza inside the current world
+instead of navigating to `/`. Modified link clicks retain normal browser behavior.
+Frame exceptions pause the existing world once and expose the existing Resume
+control; they do not start an automatic reload or repeated frame-error loop.
+Existing WebGL-context recovery still restores graphics in the same scene/canvas.
+
+A compact per-tab checkpoint records a validated safe on-foot world position,
+orientation and camera view in session storage. It writes changed snapshots at
+most every two seconds, plus page-hide/visibility transitions. Corrupt, oversized,
+invalid or older-than-eight-hour snapshots are rejected; storage failures are
+nonfatal. Flights, journeys, driving, interiors and shared games retain the last
+safe on-foot checkpoint. Explicit project/room/friends links take precedence over
+restoration, and delayed planet loads cannot overwrite a newer user action.
+
+The browser/OS can still discard or terminate a tab. JavaScript cannot guarantee
+that this never happens. The checkpoint restores location after such a restart;
+it does not prevent the restart. No unconditional `beforeunload` trap, security
+bypass, automatic refresh loop or artificial application hang was added.
+
+### Verification Scope
+
+The combined transform/recovery build passed all 664 repository tests, TypeScript,
+scoped lint and production build. Two earlier full-suite failures were old bare-tree
+budgets that predated the requested fruit. Tests retain the original wood/leaf
+limits and add exact fruit counts and triangle budgets; no geometry was reduced.
+After the final empty-batch and canopy-allocation changes, all 53 affected world,
+canopy, wildlife and resource tests, TypeScript, lint, cache consistency and build
+passed. That later focused run is not presented as a fresh full-suite run.
+
+The browser resilience test verified same-document header navigation, a single
+injected frame fault followed by Resume, and restored mainland/planet positions
+and camera orientation after deliberate document reloads. The final build also
+passed native touch/orientation changes, preview unloading and forced WebGL
+recovery before repeating those resilience checks. Its report is
+`outputs/performance/oct8-algorithm-final-lifecycle/balanced-mobile.json`.
+Performance comparisons
+use the archived pre-change build, fixed Balanced quality, equal viewports and
+controlled project iframe responses. Fixtures do not certify the inaccessible
+third-party website scripts or physical-phone behavior.
+
+### Measured Frame Times
+
+The final comparison used the same Chrome/GPU, Balanced quality, equal viewports,
+90 warm frames and three 90-frame samples per location. Values below are the mean
+frame time of the median run in milliseconds; lower is better. Desktop tested the
+baseline first, while mobile reversed the order. The mobile report's `control`
+label is therefore the optimized URL, not the baseline.
+
+| Location | Desktop Before | Desktop After | Mobile Before | Mobile After |
+| --- | ---: | ---: | ---: | ---: |
+| Plaza | 163.33 | 167.76 | 75.36 | 73.14 |
+| Website gallery | 138.33 | 137.59 | 59.79 | 60.00 |
+| Return to plaza | 165.73 | 164.62 | 74.81 | 66.48 |
+| Planet | 127.59 | 124.62 | 63.15 | 67.22 |
+
+The mobile return mean improved about 11%, but its p95 worsened from 83.4 to
+100.1 ms. Other locations include regressions, and startup times varied markedly
+with run order; these samples do not establish a general FPS or startup multiplier.
+Geometry-buffer sizes and scene-object counts stayed equal between builds at
+each corresponding location. The saved reports are
+`outputs/performance/oct8-final-desktop-desktop/metrics.json` and
+`outputs/performance/oct8-final-mobile-reversed-mobile/metrics.json`.
+
+Eleven normal-scene desktop/mobile/quality/day/night/movement captures and eight
+mainland/planet wildlife captures passed nonblank, layout, motion, population and
+reduced-motion checks. Representative native captures were visually reviewed.
+Reports are `outputs/playtest/oct8-algorithm-final-checks.json` and
+`outputs/playtest/oct8-algorithm-wildlife-checks.json`.
+
+Measured operation-count reductions are not whole-app FPS multipliers. This pass
+has not established a 10x whole-app improvement. Rendering submission remains a
+significant cost. Hosted deployment is not verified, and mobile measurements are
+local emulation rather than physical-phone
+certification.
+
+## Statue Website Loading, 8 October 2026
+
+The user narrowed the restart to approaching the five website boards in front of
+the gold statue. Those boards embed complete external websites, not static images.
+The published budget capped residency but immediately replaced a selected iframe
+whenever the visible candidate changed, potentially every 250 ms during camera
+turns. A regression test reproduced a full website starting on a passing view.
+
+New previews now require 900 ms of continuous selection and at least 1,200 ms
+between starts. Existing resident limits, idle retirement, immediate inactive
+cleanup, all five links and live previews remain. High-quality mode starts its
+second preview later rather than starting both together. Statistics expose starts,
+stops and pending selections. This reduces transient website-load churn; it does
+not bound the internal memory or GPU use of an arbitrary embedded website.
+
+The real-site probe visited all five boards on the published production build.
+It recorded one document, scene and canvas, no top-page navigation, no unexpected
+graphics loss, and a 3,983 ms frame interval on the first approach. The longest
+3,930 ms task was attributed to the main page. However, every external site request
+failed here with `net::ERR_SSL_PROTOCOL_ERROR`, and the child frames contained
+Chrome error documents. Their scripts did not successfully load, so this run does
+not prove that the user's successful website load causes a reload, nor can its
+stalls be attributed to those website scripts. No TLS/security bypass was used.
+The report is `outputs/performance/oct8-statue-websites-before/website-loads.json`.
+
+The camera harness now has a `--websites` probe for child URLs/readiness, embedded
+canvases, nested frames, main-page long tasks and navigation. It explicitly reports
+whether the real sites loaded; iframe `load` events alone are not certification.
+
+All 18 monument/board/preview tests, TypeScript, scoped lint and a production build
+pass. The candidate's controlled-fixture mobile test passed 18 snapshots, six touch
+swipes, three orientations, camera changes, zero unnecessary resize allocations,
+preview unloading and same-scene forced graphics recovery with no page errors.
+Results are in `outputs/performance/oct8-preview-settle-lifecycle/`. Fixtures verify
+the application lifecycle only, not the inaccessible third-party scripts. Exact
+device/browser details and the physical reload cause remain unknown. No general
+FPS gain or guaranteed reload prevention is claimed. These checks describe the
+tested build, not hosted-deployment certification.
+
 ## Mainland Roaming And Camera Turns, 7 October 2026
 
 The reported restart follows visits to new mainland areas and sometimes a rapid

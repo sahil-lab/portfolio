@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {createAstraCanopy,createCanopyFruitGeometry,type CanopyKind,type CanopyDetail} from './astra-canopy';
+import {createAstraCanopy,createCanopyFruitGeometry,canopyTrunks,type CanopyKind,type CanopyDetail} from './astra-canopy';
 import {disposeScene} from './scene-resources';
 import {createSpatialIndex} from './spatial-index';
 import {worldKitGeometry,worldKitReady} from './world-kit';
@@ -21,15 +21,15 @@ function fruitingCrown(crown:T.BufferGeometry,kind:CanopyKind,detail:CanopyDetai
  const geometry=mergeIndexedGeometries([crown,fruit])!;geometry.userData={...crown.userData,fruitCount:fruit.userData.fruitCount,fruitCenters:fruit.userData.fruitCenters};crown.dispose();fruit.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();if(geometry.boundingSphere)geometry.boundingSphere.radius+=.2;return geometry;
 }
 export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='full'){
- const source=createAstraCanopy('Canopy_Source',1,kind,detail),woodParts:T.BufferGeometry[]=[];source.root.updateMatrixWorld(true);
  const prefix='Kit_'+(kind==='tree'?'Tree':'Banyan')+'_'+(detail==='full'?'Full':'Distant'),authoredWood=worldKitGeometry(prefix+'_Wood',true),authoredCrown=worldKitGeometry(prefix+'_Crown',true);
  if(authoredWood&&authoredCrown){
   const positions=authoredCrown.attributes.position,weights=new Float32Array(positions.count),phases=new Float32Array(positions.count);let radius=0;
   for(let index=0;index<positions.count;index++){weights[index]=T.MathUtils.clamp((positions.getY(index)-3)/8,0,1);phases[index]=positions.getX(index)*.8+positions.getZ(index);radius=Math.max(radius,Math.hypot(positions.getX(index),positions.getZ(index)))}
   authoredCrown.setAttribute('canopyWeight',new T.BufferAttribute(weights,1));authoredCrown.setAttribute('canopyPhase',new T.BufferAttribute(phases,1));authoredCrown.computeBoundingBox();authoredCrown.computeBoundingSphere();if(authoredCrown.boundingSphere)authoredCrown.boundingSphere.radius+=.2;
-  const trunks=source.trunks.map(trunk=>({...trunk})),height=authoredCrown.boundingBox!.max.y;disposeScene(source.root);return {wood:authoredWood,crown:fruitingCrown(authoredCrown,kind,detail),trunks,radius:radius+.2,height,kind};
+  const trunks=canopyTrunks(kind),height=authoredCrown.boundingBox!.max.y;return {wood:authoredWood,crown:fruitingCrown(authoredCrown,kind,detail),trunks,radius:radius+.2,height,kind};
  }
  authoredWood?.dispose();authoredCrown?.dispose();
+ const source=createAstraCanopy('Canopy_Source',1,kind,detail),woodParts:T.BufferGeometry[]=[];source.root.updateMatrixWorld(true);
  source.root.traverse(object=>{
   if(!(object instanceof T.Mesh)||object instanceof T.InstancedMesh)return;
   const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(object.matrixWorld);

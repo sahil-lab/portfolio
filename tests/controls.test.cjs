@@ -1,6 +1,21 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,f);
 const T=require('three');const {moveCharacter,movementSpeed}=require('../app/character-controller.ts');const {createTraversal}=require('../app/traversal.ts');const {parseSave,validateDelivery,defaultSettings}=require('../app/persistence.ts');const {DeliveryRound}=require('../app/delivery-state.ts');const {createGameCamera}=require('../app/game-camera.ts');
+test('recovery snapshots validate location and camera data without depending on available storage',()=>{
+ const {parseRecovery,loadRecovery,writeRecovery,clearRecovery,RECOVERY_KEY}=require('../app/persistence.ts'),now=100000000,location={world:3,position:[150,.8,-80],rotation:[0,0,0,1],up:[0,1,0],surfaceFrame:[0,0,0,1],view:{yaw:.3,pitch:.4,zoom:70,focusHeight:8}};
+ const encode=(value=location,time=now)=>JSON.stringify({version:1,savedAt:time,location:value});assert.deepEqual(parseRecovery(encode(),now),location);
+ for(const raw of ['{broken',encode(location,now-8*60*60*1000-1),encode(location,now+60001),encode({...location,world:99}),encode({...location,position:[1,2]}),encode({...location,up:[0,0,0]}),encode({...location,rotation:[0,0,0,2]}),encode({...location,view:{...location.view,zoom:-1}}),encode({...location,position:[null,0,0]})])assert.equal(parseRecovery(raw,now),null);
+ const previous=Object.getOwnPropertyDescriptor(global,'sessionStorage'),values=new Map();
+ try{
+  Object.defineProperty(global,'sessionStorage',{configurable:true,value:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)}});
+  assert.equal(writeRecovery(location),true);assert.deepEqual(loadRecovery(),location);assert.ok(values.get(RECOVERY_KEY).length<600);clearRecovery();assert.equal(loadRecovery(),null);
+  Object.defineProperty(global,'sessionStorage',{configurable:true,get(){throw Error('Storage blocked')}});assert.equal(loadRecovery(),null);assert.equal(writeRecovery(location),false);assert.doesNotThrow(clearRecovery);
+ }finally{if(previous)Object.defineProperty(global,'sessionStorage',previous);else delete global.sessionStorage}
+});
+test('camera recovery snapshots preserve the requested orientation and zoom',()=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1.5,.1,4000);scene.add(player);const rig=createGameCamera(camera,scene,player);
+ rig.reset({yaw:.7,pitch:.6,zoom:93,focusHeight:12});const snapshot=rig.snapshot();rig.rotate(30,-12,false);rig.zoom(8);assert.notDeepEqual(rig.snapshot(),snapshot);rig.reset(snapshot);assert.deepEqual(rig.snapshot(),snapshot);
+});
 const {workshopSpawn}=require('../app/world-config.ts');
 test('movement remains consistent across frame rates, slides against walls, and recovers invalid positions',()=>{
  const travel=hz=>{const p=new T.Group();p.position.set(0,.8,0);for(let i=0;i<hz;i++)moveCharacter(p,1,0,5.5/hz,()=>false,()=>.8);return p.position.x};assert.ok(Math.abs(travel(30)-travel(144))<1e-8);
@@ -50,6 +65,26 @@ test('orbit camera resolves layered plaza paving during a camera sweep without c
 test('camera avoids an obstruction and stays finite through large pointer rotation and zoom changes',()=>{
  const scene=new T.Scene(),p=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100);scene.add(p);const wall=new T.Mesh(new T.BoxGeometry(20,20,.4));wall.position.set(0,5,3);wall.userData.cameraSolid=true;scene.add(wall);const rig=createGameCamera(camera,scene,p);rig.update(.02,false,defaultSettings);assert.ok(camera.position.z<2.8);for(let i=0;i<200;i++){rig.rotate(900,900,false);rig.zoom(i%2?100:-100);rig.update(.02,true,defaultSettings);assert.ok(Number.isFinite(camera.position.lengthSq()))}const before=rig.yaw;rig.rotate(100,100,true);assert.equal(rig.yaw,before);
 });
+test('camera reuses unchanged rigid obstruction bounds but invalidates motion and geometry changes',context=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100),wall=new T.Mesh(new T.BoxGeometry(20,20,.4));wall.userData.cameraSolid=true;wall.position.set(0,5,30);scene.add(player,wall);
+ let scans=0;const setFromObject=T.Box3.prototype.setFromObject;context.mock.method(T.Box3.prototype,'setFromObject',function(object,...args){if(object===wall)scans++;return setFromObject.call(this,object,...args)});
+ const rig=createGameCamera(camera,scene,player);rig.update(.02,false,defaultSettings);const initial=scans;assert.equal(initial,1);
+ for(let frame=0;frame<120;frame++)rig.update(1/60,false,defaultSettings);assert.equal(scans,initial,'unchanged obstruction bounds were rebuilt');
+ wall.position.z=3;rig.update(.016,false,defaultSettings);assert.equal(scans,initial+1);assert.ok(camera.position.z<2.8);
+ wall.geometry.dispose();wall.geometry=new T.BoxGeometry(22,22,.8);rig.update(.016,false,defaultSettings);assert.equal(scans,initial+2);
+ wall.geometry.translate(0,0,.2);rig.update(.016,false,defaultSettings);assert.equal(scans,initial+3);
+ const child=new T.Mesh(new T.BoxGeometry(2,2,1));wall.add(child);rig.update(.016,false,defaultSettings);const grouped=scans;child.position.z=-2;rig.update(.016,false,defaultSettings);assert.equal(scans,grouped+1,'moving descendants were cached as rigid');
+ wall.geometry.dispose();child.geometry.dispose();wall.material.dispose();child.material.dispose();
+});
+
+test('camera obstruction updates refresh a shared ancestor only once per frame',context=>{
+ const scene=new T.Scene(),group=new T.Group(),player=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100),geometry=new T.BoxGeometry(1,1,1),material=new T.MeshStandardMaterial();scene.add(group,player);
+ for(let index=0;index<32;index++){const mesh=new T.Mesh(geometry,material);mesh.position.set(30+index,2,-10);mesh.userData.cameraSolid=true;group.add(mesh)}
+ let visits=0;const update=group.updateWorldMatrix.bind(group);context.mock.method(group,'updateWorldMatrix',(...args)=>{visits++;update(...args)});
+ const rig=createGameCamera(camera,scene,player);rig.update(.016,false,defaultSettings);assert.equal(visits,1,'shared ancestor traversed once per obstruction');
+ visits=0;group.position.x=7;rig.update(.016,false,defaultSettings);assert.equal(visits,1);assert.equal(group.children[0].matrixWorld.elements[12],37);geometry.dispose();material.dispose();
+});
+
 test('camera responds to moving doors on the next frame',()=>{
  const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(43,1,.1,100);
  const door=new T.Mesh(new T.BoxGeometry(20,20,.4));door.userData.cameraSolid=true;door.position.set(0,5,30);scene.add(door);

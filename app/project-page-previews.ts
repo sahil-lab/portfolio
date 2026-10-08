@@ -2,18 +2,28 @@ import * as T from 'three';
 import {CSS3DObject,CSS3DRenderer} from 'three/addons/renderers/CSS3DRenderer.js';
 import {projectBulletinSize,type createProjectBulletins} from './project-bulletins';
 
-export function createProjectPreviewBudget(idleMs=2500){
-  const residents=new Map<number,number>();
-  return {residents,update(candidates:number[],now:number,limit=2,active=true){
+export function createProjectPreviewBudget(idleMs=2500,settleMs=900,loadIntervalMs=1200){
+  const residents=new Map<number,number>(),pending=new Map<number,number>();let lastLoad=-Infinity;
+  return {residents,pending,update(candidates:number[],now:number,limit=2,active=true){
     const selected=new Set(active?candidates.slice(0,Math.max(0,limit)):[]),load:number[]=[],unload:number[]=[];
-    for(const [index,seen] of residents)if(!active||!selected.has(index)&&(now-seen>=idleMs||selected.size>=limit)){residents.delete(index);unload.push(index)}
-    for(const index of selected){if(!residents.has(index)){while(residents.size>=limit){const oldest=[...residents].filter(([resident])=>!selected.has(resident)).sort((first,second)=>first[1]-second[1])[0];if(!oldest)break;residents.delete(oldest[0]);unload.push(oldest[0])}if(residents.size<limit){residents.set(index,now);load.push(index)}}else residents.set(index,now)}
+    const retire=(index:number)=>{residents.delete(index);unload.push(index)};
+    for(const index of pending.keys())if(!selected.has(index))pending.delete(index);
+    for(const [index,seen] of residents)if(!active||!selected.has(index)&&now-seen>=idleMs)retire(index);
+    const oldestUnselected=()=>[...residents].filter(([index])=>!selected.has(index)).sort((first,second)=>first[1]-second[1])[0];
+    while(residents.size>Math.max(0,limit)){const oldest=oldestUnselected();if(!oldest)break;retire(oldest[0])}
+    for(const index of selected){
+      if(residents.has(index)){residents.set(index,now);pending.delete(index);continue}
+      if(!pending.has(index))pending.set(index,now);
+      if(now-pending.get(index)!<settleMs||now-lastLoad<loadIntervalMs)continue;
+      if(residents.size>=limit){const oldest=oldestUnselected();if(oldest)retire(oldest[0])}
+      if(residents.size<limit){residents.set(index,now);pending.delete(index);load.push(index);lastLoad=now}
+    }
     return {load,unload,visible:[...selected].filter(index=>residents.has(index))};
   }};
 }
 
 export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:T.Camera,player:T.Group,gallery:ReturnType<typeof createProjectBulletins>){
-  const renderer=new CSS3DRenderer(),pages=new T.Scene(),budget=createProjectPreviewBudget(),stats={loaded:0,visible:0,boundsScans:0,cssRenders:0};let disposed=false,checkedAt=-Infinity,selectedAt=-Infinity,dirty=true;
+  const renderer=new CSS3DRenderer(),pages=new T.Scene(),budget=createProjectPreviewBudget(),stats={loaded:0,visible:0,boundsScans:0,cssRenders:0,starts:0,stops:0,pending:0};let disposed=false,checkedAt=-Infinity,selectedAt=-Infinity,dirty=true;
   renderer.domElement.className='project-page-previews';renderer.domElement.setAttribute('aria-hidden','true');
   Object.assign(renderer.domElement.style,{position:'absolute',inset:'0',pointerEvents:'none',overflow:'hidden'});host.appendChild(renderer.domElement);
   const blockers:{bounds:T.Box3;owner:T.Object3D}[]=[],ray=new T.Ray(),target=new T.Vector3(),normal=new T.Vector3(),direction=new T.Vector3(),hit=new T.Vector3(),scale=new T.Vector3(),offset=new T.Vector3(0,-.45,0),frustum=new T.Frustum(),projection=new T.Matrix4(),lastCamera=new T.Matrix4(),lastProjection=new T.Matrix4(),screenSphere=new T.Sphere();let candidates:number[]=[];
@@ -58,12 +68,12 @@ export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:
       }
       candidates.sort((first,second)=>{const score=(index:number)=>frames[index].entry.approach.distanceToSquared(player.position)/(budget.residents.has(index)?1.2:1);return score(first)-score(second)});dirty=true;
     }
-    const decision=budget.update(nearby?candidates:[],now,limit,nearby);for(const index of decision.unload)frames[index].stop();for(const index of decision.load)frames[index].start();
+    const decision=budget.update(nearby?candidates:[],now,limit,nearby);for(const index of decision.unload){frames[index].stop();stats.stops++}for(const index of decision.load){frames[index].start();stats.starts++}stats.pending=budget.pending.size;
     for(const [index,frame] of frames.entries()){const shown=decision.visible.includes(index);if(frame.object.visible!==shown)dirty=true;frame.object.visible=shown}
     stats.loaded=budget.residents.size;stats.visible=decision.visible.length;renderer.domElement.style.display=stats.visible?'':'none';
     if(!nearby){selectedAt=-Infinity;return}
     if(stats.visible&&(dirty||!lastCamera.equals(camera.matrixWorld)||!lastProjection.equals((camera as T.PerspectiveCamera).projectionMatrix))){renderer.render(pages,camera);stats.cssRenders++;lastCamera.copy(camera.matrixWorld);lastProjection.copy((camera as T.PerspectiveCamera).projectionMatrix);dirty=false}
   }
-  const hidden=()=>{if(document.hidden){for(const index of budget.update([],performance.now(),0,false).unload)frames[index].stop();stats.loaded=stats.visible=0;renderer.domElement.style.display='none';selectedAt=-Infinity}};document.addEventListener('visibilitychange',hidden);
+  const hidden=()=>{if(document.hidden){for(const index of budget.update([],performance.now(),0,false).unload){frames[index].stop();stats.stops++}stats.loaded=stats.visible=stats.pending=0;renderer.domElement.style.display='none';selectedAt=-Infinity}};document.addEventListener('visibilitychange',hidden);
   return {frames,stats,render,resize:(width:number,height:number)=>{renderer.setSize(Math.max(1,width),Math.max(1,height));dirty=true;selectedAt=-Infinity},dispose(){if(disposed)return;disposed=true;document.removeEventListener('visibilitychange',hidden);for(const frame of frames)frame.dispose();pages.clear();renderer.domElement.remove()}};
 }

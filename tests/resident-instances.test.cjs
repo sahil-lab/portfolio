@@ -2,6 +2,23 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{createCuteResident}=require('../app/cute-resident.ts'),{createResidentInstances}=require('../app/resident-instances.ts'),{batchScenery}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('unchanged resident poses reuse uploaded matrices and bounds while changes remain visible',context=>{
+ const scene=new T.Scene(),geometry=new T.BoxGeometry(.3,.4,.2),material=new T.MeshStandardMaterial({color:'#739787'}),actors=Array.from({length:4},(_,index)=>{const root=new T.Group(),part=new T.Mesh(geometry,material.clone());root.position.set(index*2,0,-6);root.add(part);scene.add(root);return {root,instanceParts:[part]}}),instances=createResidentInstances(scene,actors),batch=instances.batches[0],version=batch.mesh.instanceMatrix.version,colorVersion=batch.mesh.instanceColor.version,bounds=batch.mesh.boundingSphere.clone();let unions=0;
+ const union=batch.mesh.boundingSphere.union.bind(batch.mesh.boundingSphere);context.mock.method(batch.mesh.boundingSphere,'union',sphere=>{unions++;return union(sphere)});
+ for(let frame=0;frame<60;frame++)instances.update();
+ assert.equal(batch.mesh.instanceMatrix.version,version,'unchanged poses uploaded matrices');assert.equal(batch.mesh.instanceColor.version,colorVersion);assert.equal(unions,0,'unchanged poses rebuilt instance bounds');assert.ok(batch.mesh.boundingSphere.equals(bounds));
+ actors[1].root.position.x+=3;instances.update();assert.ok(batch.mesh.instanceMatrix.version>version);assert.ok(unions>0);const pose=new T.Matrix4();batch.mesh.getMatrixAt(1,pose);assert.equal(pose.elements[12],5);
+ const movedVersion=batch.mesh.instanceMatrix.version;actors[1].instanceParts[0].material.color.set('#db8855');instances.update();assert.equal(batch.mesh.instanceMatrix.version,movedVersion);assert.ok(batch.mesh.instanceColor.version>colorVersion);
+ actors[0].root.visible=false;instances.update();assert.equal(batch.mesh.count,3);batch.mesh.getMatrixAt(0,pose);assert.equal(pose.elements[12],5);disposeScene(scene);
+});
+
+test('resident batch object transforms are reused and still follow a changed scene transform',context=>{
+ const scene=new T.Scene(),actors=[createCuteResident('#879eaa'),createCuteResident('#a48c92')];actors.forEach(actor=>scene.add(actor.root));const instances=createResidentInstances(scene,actors);scene.updateMatrixWorld(true);let visits=0;
+ for(const {mesh} of instances.batches){const update=mesh.updateMatrixWorld.bind(mesh);context.mock.method(mesh,'updateMatrixWorld',force=>{visits++;update(force)})}
+ for(let frame=0;frame<60;frame++)scene.updateMatrixWorld(true);assert.equal(visits,0);
+ scene.position.set(5,3,-8);scene.updateMatrixWorld(true);assert.equal(visits,instances.batches.length);for(const {mesh} of instances.batches)assert.deepEqual(new T.Vector3().setFromMatrixPosition(mesh.matrixWorld).toArray(),[5,3,-8]);disposeScene(scene);
+});
+
 test('premium-textured resident parts share draws while preserving color and UV boundaries',()=>{
  const scene=new T.Scene(),texture=new T.Texture();texture.userData.blenderSceneFinish='premium-surface-v1';
  const actors=['#d3958d','#78afa1','#87a5c6','#e4d39a'].map((color,index)=>{

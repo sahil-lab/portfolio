@@ -96,6 +96,19 @@ test('street life reserves clear performer areas and switches instanced wildlife
   }finally{disposeScene(scene)}
 });
 
+test('empty wildlife batches skip render setup and buffer uploads and reappear with populated counts',()=>{
+  const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),life=createStreetLife(scene,{id:'empty-batches',anchors:[]}),observer=new T.Vector3(500,.8,-400),groups=[life.butterflies,life.ambientButterflies,life.bats,life.birds,life.fireflies];
+  try{
+    for(const night of [0,1,0]){
+      life.update(.1,false,true,observer,{morning:0,night});
+      for(const group of groups)for(const mesh of Object.values(group))assert.equal(mesh.visible,mesh.count>0,mesh.name+' visibility does not match populated instances');
+      const empty=groups.flatMap(group=>Object.values(group)).filter(mesh=>mesh.count===0),versions=empty.map(mesh=>mesh.instanceMatrix.version);
+      life.update(.1,false,true,observer,{morning:0,night});assert.deepEqual(empty.map(mesh=>mesh.instanceMatrix.version),versions,'empty batches uploaded unchanged buffers');
+      assert.equal(life.stats.butterflies,night?0:8);assert.equal(life.stats.fireflies,night?24:0);
+    }
+  }finally{disposeScene(scene)}
+});
+
 test('insects follow walking, teleporting and flying observers without requiring fixed habitats',()=>{
   const T=require('three'),{createStreetLife}=require('../app/street-life.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),life=createStreetLife(scene,{id:'following',anchors:[]}),observer=new T.Vector3(500,.8,-400),matrix=new T.Matrix4(),position=new T.Vector3();
   const near=(mesh,radius)=>{for(let index=0;index<mesh.count;index++){mesh.getMatrixAt(index,matrix);position.setFromMatrixPosition(matrix);assert.ok(position.distanceTo(observer)<radius,mesh.name+' left the observer behind')}};
