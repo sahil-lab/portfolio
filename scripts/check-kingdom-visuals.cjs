@@ -17,8 +17,10 @@ async function main(){
   const premiumAssets=process.argv.includes('--premium-assets');
   const pressStudy=process.argv.includes('--press-study');
   const collectiblePress=process.argv.includes('--collectible-press');
+  const paletteReview=process.argv.includes('--palette');
+  const palettePanels=process.argv.includes('--palette-panels');
   const worldKitOnly=process.argv.includes('--world-kit')||blenderReturn||premiumAssets||terrainAssets||craftAssets;
-  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly||shopsOnly||worldKitOnly||pressStudy||collectiblePress;
+  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly||shopsOnly||worldKitOnly||pressStudy||collectiblePress||paletteReview||palettePanels;
   const matchReference=process.argv.includes('--match-reference');
   const referenceOnly=process.argv.includes('--reference')||matchReference;
   const browser=await chromium.launch({channel:workshopOnly?'chrome':'msedge',headless:true,args:workshopOnly?[]:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -116,6 +118,53 @@ async function main(){
     }
     const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));
     const report=()=>console.log(JSON.stringify({checks:checks.map(({controls,mapNodes,toolbar,...check})=>({...check,visibleControls:controls.length,mapTargets:mapNodes.length,toolbarTargets:toolbar.length})),errors,screenshots:output},null,2));
+    if(palettePanels){
+      await page.evaluate(()=>__kingdomReview.settings({muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'}));
+      const panels=[];
+      async function panelCapture(name,selector){
+        const panel=page.locator(selector);await panel.waitFor({state:'visible'});await page.evaluate(()=>document.fonts.ready);
+        const state=await panel.evaluate(element=>{
+          const style=getComputedStyle(element),bounds=element.getBoundingClientRect(),luminance=value=>{const components=value.match(/[\d.]+/g).slice(0,3).map(Number).map(channel=>channel/255).map(channel=>channel<=.04045?channel/12.92:((channel+.055)/1.055)**2.4);return components[0]*.2126+components[1]*.7152+components[2]*.0722},tones=[luminance(style.color),luminance(style.backgroundColor)].sort((first,second)=>second-first);
+          return {viewport:[innerWidth,innerHeight],foreground:style.color,background:style.backgroundColor,contrast:(tones[0]+.05)/(tones[1]+.05),fits:bounds.left>=-1&&bounds.top>=-1&&bounds.right<=innerWidth+1&&bounds.bottom<=innerHeight+1,overflow:element.scrollWidth>element.clientWidth+1};
+        });
+        assert.ok(state.fits,name+' exceeds the viewport');assert.equal(state.overflow,false,name+' overflows horizontally');assert.ok(state.contrast>=4.5,name+' text contrast');await page.screenshot({path:path.join(output,`${prefix}-${name}.png`)});panels.push({name,...state});console.log('PALETTE_PANEL '+JSON.stringify(panels.at(-1)));
+      }
+      for(const [device,width,height] of [['desktop',1440,960],['mobile',390,844]]){
+        await page.setViewportSize({width,height});await page.evaluate(()=>__kingdomReview.goCapital('plaza'));
+        await page.getByRole('button',{name:'World controls',exact:true}).click();await page.getByRole('button',{name:'Read resume',exact:true}).click();await panelCapture('resume-'+device,'.resume-reader');await page.getByRole('button',{name:'Close resume',exact:true}).click();
+        await page.getByRole('button',{name:'World controls',exact:true}).click();await page.getByRole('button',{name:'Friends and games',exact:true}).click();await panelCapture('friends-'+device,'.friends-hub');await page.getByRole('button',{name:'Return to the world',exact:true}).click();
+        await page.getByRole('button',{name:'World controls',exact:true}).click();await page.locator('.hud-destination-group summary').filter({hasText:'Walks & discoveries'}).click();await page.getByRole('button',{name:'Visit Frequency House',exact:true}).click();await panelCapture('radio-'+device,'.radio-panel');await page.getByRole('button',{name:'Close radio tuner',exact:true}).click();
+      }
+      assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,`${prefix}-checks.json`),JSON.stringify({panels,errors},null,2));return;
+    }
+    if(paletteReview){
+      const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
+      const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=35;function next(){if(--remaining)requestAnimationFrame(next);else resolve()}requestAnimationFrame(next)}));
+      await page.evaluate(value=>__kingdomReview.settings(value),settings);
+      await page.evaluate(()=>Promise.allSettled([__kingdomReview.dog.ready,__kingdomReview.angel.ready,__kingdomReview.goldMonument.ready]));
+      const inventory=await page.evaluate(()=>({paving:__kingdomReview.scene.getObjectByName('Capital_RadialPaving').material.color.getHexString(),inlays:__kingdomReview.scene.getObjectByName('Capital_PavingInlay').count,prebuilt:__kingdomReview.city.architecture.filter(({town})=>town.root.userData.prebuiltShells).length,trees:__kingdomReview.city.streetTrees.length}));
+      assert.equal(inventory.paving,'1b2123');assert.equal(inventory.inlays,180);assert.equal(inventory.prebuilt,236);assert.equal(inventory.trees,944);
+      for(const [device,width,height] of [['desktop',1440,960],['mobile',390,844]]){
+        await page.setViewportSize({width,height});assert.equal(await page.evaluate(()=>__kingdomReview.goCapital('plaza')),true);
+        for(const worldLighting of ['day','night']){await page.evaluate(value=>__kingdomReview.settings(value),{...settings,worldLighting});await page.waitForFunction(mode=>mode==='night'?__kingdomReview.weather.visual.night>.98:__kingdomReview.weather.visual.night<.02,worldLighting);await settle();await capture('palette-plaza-'+device+'-'+worldLighting)}
+        await page.evaluate(value=>__kingdomReview.settings(value),settings);await page.waitForFunction(()=>__kingdomReview.weather.visual.night<.02);await settle();
+        await page.getByRole('button',{name:'World controls',exact:true}).click();const panel=page.locator('.hud-category-panel');await panel.waitFor({state:'visible'});
+        const contrast=await panel.evaluate(element=>{
+          const style=getComputedStyle(element),luminance=value=>{const components=value.slice(1).match(/.{2}/g).map(part=>parseInt(part,16)/255).map(component=>component<=.04045?component/12.92:((component+.055)/1.055)**2.4);return components[0]*.2126+components[1]*.7152+components[2]*.0722};
+          const ratio=(first,second)=>{const values=[luminance(style.getPropertyValue(first).trim()),luminance(style.getPropertyValue(second).trim())].sort((left,right)=>right-left);return (values[0]+.05)/(values[1]+.05)};
+          const bounds=element.getBoundingClientRect();return {body:ratio('--hud-white','--hud-ink'),muted:ratio('--hud-muted','--hud-ink'),selected:ratio('--hud-ink','--hud-mint'),gold:ratio('--hud-ink','--hud-gold'),fits:bounds.left>=0&&bounds.right<=innerWidth&&bounds.top>=0&&bounds.bottom<=innerHeight};
+        });
+        assert.ok(contrast.fits);for(const key of ['body','muted','selected','gold'])assert.ok(contrast[key]>=4.5,key+' text contrast');await capture('palette-controls-'+device);Object.assign(checks.at(-1),{contrast});await page.getByRole('button',{name:'Close World controls',exact:true}).click();
+        for(const place of ['city','workshop','commons']){await page.evaluate(place=>{if(place==='city')__kingdomReview.goCity();else if(place==='workshop')__kingdomReview.home();else __kingdomReview.goCommons()},place);await settle();await capture('palette-'+place+'-'+device)}
+      }
+      for(let destination=1;destination<=9;destination++){
+        assert.equal(await page.evaluate(destination=>__kingdomReview.goSharedPlanet(destination),destination),true);await page.waitForFunction(destination=>__kingdomReview.transport.streaming.ready(destination),destination,{timeout:120000});
+        for(const [device,width,height] of [['desktop',1440,960],['mobile',390,844]]){await page.setViewportSize({width,height});await settle();await capture('palette-planet-'+destination+'-'+device)}
+        if([1,3,7].includes(destination)){await page.evaluate(value=>__kingdomReview.settings(value),{...settings,worldLighting:'night'});await page.waitForFunction(()=>__kingdomReview.weather.visual.night>.98);await settle();await capture('palette-planet-'+destination+'-night');await page.evaluate(value=>__kingdomReview.settings(value),settings);await page.waitForFunction(()=>__kingdomReview.weather.visual.night<.02)}
+      }
+      assert.equal(await page.evaluate(()=>__kingdomReview.goCapital('plaza')),true);await page.evaluate(value=>__kingdomReview.settings(value),{...settings,reducedMotion:false});await settle();const before=await page.evaluate(()=>__kingdomReview.player.position.toArray());await page.keyboard.down('d');await settle();await page.keyboard.up('d');assert.notDeepEqual(await page.evaluate(()=>__kingdomReview.player.position.toArray()),before);await capture('palette-plaza-return-moving');
+      assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,`${prefix}-checks.json`),JSON.stringify({checks,inventory,errors},null,2));report();return;
+    }
     if(worldKitOnly){
       const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'};
       const settle=()=>page.evaluate(()=>new Promise(resolve=>{let remaining=40;function frame(){if(--remaining>0)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));

@@ -13,6 +13,7 @@ import {cacheStaticTransforms} from './static-transforms';
 import {planWalkingRoute} from './walking-route';
 import {rampHeight,type Ramp} from './traversal';
 import {cityEverydaySites,everydayFootprint} from './everyday-places';
+import {kingdomPalette} from './kingdom-art';
 
 export const capitalSite={x:52,z:180,radius:27};
 export const capitalArrival={x:52,y:.8,z:201};
@@ -32,13 +33,13 @@ export function createCapitalWorld(scene:T.Scene,player:T.Group,callbacks:{block
  const root=new T.Group();root.name='Sahil_DigitalCapital';scene.add(root);const fixed=new T.Group();fixed.name='Capital_StaticStreetscape';root.add(fixed);
  const kit=createCivicKit(),materials=kit.materials;
  const plaza=new T.Group();plaza.name='Sahil_CentralPlaza';plaza.position.set(capitalSite.x,0,capitalSite.z);fixed.add(plaza);
- materials.paving.color.set('#576a6b');materials.stone.color.set('#cbd2cb');
+ materials.paving.color.set(kingdomPalette.paving);materials.stone.color.set(kingdomPalette.stone);
  const base=new T.Mesh(new T.CylinderGeometry(27,27,.16,96),materials.paving);base.name='Capital_RadialPaving';base.position.y=-.04;base.receiveShadow=true;plaza.add(base);
  const tileMaterial=new T.MeshStandardMaterial({color:'#ffffff',roughness:.95,metalness:.025,bumpMap:materials.paving.bumpMap,roughnessMap:materials.paving.roughnessMap,bumpScale:.018});tileMaterial.userData.surface='natural';
- const tiles=new T.InstancedMesh(new T.BoxGeometry(1,.022,3.5),tileMaterial,180),dummy=new T.Object3D(),tileColors=['#71847d','#7a8b80','#839286','#728584'].map(color=>new T.Color(color));tiles.name='Capital_PavingInlay';
+ const tiles=new T.InstancedMesh(new T.BoxGeometry(1,.022,3.5),tileMaterial,180),dummy=new T.Object3D(),tileColors=['#a9b4ae','#8b9993','#c2cac4','#778681'].map(color=>new T.Color(color));tiles.name='Capital_PavingInlay';
  for(let index=0;index<180;index++){const ring=Math.floor(index/60),angle=(index%60+(ring%2)*.5)*Math.PI/30;dummy.position.set(Math.sin(angle)*(12+ring*5),.055,Math.cos(angle)*(12+ring*5));dummy.rotation.set(0,angle,0);dummy.scale.set(1.1+ring*.48,1,1);dummy.updateMatrix();tiles.setMatrixAt(index,dummy.matrix);tiles.setColorAt(index,tileColors[(index*7+ring)%tileColors.length])}tiles.computeBoundingSphere();tiles.receiveShadow=true;plaza.add(tiles);
  for(const radius of [8.8,16.8,24.5]){const inlay=new T.Mesh(new T.TorusGeometry(radius,.035,5,96),materials.brass);inlay.name='Capital_CircuitPavingRing';inlay.rotation.x=Math.PI/2;inlay.position.y=.075;plaza.add(inlay)}
- const approachMaterial=materials.paving.clone();approachMaterial.color.set('#84958d');
+ const approachMaterial=materials.paving.clone();approachMaterial.color.set(kingdomPalette.walkway);
  kit.box(fixed,'Capital_QuietApproach',new T.Vector3(52,.076,197),[5.1,.014,13.8],approachMaterial).castShadow=false;
  for(const side of [-1,1])kit.box(fixed,'Capital_ApproachSeam',new T.Vector3(52+side*2.57,.084,197),[.035,.008,13.8],materials.brass);
  const fountain=createCapitalFountain('royal');fountain.root.position.set(capitalSite.x,0,capitalSite.z);root.add(fountain.root);

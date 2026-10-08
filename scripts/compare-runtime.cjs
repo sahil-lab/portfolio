@@ -14,6 +14,7 @@ async function main(){
     await context.routeWebSocket(socket=>socket.origin===new URL(url).origin.replace(/^http/,'ws'),()=>{});
     if(options.projects)await context.route(/^https:\/\/(?:portfolio-resume-lake|ecofusion|cosmic-wellness|mindful-goal-seven|3d-code-pad-jp5m)\.vercel\.app\//,route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Performance fixture</title><body style="margin:0;background:#dbe8e1;color:#193d37;font:32px Georgia;padding:36px"><h1>Project preview</h1><p>Fixed-content performance fixture</p></body>'}));
    await page.addInitScript(()=>{
+    if(window!==window.top)return;
     localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality:'balanced',cameraMode:'far',worldLighting:'day',movementMode:'walk'}}));
     Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error({code:1})}}});
     globalThis.__compareReady=null;globalThis.__compareVisible=null;globalThis.__compareEarlyPixels=null;globalThis.__compareLost=0;document.addEventListener('webglcontextlost',()=>globalThis.__compareLost++,true);
@@ -37,7 +38,7 @@ async function main(){
     const report={label,url,viewport:options.mobile?'390x844':'1440x960',quality:'balanced',deviceScaleFactor:1,startup,locations:[],errors};
     for(const location of options.diagnostic||options.draws||options.costs?['plaza']:options.projects?['plaza','projects','returned','planet']:['plaza','mall','planet']){
      assert.ok(await page.evaluate(location=>location==='plaza'||location==='returned'?__compareWorld.goCapital('plaza'):location==='projects'?__compareWorld.goProjectBulletins():location==='mall'?__compareWorld.goEverydayPlace('lantern-mall'):__compareWorld.goSharedPlanet(3),location));
-     await page.waitForFunction(location=>location==='planet'?__compareWorld.transport.streaming.ready(3):__compareWorld.city.streaming().loading===0,location,{timeout:120000});
+    try{await page.waitForFunction(location=>location==='planet'?__compareWorld.transport.streaming.ready(3):__compareWorld.city.streaming().loading===0,location,{timeout:120000})}catch(error){console.error('DESTINATION_NOT_READY '+JSON.stringify({label,location,errors,...await page.evaluate(()=>({visibility:document.visibilityState,contextLost:__compareLost,renderReady:__compareWorld.renderReady,streaming:__compareWorld.transport.streaming.snapshot(),city:__compareWorld.city.streaming()}))}));throw error}
     if(options.diagnostic){await client.send('Profiler.enable');await client.send('Profiler.start')}
      const samples=await page.evaluate(async()=>{
       const frames=count=>new Promise(resolve=>{const values=[];let previous;function next(now){if(previous!==undefined)values.push(now-previous);previous=now;if(values.length>=count)resolve(values);else requestAnimationFrame(next)}requestAnimationFrame(next)});

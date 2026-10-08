@@ -8,6 +8,7 @@ import {batchScenery} from './static-batching';
 import {addShopArchitecture} from './shop-architecture';
 import {createKettleSteam} from './kettle-steam';
 import {worldKitGeometry,completeKitColors} from './world-kit';
+import {createGroundCoverWindow} from './ground-cover';
 
 export const commonsSpawn={x:0,y:.8,z:98};
 export function commonsArrival(aspect:number){
@@ -24,7 +25,17 @@ export const commonsVenues=[
   {id:'ice',name:'Cloud Soft Serve',x:18,z:130,width:3.5,depth:2.8,message:'Vanilla cloud, with a little stardust on top.'},
 ] as const;
 
-export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{notice:(text:string)=>void;subtitle:(text:string)=>void;sound:()=>void;enableVoice?:()=>void;radio?:()=>void}){
+export function createCommonsMeadow(blocked:(x:number,z:number)=>boolean=()=>false){
+  const vertical=new T.Vector3(0,1,0),meadow=createGroundCoverWindow({sample:(x,z,seed)=>{
+    if(Math.abs(x)>48||z<53||z>146||Math.abs(x)<4.4||[73,89,106,126].some(path=>Math.abs(z-path)<2.7))return null;
+    if(commonsVenues.some(venue=>Math.abs(x-venue.x)<venue.width/2+1.6&&Math.abs(z-venue.z)<venue.depth/2+1.6||Math.hypot(x-venue.x,z-(venue.z+venue.depth/2+1.5))<4.5))return null;
+    if(commonsGardens.some(garden=>Math.abs(x-garden.x)<2.6&&Math.abs(z-garden.z)<2.3)||Math.abs(x+24)<6&&z>70&&z<84)return null;
+    if([55,81,97,119,137].some(lamp=>Math.hypot(Math.abs(x)-7.3,z-lamp)<1.1)||blocked(x,z)||blocked(x-.6,z-.6)||blocked(x+.6,z+.6))return null;
+    return {position:new T.Vector3(x,-.175,z),rotation:new T.Quaternion().setFromAxisAngle(vertical,seed%6283/1000),scale:.85+(seed%19)/65,flower:seed%9===0};
+  }});meadow.root.name='Commons_LivingMeadow';return meadow;
+}
+
+export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{notice:(text:string)=>void;subtitle:(text:string)=>void;sound:()=>void;enableVoice?:()=>void;radio?:()=>void;groundBlocked?:(x:number,z:number)=>boolean}){
   const root=new T.Group();root.name='MotherboardCommons';scene.add(root);const surface=createCraftMaterials();
   const ink=surface('#233c43'),cream=surface('#f1f2e9'),copper=surface('#c9ad7b',0,.65),teal=surface('#198c91'),rose=surface('#e47f87'),blue=surface('#4b91b3');
   const glass=new T.MeshPhysicalMaterial({color:'#1988ba',metalness:.3,roughness:.22,clearcoat:.75,clearcoatRoughness:.2});
@@ -195,14 +206,16 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
   }
   paintPortrait(false);
   completeKitColors(root);batchScenery(root,{portrait,kettleSteam:kettleSteam.root,radio:radioControls,products:dispensed.map(item=>item.mesh)});
+  const meadow=createCommonsMeadow(callbacks.groundBlocked);root.add(meadow.root);
   const nearest=()=>player.position.y<3?commonsVenues.find(venue=>Math.hypot(player.position.x-venue.x,player.position.z-(venue.z+venue.depth/2+1))<4.8):undefined;
-  function update(dt:number,reduced:boolean,active:boolean,environment={visible:active,wind:0}){
+  function update(dt:number,reduced:boolean,active:boolean,environment:{visible:boolean;wind:number;observer?:T.Vector3}={visible:active,wind:0}){
     available=active;voice.update();clock+=dt;speaker.tick(dt,reduced);
+    meadow.update(dt,reduced,environment.observer??player.position,environment.visible);
     kettleSteam.update(dt,reduced,environment.visible,environment.wind);
     const blink=!reduced&&clock%6.7<.13,status=voice.status,text=voice.text;if(lastMouth!==speaker.mouth||lastText!==text||lastBlink!==blink||lastStatus!==status){lastMouth=speaker.mouth;lastText=text;lastBlink=blink;lastStatus=status;paintPortrait(blink)}
     dispensed.forEach(item=>{item.mesh.visible=clock<item.until;if(!reduced&&item.mesh.visible)item.mesh.rotation.y+=dt*.7});
   }
-  return {root,speaker,voice,kettleSteam,radio,radioControls,portraitCanvas:canvas,update,
+  return {root,speaker,voice,kettleSteam,radio,radioControls,portraitCanvas:canvas,meadow,update,
     blocked:(x:number,z:number,y:number)=>y<14&&(Math.abs(x+24)<4.9&&Math.abs(z-73)<.8||commonsVenues.some(venue=>Math.abs(x-venue.x)<venue.width/2+.4&&Math.abs(z-venue.z)<venue.depth/2+.4)||y<2.6&&commonsGardens.some(garden=>Math.abs(x-garden.x)<2.1&&Math.abs(z-garden.z)<1.7)),
     prompt:()=>nearPortrait()?voice.prompt:nearest()?'E \u00b7 '+nearest()!.name:null,
     interact:()=>{if(nearPortrait())return voice.interact();const venue=nearest();if(!venue)return false;if(venue.id==='radio'){callbacks.radio?.();callbacks.sound();return true}callbacks.notice(venue.name+': '+venue.message);callbacks.sound();const item=dispensed.find(value=>value.mesh.parent?.name==='Shop_'+venue.id);if(item)item.until=clock+6;return true},

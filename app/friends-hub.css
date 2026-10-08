@@ -1,5 +1,5 @@
 .friends-hub {
- --club-bg:#102c30; --club-deep:#081e24; --club-ink:#edf6ed; --club-muted:#acc9c3; --club-line:#b5d9ce26; --club-jade:#b4e6cf; --club-gold:#e8c773; --club-red:#ff9a8a;
+ --club-bg:#151d20; --club-deep:#0c1215; --club-ink:#f1f6f0; --club-muted:#b5cac1; --club-line:#c2d9ce40; --club-jade:#75dfbe; --club-gold:#dfbe74; --club-red:#ff8878;
  position:fixed; inset:0; top:0; left:0; transform:none; translate:none; z-index:70; display:flex; flex-direction:column; width:100%; height:100dvh; max-width:none; margin:0; padding:0; gap:0; border:0; border-radius:0; overflow:hidden; background:var(--club-bg); color:var(--club-ink); font:400 13px/1.5 'Space Grotesk',sans-serif; box-shadow:none;
 }
 .friends-hub * {box-sizing:border-box;letter-spacing:0}
@@ -14,7 +14,7 @@
 .friends-hub h2,.friends-hub h3,.friends-hub p {margin:0}
 .friends-hub h2 {font:500 23px/1.2 'Fraunces',serif}
 .friends-hub h3 {font-size:13px;font-weight:500}
-.friends-hub input:not([type=range]):not([type=checkbox]):not([type=file]),.friends-hub select {width:100%;min-width:0;min-height:42px;padding:9px 10px;border:1px solid #a6c9bf50;border-radius:4px;background:#08232a;color:var(--club-ink)}
+.friends-hub input:not([type=range]):not([type=checkbox]):not([type=file]),.friends-hub select {width:100%;min-width:0;min-height:42px;padding:9px 10px;border:1px solid #a6c9bf50;border-radius:4px;background:var(--club-deep);color:var(--club-ink)}
 .friends-hub label {display:flex;gap:7px;flex-direction:column;color:var(--club-muted);font-size:12px}
 .friends-hub input[type=range],.friends-hub input[type=checkbox] {accent-color:var(--club-jade)}
 .friends-hub .friends-primary {background:var(--club-jade);border-color:var(--club-jade);color:#163c39;font-weight:600}
@@ -32,14 +32,14 @@
 .friends-orbit-scene {position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
 .friends-orbit-scene canvas {display:block;width:100%;height:100%}
 .friends-orbit-scene>output {position:absolute;inset:30% 10%;color:var(--club-red);max-width:480px}
-.friends-join {position:relative;z-index:1;width:340px;max-width:calc(100% - 32px);margin:42px 32px;padding:24px;display:flex;flex-direction:column;gap:17px;background:#0c292ee8;border:1px solid #a7d3bd40;border-radius:6px;backdrop-filter:blur(12px)}
+.friends-join {position:relative;z-index:1;width:340px;max-width:calc(100% - 32px);margin:42px 32px;padding:24px;display:flex;flex-direction:column;gap:17px;background:var(--club-bg);border:1px solid var(--club-line);border-radius:6px;backdrop-filter:blur(12px)}
 .friends-join h2 {font-size:27px;margin-bottom:8px}
-.friends-tabs {display:flex;flex:0 0 auto;padding:0 20px;border-bottom:1px solid var(--club-line);gap:4px;overflow:auto;scrollbar-width:thin;background:#0a252b}
+.friends-tabs {display:flex;flex:0 0 auto;padding:0 20px;border-bottom:1px solid var(--club-line);gap:4px;overflow:auto;scrollbar-width:thin;background:var(--club-deep)}
 .friends-tabs button {position:relative;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;white-space:nowrap;padding:13px 15px;color:var(--club-muted);min-height:52px}
 .friends-tabs button[aria-current=page] {color:var(--club-jade);border-bottom-color:var(--club-jade);background:#b1dfc309}
 .friends-tabs i {width:5px;height:5px;background:var(--club-gold);border-radius:50%;position:absolute;top:8px;right:6px}
 .friends-layout {display:grid;grid-template-columns:246px minmax(0,1fr);flex:1;min-height:0}
-.friends-sidebar {border-right:1px solid var(--club-line);padding:22px 18px;overflow:auto;scrollbar-width:thin;background:linear-gradient(180deg,#133337,#0c272c)}
+.friends-sidebar {border-right:1px solid var(--club-line);padding:22px 18px;overflow:auto;scrollbar-width:thin;background:linear-gradient(180deg,#202d2b,#111b1d)}
 .friends-section-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
 .friends-section-heading h2 {font-size:19px}
 .friends-section-heading small {font-size:9px;color:var(--club-gold)}
@@ -203,7 +203,7 @@
  .friends-ship-controls{padding:16px 12px}.friends-ports{grid-template-columns:1fr}.ship-status{left:16px;bottom:16px}.ship-status h2{font-size:23px}.friends-records-page{padding:20px 16px}.friends-computer{padding:14px 12px;height:600px;min-height:500px}.friends-computer h2{font-size:22px}.pc-toolbar{gap:5px}.pc-toolbar .pc-network{margin-left:0}.pc-console{font-size:11px}.pc-command>svg{display:none}.pc-command button{padding:8px}.friends-game-toolbar>output{font-size:11px}.friends-error{padding:8px 12px;font-size:11px}
 }
 @media(prefers-reduced-motion:reduce) {.friends-hub *{scroll-behavior:auto!important}}
-.friends-hub.friends-inworld {inset:90px 18px auto auto;width:min(740px,calc(100vw - 36px));height:min(740px,calc(100dvh - 112px));max-width:none;border:1px solid #b5d9ce4d;border-radius:7px;background:#102c30f5;box-shadow:0 18px 60px #0005}
+.friends-hub.friends-inworld {inset:90px 18px auto auto;width:min(740px,calc(100vw - 36px));height:min(740px,calc(100dvh - 112px));max-width:none;border:1px solid var(--club-line);border-radius:7px;background:var(--club-bg);box-shadow:0 18px 60px #0005}
 .friends-inworld .friends-header {min-height:64px;padding:12px 16px}
 .friends-inworld .friends-header [data-slot=dialog-title] {font-size:22px}
 .friends-inworld .friends-layout {grid-template-columns:188px minmax(0,1fr)}

@@ -5,6 +5,7 @@ import {createWoodenSign} from './wooden-sign';
 import {createReadableDisplay} from './readable-display';
 import {disposeScene} from './scene-resources';
 import {batchScenery} from './static-batching';
+import {createGroundCover,createMeadowLawn,type GroundCoverPlacement} from './ground-cover';
 import {sampleWorldCourse} from '../lib/orbit-course';
 import type {FriendsClient} from './friends-client';
 import type {PlayView,RoomSnapshot} from '../lib/friends-protocol';
@@ -24,6 +25,18 @@ export const friendsSites=[
 export type FriendsActivityStatus={active:boolean;kind:'race'|'ship'|null;cabin:boolean;planet:number};
 const idleStatus:FriendsActivityStatus={active:false,kind:null,cabin:false,planet:0};
 export type FriendsActivities=ReturnType<typeof createFriendsActivities>;
+
+export function createFriendsMeadow(){
+ const placements:GroundCoverPlacement[]=[],cells:T.Vector3[]=[],rotation=new T.Quaternion(),vertical=new T.Vector3(0,1,0);let sample=0;
+ for(let row=149;row<235;row+=1.05)for(let column=-28;column<28;column+=1.05){
+  const index=sample++,x=column+Math.sin(index*127.1)*.32,z=row+Math.sin(index*311.7)*.32;
+  if(Math.abs(x)<4.2||[148,181,211,235].some(path=>Math.abs(z-path)<1.8))continue;
+  if(friendsSites.some(site=>Math.abs(x-site.x)<(site.id==='ship'?15:site.width)/2+1.9&&Math.abs(z-site.z)<(site.id==='ship'?17:site.depth)/2+1.9||Math.hypot(x-site.x,z-(site.z+site.depth/2+3.1))<3.25))continue;
+  placements.push({position:new T.Vector3(x,-.175,z),rotation:rotation.clone().setFromAxisAngle(vertical,index*2.3999632297),scale:.85+(index*13%29)/100,patch:Math.floor(x/28)+'/'+Math.floor(z/28),flower:index%11===0});
+  cells.push(new T.Vector3(column,-.19,row));
+ }
+ const meadow=createGroundCover(placements);meadow.root.name='Friends_CommonsMeadow';meadow.root.add(createMeadowLawn(cells,1.05));return meadow;
+}
 
 export function worldRaceView(distance:number,lane:number,aspect:number){
  const pose=sampleWorldCourse(distance,lane),back=aspect<.8?17:14,height=aspect<.8?9:7;
@@ -48,6 +61,7 @@ export function sharedShipPose(current:number,destination:number|null,progress:n
 export function createFriendsActivities(scene:T.Scene,camera:T.PerspectiveCamera,player:T.Group,callbacks:{open:(view:PlayView)=>void;change:(status:FriendsActivityStatus)=>void;arrive:(planet:number)=>boolean;notice:(message:string)=>void}){
  const root=new T.Group();root.name='Friends_CurrentWorld';scene.add(root);
  const stations=new T.Group();stations.name='Friends_CommonsStations';root.add(stations);
+ const meadow=createFriendsMeadow();stations.add(meadow.root);
  const materials=new Map<string,T.MeshStandardMaterial>();
  const material=(color:string)=>{let found=materials.get(color);if(!found){found=new T.MeshStandardMaterial({color,roughness:.55,metalness:.15});materials.set(color,found)}return found};
  const mint=material('#b4deca'),ink=material('#204448'),brass=material('#d7bb78'),cream=material('#e7eddd');
@@ -164,7 +178,7 @@ export function createFriendsActivities(scene:T.Scene,camera:T.PerspectiveCamera
   return status.active;
  }
  return {
-  root,stations,ship,cabin,observer,carVisuals,crewVisuals,
+  root,stations,ship,cabin,observer,carVisuals,crewVisuals,meadow,
   get track(){return track},get status(){return status},get active(){return status.active},get room(){return room},
   attach(value:FriendsClient|null){unsubscribe?.();client=value;unsubscribe=client?.subscribe(receive)??null;receive()},
   setEnabled(value:boolean){enabled=value},

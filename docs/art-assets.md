@@ -2,6 +2,103 @@
 
 The Packet Press was the first Blender-authored hero prop. Shared Blender libraries now supply character parts, planting, paving, architecture and baked planetary terrain. World assembly, live content and gameplay remain in Three.js. This is not live Cycles rendering in the browser or a claim that every custom mesh has been replaced.
 
+## Living Ground Cover And Fruit, October 8
+
+The Friends activity field now has a continuous green lawn, 2,622 grass clumps,
+clover and small flowers. The Commons and residential city lots have nearby ground
+cover, and all nine planets have biome-colored meadows aligned to local terrain.
+City lawns retain paved approaches to homes. Roads, activity pads, shop approaches,
+water, landing areas, reserved landmarks and intentionally paved plazas stay clear.
+
+The shared layered trees carry 21 coral/gold fruits per tree and 30 per banyan in
+both detail levels. Fruit is merged into the existing shared canopy draw rather
+than adding individual fruit meshes throughout the city. Original standalone trees
+use one fruit batch. Planet leaf tinting preserves the fruit colors.
+
+Grass uses shared geometry, no grass shadow casting, and reduced-motion-aware wind.
+Each moving meadow window reuses nine fixed patches with at most 3,249 clumps;
+crossing a cell updates the reused instance buffers, while camera-only turns do not
+resample planting. The Friends field is a separate fixed planting. This bounds the
+new planting allocations; it is not a claim of a universal frame-rate improvement
+or a resolution of the previously reported physical-phone reloads.
+
+Verification: 34 focused tests, TypeScript, scoped lint, the production build and
+the existing city-cache consistency check pass. Tests cover terrain clearance and
+orientation across all nine planets, home/station access, fruit detail levels,
+buffer reuse and resource disposal. The production `--meadow` mode in
+[the canopy harness](../scripts/check-canopy.cjs) passes 14 desktop/mobile views:
+Friends field, Commons, city lawns, a city banyan, Cache Gardens, AI Research and
+Skills / Technology. Canvas pixel comparisons confirm grass, fruit, wind and
+reduced-motion freezing with the same scene/canvas and no page or shader errors.
+The report and screenshots are in `outputs/playtest/oct8-meadow-verified/`.
+
+Mobile verification uses a 390-by-844 browser viewport, not a physical phone.
+The full repository test suite and hosted deployment were not run for this pass.
+These checks describe the tested build, not hosted-deployment certification.
+
+## High-Contrast Color Direction, October 7
+
+The screenshot reference establishes charcoal-black plaza paving with lighter stone
+inlays, warm metalwork and colorful buildings. The updated palette extends that
+contrast through shared civic materials, city streets, architecture families,
+planet roads and water, realm landmarks and the main interface panels. It does not
+turn every surface black or make every accent equally saturated.
+
+| Role | World Color | Interface Color |
+| --- | --- | --- |
+| Charcoal structure | `#1b2123` paving, `#182225` framing | `#131b1e` surface |
+| Mineral stone | `#bbc5bf` | `#f4f7f1` text |
+| Jade | `#187e68` | `#75dfbe` primary/selected |
+| Brushed gold | `#d2af62` | `#dfbe74` emphasis/focus |
+| Coral | `#e96a60` | Used sparingly for status accents |
+| Clear blue | `#3698c4` | Retained for distinct district identity |
+
+The 180 plaza inlays and approach path contrast with the dark paving, including in
+night views. Architectural profiles retain different color families for all nine
+planets. Natural terrain artwork, photographs, resume page artwork, brand identities,
+hero-model textures, geometry, population, interactions and effects are preserved.
+Radio, Friends, resume-reader chrome, HUD controls and machine panels use consistent
+surface and foreground roles; the resume's paper content is unchanged.
+
+### Research Basis
+
+- [Material Design color roles](https://m3.material.io/styles/color/roles): use neutral surfaces, distinguish primary/secondary/tertiary emphasis, and pair foreground colors with their intended surfaces.
+- [Material Design scheme selection](https://m3.material.io/styles/color/choosing-a-scheme): a static scheme is appropriate for a consistent authored identity across devices.
+- [WCAG 2.2 minimum contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): normal informative text needs at least 4.5:1 contrast; large text needs at least 3:1. Hue alone does not establish readability.
+
+These sources inform hierarchy and readability, not a scientific claim that one
+palette is universally the most beautiful. Exact hues are an art-direction choice
+based on the supplied reference and rendered review.
+
+### Color Verification
+
+All 72 focused architecture, civic, palette, sign, planet, cache and resource tests
+passed. Shared interface text/selected-state pairs meet at least 4.5:1; civic plaque
+title and secondary text meet 7:1. Browser-computed body-text contrast for the radio,
+Friends and resume panels is 15.61:1 to 16.31:1. This is scoped contrast verification,
+not a claim that every pixel of a changing 3D background is WCAG-certified.
+
+The `--palette` mode in [the visual harness](../scripts/check-kingdom-visuals.cjs)
+passed 34 rendered checks: desktop/mobile plaza day/night, controls, city, workshop,
+Commons, all nine planets, selected planet night views and a moving return to the
+plaza. `--palette-panels` passed six actual radio/Friends/resume panel checks with no
+horizontal overflow. The captured scene and panel checks reported no page errors.
+Reports are `outputs/playtest/oct7-charcoal-palette-checks.json` and
+`outputs/playtest/oct7-charcoal-panels-final-checks.json`.
+
+TypeScript, scoped lint, production builds and the generated city-cache check passed.
+The cache still holds 236 neighborhoods and 2,585 material batches; its 33,333,152-byte
+vertex payload is byte-identical to the preceding build. Only color-related metadata
+changed, and its version manifest was regenerated. The new compressed size is
+3,624,067 bytes. The live palette review confirmed all 236 cached neighborhoods,
+944 street trees and 180 plaza inlays. Runtime fingerprints are recorded in
+`outputs/performance/oct7-palette-final-source.json`.
+
+The world tour preceded a final Friends-only CSS override correction; those world
+source hashes remain unchanged, and the six panel checks were rerun afterward.
+The full repository test suite and hosted deployment were not rerun for this color
+pass. These measurements do not certify the hosted deployment.
+
 ## Street Life
 
 The home world and all nine planets now include daytime butterflies, night bats and fireflies,

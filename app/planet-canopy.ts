@@ -8,11 +8,36 @@ import type {createPlanetInfrastructure} from './planet-infrastructure';
 import {planetBiome} from './planet-biomes';
 import {planetTownComposition} from './planet-composition';
 import {createArtificialTurf,createPocketGarden,type PocketGardenMaterials} from './city-gardens';
+import {createGroundCoverWindow} from './ground-cover';
+import {createSpatialIndex} from './spatial-index';
+
+export function createPlanetMeadow(surface:PlanetSurface,occupied:{position:T.Vector3;radius:number}[],approaches:T.Vector3[]=[]){
+ const biome=planetBiome(surface.stop),vertical=new T.Vector3(0,1,0),reservations=[...occupied,...approaches.map(position=>({position,radius:3.5}))];
+ const index=createSpatialIndex(reservations,place=>({minX:place.position.x-place.radius,maxX:place.position.x+place.radius,minZ:place.position.z-place.radius,maxZ:place.position.z+place.radius}),16),candidates=new Set<typeof reservations[number]>(),query={minX:0,maxX:0,minZ:0,maxZ:0};
+ const meadow=createGroundCoverWindow({colors:{base:biome.grove,tip:biome.tip,flower:surface.stop.theme==='prism'?'#e6a6c4':surface.stop.theme==='garden'?'#f2d779':'#d8edef'},
+  locate(observer){
+   const direction=observer.clone().sub(surface.center).normalize(),horizontal=Math.abs(direction.x),height=Math.abs(direction.y),forward=Math.abs(direction.z),radius=surface.radius;
+   if(horizontal>=height&&horizontal>=forward)return {x:direction.z/horizontal*radius,z:direction.y/horizontal*radius,domain:direction.x>=0?0:1};
+   if(height>=forward)return {x:direction.x/height*radius,z:direction.z/height*radius,domain:direction.y>=0?2:3};
+   return {x:direction.x/forward*radius,z:direction.y/forward*radius,domain:direction.z>=0?4:5};
+  },
+  sample(x,z,seed,domain){
+   const radius=surface.radius,direction=domain<2?new T.Vector3(domain===0?radius:-radius,z,x):domain<4?new T.Vector3(x,domain===2?radius:-radius,z):new T.Vector3(x,z,domain===4?radius:-radius);direction.normalize();
+   const land=planetGeography(surface,direction);if(direction.y>.85||land.water||land.road<4.7||land.river<3.8||realmSiteDistance(surface.stop,radius,direction)<8||civilizationLogoReserved(surface,direction))return null;
+   const position=planetPoint(surface,direction);query.minX=position.x-.9;query.maxX=position.x+.9;query.minZ=position.z-.9;query.maxZ=position.z+.9;index.query(query,candidates);
+   for(const place of candidates)if(position.distanceToSquared(place.position)<(place.radius+.8)**2)return null;
+   const up=planetUp(surface,position);if(up.dot(direction)<.88)return null;
+   const rotation=new T.Quaternion().setFromUnitVectors(vertical,up).multiply(new T.Quaternion().setFromAxisAngle(vertical,seed%6283/1000));
+   return {position:position.addScaledVector(up,.045),rotation,scale:.82+(seed%29)/65,flower:seed%13===0};
+  },
+ });
+ meadow.root.name='Planet_LivingMeadow_'+surface.stop.id;return meadow;
+}
 
 export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infrastructure:ReturnType<typeof createPlanetInfrastructure>,publicPlaces:{position:T.Vector3;radius:number;approach?:T.Vector3;rotation?:T.Quaternion;scale?:number;venue?:{width:number;depth:number}}[],outposts:{position:T.Vector3}[]){
  const assets=new Map<string,ReturnType<typeof createCanopyAsset>>();for(const kind of ['tree','banyan'] as const)for(const detail of ['full','distant'] as const)assets.set(kind+'/'+detail,createCanopyAsset(kind,detail));
  const biome=planetBiome(surface.stop),leaf=new T.Color(biome.leaf),tip=new T.Color(biome.tip),color=new T.Color();
- for(const asset of assets.values()){const colors=asset.crown.attributes.color,tint=asset.crown.userData.kitTint;for(let vertex=0;vertex<colors.count;vertex++){const occlusion=Array.isArray(tint)?T.MathUtils.clamp(colors.getY(vertex)/tint[1],.4,1):1;color.copy(leaf).lerp(tip,T.MathUtils.smoothstep(colors.getY(vertex),.04,.34)).multiplyScalar(occlusion);colors.setXYZ(vertex,color.r,color.g,color.b)}}
+ for(const asset of assets.values()){const colors=asset.crown.attributes.color,tint=asset.crown.userData.kitTint;for(let vertex=0;vertex<colors.count;vertex++){if(asset.crown.attributes.canopyFruit.getX(vertex))continue;const occlusion=Array.isArray(tint)?T.MathUtils.clamp(colors.getY(vertex)/tint[1],.4,1):1;color.copy(leaf).lerp(tip,T.MathUtils.smoothstep(colors.getY(vertex),.04,.34)).multiplyScalar(occlusion);colors.setXYZ(vertex,color.r,color.g,color.b)}}
  const radiusFor=(kind:'tree'|'banyan')=>Math.max(assets.get(kind+'/full')!.radius,assets.get(kind+'/distant')!.radius);
  const records:(CanopyPlacement&{direction:T.Vector3;canopyRadius:number})[]=[],vertical=new T.Vector3(0,1,0);
  let seed=0;for(let index=0;index<surface.stop.id.length;index++)seed+=surface.stop.id.charCodeAt(index)*(index+1);const phase=seed*.017;
@@ -79,5 +104,6 @@ export function createPlanetCanopy(parent:T.Object3D,surface:PlanetSurface,infra
  }
  if(!lawnAprons.length){template.material.map?.dispose();template.material.dispose()}
  const gardenViews=[...gardens,...lawnAprons];
- return {...grove,records,banyans,groundcover,gardens,lawnAprons,update:(delta:number,reduced:boolean,observer:T.Vector3,active=true)=>{grove.update(delta,reduced,observer,active);groundcover.visible=active;for(const garden of gardenViews)garden.root.visible=active&&observer.distanceToSquared(garden.position)<115**2}};
+ const meadow=createPlanetMeadow(surface,[...infrastructure.buildings,...infrastructure.pools.map(pool=>({position:pool.position,radius:8})),...publicPlaces,...outposts.map(outpost=>({position:outpost.position,radius:6})),...gardens,...grove.columns],publicPlaces.flatMap(place=>place.approach?[place.approach]:[]));groundcover.add(meadow.root);
+ return {...grove,records,banyans,groundcover,gardens,lawnAprons,meadow,update:(delta:number,reduced:boolean,observer:T.Vector3,active=true)=>{grove.update(delta,reduced,observer,active);groundcover.visible=active;meadow.update(delta,reduced,observer,active&&observer.distanceTo(surface.center)<surface.radius+90);for(const garden of gardenViews)garden.root.visible=active&&observer.distanceToSquared(garden.position)<115**2}};
 }

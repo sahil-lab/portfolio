@@ -4,6 +4,12 @@ const T=require('three');
 global.document={createElement:()=>{const canvas={width:0,height:0};const context=new Proxy({measureText(text){return {width:text.length*parseFloat(this.font.split(' ')[1])*.55}}},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)});canvas.getContext=()=>context;return canvas;}};
 const {createCreativePlaza,commonsVenues,commonsSpawn}=require('../app/creative-plaza.ts'),{createWeatherWorld}=require('../app/weather-world.ts'),{defaultWeather}=require('../app/weather-state.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('Commons meadow preserves shop access, crosswalks, the portrait and external landmarks',()=>{
+  const {createCommonsMeadow}=require('../app/creative-plaza.ts'),meadow=createCommonsMeadow((x,z)=>x>30&&z>100);meadow.update(.1,false,new T.Vector3(0,.8,100));assert.ok(meadow.placements.length>500);
+  for(const record of meadow.placements){const {x,z}=record.position;assert.ok(Math.abs(x)>=4.4);assert.ok([73,89,106,126].every(path=>Math.abs(z-path)>=2.7));assert.ok(!(x>30&&z>100));for(const venue of commonsVenues)assert.ok(Math.abs(x-venue.x)>=venue.width/2+1.6||Math.abs(z-venue.z)>=venue.depth/2+1.6)}
+  const scene=new T.Scene(),player=new T.Group(),plaza=createCreativePlaza(scene,player,{notice(){},subtitle(){},sound(){}});plaza.update(.1,true,false,{visible:true,wind:0,observer:new T.Vector3(0,.8,100)});assert.ok(plaza.meadow.root.visible,'flight disables planting');plaza.update(.1,true,false,{visible:false,wind:0});assert.equal(plaza.meadow.root.visible,false);plaza.dispose();disposeScene(scene);disposeScene(meadow.root);
+});
+
 test('commons venues have separated lots and a clear central promenade',()=>{
   for(const [index,venue] of commonsVenues.entries())for(const other of commonsVenues.slice(index+1))assert.ok(Math.abs(venue.x-other.x)>(venue.width+other.width)/2+3||Math.abs(venue.z-other.z)>(venue.depth+other.depth)/2+3,venue.id+' crowds '+other.id);
   const scene=new T.Scene(),player=new T.Group(),plaza=createCreativePlaza(scene,player,{notice(){},subtitle(){},sound(){}});

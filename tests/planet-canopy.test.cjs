@@ -2,6 +2,19 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
 const T=require('three'),{transitStops}=require('../app/transit-config.ts'),{createPlanetSurface,planetPoint,planetUp,planetGeography}=require('../app/planet-geography.ts'),{createPlanetInfrastructure}=require('../app/planet-infrastructure.ts'),{createPlanetPublicSpaces}=require('../app/planet-public-spaces.ts'),{createPlanetCanopy}=require('../app/planet-canopy.ts'),{disposeScene}=require('../app/scene-resources.ts');
+test('planet meadows follow both hemispheres, preserve terrain clearances and keep fixed buffers',()=>{
+ const {createPlanetMeadow}=require('../app/planet-canopy.ts');
+ for(const stop of transitStops.slice(1)){
+  const surface=createPlanetSurface(stop,stop.radius),reserved=planetPoint(surface,new T.Vector3(.61,-.62,.49)),meadow=createPlanetMeadow(surface,[{position:reserved,radius:8}]),buffers=meadow.patches.map(patch=>patch.near.instanceMatrix.array);
+  let planted=0;
+  for(const direction of [new T.Vector3(.61,.62,.49),new T.Vector3(.61,-.62,.49),new T.Vector3(-.52,-.7,-.49)]){
+   const observer=planetPoint(surface,direction);meadow.update(.016,false,observer);assert.ok(meadow.placements.length<=meadow.capacity);planted+=meadow.placements.length;
+   for(const record of meadow.placements){const normal=record.position.clone().sub(surface.center).normalize(),land=planetGeography(surface,normal);assert.equal(land.water,false);assert.ok(land.road>=4.68);assert.ok(land.river>=3.78);assert.ok(record.position.distanceTo(planetPoint(surface,normal))<.06);assert.ok(new T.Vector3(0,1,0).applyQuaternion(record.rotation).dot(planetUp(surface,record.position))>.999);assert.ok(record.position.distanceTo(reserved)>8.7)}
+   meadow.patches.forEach((patch,index)=>assert.equal(patch.near.instanceMatrix.array,buffers[index]));
+  }
+  assert.ok(planted>100,stop.id+' has no meadow ground cover');meadow.update(.1,true,reserved,false);assert.equal(meadow.root.visible,false);disposeScene(meadow.root);
+ }
+});
 test('every satellite has reference-style trees and banyans while keeping roads, public spaces and outposts clear',()=>{
  for(const stop of transitStops.slice(1)){
   const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),infrastructure=createPlanetInfrastructure(scene,surface),spaces=createPlanetPublicSpaces(scene,surface,infrastructure),outposts=Array.from({length:5},(_,index)=>({position:planetPoint(surface,index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(index*Math.PI*2/5),-.1,Math.sin(index*Math.PI*2/5)))})),trees=createPlanetCanopy(scene,surface,infrastructure,spaces.places,outposts);

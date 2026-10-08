@@ -10,7 +10,7 @@ export type BuildingPlacement={address:string;position:T.Vector3;rotation:T.Quat
 const exportBuilders=new WeakMap<T.Object3D,()=>T.Group>();
 export function rebuildArchitectureForExport(root:T.Object3D){return exportBuilders.get(root)?.()??null}
 export function releaseArchitectureGeometry(root:T.Object3D){const geometries=new Set<T.BufferGeometry>();root.traverse(object=>{if(object instanceof T.Mesh)geometries.add(object.geometry)});geometries.forEach(geometry=>geometry.dispose());root.clear()}
-export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler;prepare?:(root:T.Object3D)=>Promise<void>}){
+export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler;prepare?:(root:T.Object3D)=>Promise<void>;runLoad?:(work:()=>Promise<void>,signal:AbortSignal)=>Promise<void>}){
  const root=new T.Group();root.name='Architecture_Neighborhood_'+style;root.userData.architectureStyle=style;parent.add(root);
  const shells=new T.Group(),details=new T.Group(),nearShells=new T.Group();shells.name='Architecture_UniqueSilhouettes';details.name='Architecture_NearbyFacades';nearShells.name='Architecture_NearbyEnvelopes';root.add(shells,nearShells,details);
  const shared=sharedFinishes?.materials??architectureMaterials(style),paints=sharedFinishes?.paints??new Map<string,T.MeshStandardMaterial>();
@@ -41,7 +41,7 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
  if(!prepared)batch(shells);shells.userData.shellKey=shellKey;shells.userData.shellBounds=bounds.map(bound=>[...bound.min.toArray(),...bound.max.toArray()]);
  for(const object of shells.children){const material=(object as T.Mesh).material as T.MeshStandardMaterial;object.userData.shellMaterial=shellMaterials.indexOf(material);object.userData.shellVertexColors=material.vertexColors;object.userData.shellAuthoredArchitecture=!!material.userData.authoredArchitecture}
  root.userData.buildingAddresses=records.map(record=>record.address);root.userData.recipes=records.map(record=>record.recipe);
- let ready=false,pending=false,wanted=false,disposed=false,generation=0;
+ let ready=false,pending=false,wanted=false,disposed=false,generation=0,detailController:AbortController|null=null;
  function loadDetail(){
   for(const record of records){
    const building=createCraftedBuilding(record.options);releaseArchitectureGeometry(building.envelope);
@@ -50,8 +50,8 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
   batch(details);ready=true;
  }
  async function streamDetail(){
-  if(!stream||pending||ready||disposed)return;pending=true;const token=++generation,staging=new T.Group(),stagedShells=new T.Group(),stagedDetails=new T.Group();staging.add(stagedShells,stagedDetails);
-  try{
+  if(!stream||pending||ready||disposed)return;pending=true;const token=++generation,controller=new AbortController(),staging=new T.Group(),stagedShells=new T.Group(),stagedDetails=new T.Group();detailController=controller;staging.add(stagedShells,stagedDetails);
+  const work=async()=>{
    for(const record of records){await stream.scheduler.run(()=>{
     if(disposed||token!==generation||!wanted)return;
     const building=createCraftedBuilding(record.options);for(const [target,part] of [[stagedShells,building.envelope],[stagedDetails,building.details]]){part.position.copy(record.position);part.quaternion.copy(record.rotation);part.scale.setScalar(record.scale??1);target.add(part)}
@@ -61,9 +61,10 @@ export function createArchitectureNeighborhood(parent:T.Object3D,style:Architect
   if(stream.prepare)await stream.prepare(staging);
   if(disposed||token!==generation||!wanted)return;
   nearShells.add(...stagedShells.children);details.add(...stagedDetails.children);cacheStaticTransforms(nearShells);cacheStaticTransforms(details);ready=true;shells.visible=false;nearShells.visible=details.visible=true;
-  }catch{}finally{releaseArchitectureGeometry(staging);pending=false}
+  };
+  try{if(stream.runLoad)await stream.runLoad(work,controller.signal);else await work()}catch{}finally{releaseArchitectureGeometry(staging);pending=false;if(detailController===controller)detailController=null}
  }
- function release(){generation++;wanted=false;releaseArchitectureGeometry(details);releaseArchitectureGeometry(nearShells);ready=false;shells.visible=true}
+ function release(){generation++;wanted=false;detailController?.abort();releaseArchitectureGeometry(details);releaseArchitectureGeometry(nearShells);ready=false;shells.visible=true}
  return {
   root,shells,details,nearShells,records,bounds,get detailed(){return ready},get loading(){return pending},dispose(){disposed=true;release();releaseArchitectureGeometry(shells)},
   update(observer:T.Vector3,active=true){

@@ -5,8 +5,9 @@ import {applyAuthoredPaving} from './paving-material';
 import {applyAuthoredArchitecture,completeArchitectureAttributes} from './architecture-kit';
 
 export const kingdomPalette={
-  pearl:'#f4f3e9',jade:'#459e89',ink:'#30434c',brass:'#e3bd79',
-  silver:'#c3dbdc',signal:'#9bf3dd',coral:'#f18d83',blue:'#84c9e4',
+  pearl:'#edf1ee',jade:'#187e68',ink:'#182225',brass:'#d2af62',
+  silver:'#acbcbd',signal:'#72e6c8',coral:'#e96a60',blue:'#3698c4',
+  paving:'#1b2123',stone:'#bbc5bf',walkway:'#9aa8a1',
 };
 
 export function finishKingdomMaterials(scene:T.Object3D){

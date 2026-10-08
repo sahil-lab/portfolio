@@ -12,6 +12,58 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Mainland Roaming And Camera Turns, 7 October 2026
+
+The reported restart follows visits to new mainland areas and sometimes a rapid
+camera rotation. Nearby building construction is controlled by player distance,
+not camera direction. Turning the camera changes visibility and LOD selection,
+and can expose geometry and textures that have not yet been uploaded to the GPU.
+That distinction does not establish the cause of the physical phone's restart.
+
+Two concrete defects were reproduced and corrected:
+
+- Several neighborhoods could allocate full detail while the first neighborhood was still waiting for shader preparation. A city-owned queue now permits one complete construction, batching and shader-preparation job at a time. Abandoned queued requests are cancelled before allocating geometry. The existing per-stage scheduler, detail distances, silhouettes, full building geometry and materials remain intact. Nearby detail may take longer to finish during a burst of arrivals; existing silhouettes remain visible while it waits.
+- Full scene disposal released geometry but omitted `InstancedMesh.dispose()`. The installed Three.js renderer uses that separate disposal event to release instance matrices, instance colors and associated binding state. Full teardown now invokes it, while shared geometry and materials retain exactly-once disposal. This does not change the separate hidden-mainland GPU-only release policy.
+
+The allocation test first failed with all three requested neighborhoods building
+behind a blocked shader job. It now verifies that only one allocates, a cancelled
+second request builds nothing, and the third retains its original completed detail.
+The instance cleanup regression uses Three.js's actual `WebGLObjects` listener and
+verifies that both meshes release their matrix/color buffers without double-disposing
+their shared geometry or material. All 53 focused tests, TypeScript, scoped lint and
+the production build passed.
+
+The production Chrome mobile-emulation check completed two mainland circuits:
+eight area visits, real road movement and 48 fast camera sweeps, followed by six
+native touch swipes, three orientation states, camera-mode changes and forced
+graphics recovery. All eight stationary-camera checks retained the player's
+position and detailed-neighborhood count, requested no further building loads,
+and captured nonblank pixels. There was one document, scene and canvas, no
+unexpected context loss and no page errors. At sampled loading points there was
+one preparing neighborhood with up to five queued requests. A separate desktop
+check passed 48 rendered camera-sweep frames and same-scene graphics recovery.
+
+Reports are in `outputs/performance/oct7-mainland-safety-verified` and
+`outputs/performance/oct7-mainland-safety-desktop`. The first mobile attempt used
+an invalid between-frame pixel read; its screenshot showed the rendered city.
+The final run samples inside an animation frame with the original nonblank
+threshold. Its unusually long wall-clock duration is not treated as proof of
+continuous active stress or as a performance measurement. The first return's
+heap sample also preceded completion of its new detail loads, so the two return
+samples are not presented as a matched memory-plateau result.
+
+This is not a complete GPU-memory cap: first visits increased resident texture
+allocation counts from 108 at readiness to 324 after the circuit. These are counts,
+not VRAM bytes. Static mainland GPU caching remains a separate risk, and the user's
+phone/browser failure has not been reproduced. No 10x improvement, universal
+no-reload guarantee, full-suite run or hosted-deployment verification is claimed.
+Earlier frame-time comparisons were mixed, including desktop regressions; this
+follow-up establishes allocation and lifecycle behavior, not a general FPS gain.
+These checks describe the tested build, not hosted-deployment certification.
+
+The implementation follows [MDN's explicit resource deletion and VRAM-budget guidance](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices)
+and the [Three.js instanced-mesh disposal contract](https://threejs.org/docs/pages/InstancedMesh.html).
+
 ## Mobile Travel Memory, 7 October 2026
 
 The reported mobile reset happens near the gold statue and after roaming planets.

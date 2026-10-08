@@ -15,19 +15,19 @@ export const realmDesigns:Record<PlanetWorldKind,RealmDesign>={
     landmark:'Folded Light Observatory',mood:'Quiet chalk escarpments, jade glazing, and warm paper lanterns.',
     towns:['Inference Court','Tensor Terrace','Gradient Walk','Model Library','Feature Garden','Validation Reach'],
     sites:sites(['Neural Tile Atelier','Model Archive','Southern Lens Observatory']),
-    land:'#ccd1bd',terrain:'#a5b9b0',rock:'#a6aaa0',stone:'#beb8a8',wood:'#826b55',metal:'#a18c62',glass:'#527d78',growth:'#739f91',water:'#99c9c3',homes:['#e4ddc6','#a2c0b5','#d2b56d','#d3d7c9'],
+    land:'#ccd1bd',terrain:'#a5b9b0',rock:'#a6aaa0',stone:'#d6dfd7',wood:'#6b523b',metal:'#b69957',glass:'#215b58',growth:'#3f7c67',water:'#3a9d9e',homes:['#e3e9df','#4e9b86','#cba44d','#8ca99b'],
   },
   foundry:{
     landmark:'Portfolio Assembly Works',mood:'Basalt steps, fired-clay workshops, and a measured mechanical rhythm.',
     towns:['Pattern Yard','Catalog Row','Analytics Kiln','Contract Works','Assembly Terrace','Release Quay'],
     sites:sites(['Project Pattern Press','Portfolio Pattern Archive','Southern Counterweight Works']),
-    land:'#737c78',terrain:'#515e5b',rock:'#939990',stone:'#b5ae9b',wood:'#9e715d',metal:'#8f8b75',glass:'#537d76',growth:'#abb57e',water:'#9dcac1',homes:['#c89076','#aebcac','#d8caa7','#748f90'],
+    land:'#737c78',terrain:'#515e5b',rock:'#939990',stone:'#c5cbc3',wood:'#8f543f',metal:'#9d987a',glass:'#255b55',growth:'#78914f',water:'#3d9e93',homes:['#bd654b','#738d7c','#d5bb79','#386d70'],
   },
   skills:{
     landmark:'Dataflow Aqueduct Conservatory',mood:'Layered green terraces, timber joinery, and slowly turning water gates.',
     towns:['SQL Orchard','Spark Weir','React Grove','Java Court','Cloud Terrace','Observability Reach'],
     sites:sites(['Dataflow Gatehouse','Technology Seed Library','Southern Waterwheel Conservatory']),
-    land:'#9caf7b',terrain:'#718e70',rock:'#929b83',stone:'#b9b69b',wood:'#896e52',metal:'#8f9e86',glass:'#54838a',growth:'#60885c',water:'#72b4bf',homes:['#c5d19f','#ddca9e','#8ab1a7','#b5c9cb'],
+    land:'#9caf7b',terrain:'#718e70',rock:'#929b83',stone:'#ced5bc',wood:'#6d5238',metal:'#637c64',glass:'#245c65',growth:'#337041',water:'#238fa1',homes:['#91af66','#d4b66d','#438d79','#87b6b9'],
   },
 };
 export function realmDesign(stop:Pick<TransitStop,'worldKind'>){return stop.worldKind?realmDesigns[stop.worldKind]:null}

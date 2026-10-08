@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {mergeIndexedGeometries} from './static-batching';
 import {cacheStaticTransforms} from './static-transforms';
 
 export type GeometryVisibility={visible:boolean;castShadow:boolean};
@@ -10,14 +10,14 @@ export function createVisibleGeometry(parent:T.Object3D,parts:VisibleGeometryPar
  const groups=new Map<T.Material,VisibleGeometryPart[]>();
  for(const part of parts){const group=groups.get(part.material)??[];group.push(part);groups.set(part.material,group)}
  const batches=[...groups].map(([material,sources])=>{
-  const geometries:T.BufferGeometry[]=[],ranges:{state:GeometryVisibility;bounds:T.Box3;start:number;count:number;shown:boolean;indices:Uint32Array}[]=[];let vertices=0;
+    const geometries:T.BufferGeometry[]=[],ranges:{state:GeometryVisibility;bounds:T.Box3;start:number;count:number;shown:boolean;indices:Uint32Array}[]=[];let vertices=0,indexCount=0;
   for(const source of sources){
-   const geometry=source.geometry.index?source.geometry.toNonIndexed():source.geometry.clone();geometry.applyMatrix4(source.matrix);geometry.computeBoundingBox();
-   const count=geometry.getAttribute('position').count,indices=new Uint32Array(count);for(let index=0;index<count;index++)indices[index]=vertices+index;
-   ranges.push({state:source.state,bounds:geometry.boundingBox!.clone(),start:vertices,count,shown:false,indices});geometries.push(geometry);vertices+=count;
+     const geometry=source.geometry.clone();geometry.applyMatrix4(source.matrix);geometry.computeBoundingBox();
+     const count=geometry.index?.count??geometry.getAttribute('position').count,indices=new Uint32Array(count);for(let index=0;index<count;index++)indices[index]=vertices+(geometry.index?.getX(index)??index);
+     ranges.push({state:source.state,bounds:geometry.boundingBox!.clone(),start:vertices,count,shown:false,indices});geometries.push(geometry);vertices+=geometry.getAttribute('position').count;indexCount+=count;
   }
-  const geometry=mergeGeometries(geometries);geometries.forEach(part=>part.dispose());if(!geometry)throw Error('City silhouette attributes must match');
-  const indices=new T.BufferAttribute(new Uint32Array(vertices),1).setUsage(T.DynamicDrawUsage);geometry.setIndex(indices);geometry.setDrawRange(0,0);geometry.computeBoundingBox();geometry.computeBoundingSphere();
+    const geometry=mergeIndexedGeometries(geometries);geometries.forEach(part=>part.dispose());if(!geometry)throw Error('City silhouette attributes must match');
+    const indices=new T.BufferAttribute(new Uint32Array(indexCount),1).setUsage(T.DynamicDrawUsage);geometry.setIndex(indices);geometry.setDrawRange(0,0);geometry.computeBoundingBox();geometry.computeBoundingSphere();
   const mesh=new T.Mesh(geometry,material);mesh.name='City_VisibleSilhouettes';mesh.castShadow=mesh.receiveShadow=true;root.add(mesh);cacheStaticTransforms(mesh);
   const clip=new T.Matrix4(),frustum=new T.Frustum();
   function select(camera:T.Camera,shadow=false){

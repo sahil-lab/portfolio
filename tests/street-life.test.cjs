@@ -68,6 +68,20 @@ test('street performers paint, bow and juggle on a single wheel, then freeze in 
   }
 });
 
+test('performers instance repeated actor parts while retaining every independent animated pose',()=>{
+ const T=require('three'),{createStreetPerformer,streetPerformerKinds}=require('../app/street-performers.ts'),{disposeScene}=require('../app/scene-resources.ts');
+ for(const kind of streetPerformerKinds){
+  const scene=new T.Scene(),performer=createStreetPerformer(kind,2),matrix=new T.Matrix4(),inverse=new T.Matrix4();scene.add(performer.root);scene.scale.setScalar(2);performer.root.position.set(31,4,-12);performer.root.rotation.y=.6;
+  try{
+   const batches=performer.actorInstances.batches;assert.ok(batches.length>0);assert.ok(batches.reduce((count,batch)=>count+batch.parts.length-1,0)>10,'repeated actor parts were not combined');
+   for(let frame=0;frame<10;frame++){
+    performer.update(.05,false);scene.updateMatrixWorld(true);inverse.copy(performer.root.matrixWorld).invert();
+    for(const {mesh,parts} of batches){let slot=0;for(const {source} of parts){let visible=true;for(let ancestor=source;ancestor&&ancestor!==performer.root;ancestor=ancestor.parent)if(!ancestor.visible)visible=false;if(!visible)continue;mesh.getMatrixAt(slot++,matrix);assert.deepEqual(matrix.elements,Array.from(new Float32Array(new T.Matrix4().multiplyMatrices(inverse,source.matrixWorld).elements)));assert.equal(source.layers.mask,0)}assert.equal(mesh.count,slot)}
+   }
+  }finally{disposeScene(scene)}
+ }
+});
+
 test('the unicycle and juggling motion stay inside their reserved area with the tyre on the ground',()=>{
   const T=require('three'),{createStreetPerformer}=require('../app/street-performers.ts'),{disposeScene}=require('../app/scene-resources.ts'),performer=createStreetPerformer('juggler');
   try{for(let frame=0;frame<180;frame++){performer.update(.1,false);performer.root.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(performer.root);assert.ok(bounds.min.x>=-performer.radius&&bounds.max.x<=performer.radius&&bounds.min.z>=-performer.radius&&bounds.max.z<=performer.radius,'the complete rider must stay in the reserved performance circle');const tyre=performer.root.getObjectByName('Juggler_RubberTyre'),contact=new T.Box3().setFromObject(tyre,true);assert.ok(Math.abs(contact.min.y)<.025)}}finally{disposeScene(performer.root)}

@@ -3,16 +3,16 @@ import type {TransitStop} from './transit-config';
 export type ArchitectureStyle='atelier'|'forge'|'conservatory'|'citadel'|'petal'|'solstice'|'cloud'|'research'|'workshop'|'guild';
 type ArchitectureProfile={name:string;roof:string;window:'chamfer'|'arch'|'square';wall:string;stone:string;metal:string;wood:string;glass:string;leaf:string;planting:boolean};
 export const architectureProfiles:Record<ArchitectureStyle,ArchitectureProfile>={
- atelier:{name:'Atelier Terrace',roof:'Inhabited roof terrace',window:'chamfer',wall:'#218d8b',stone:'#e8eff0',metal:'#cba660',wood:'#b59a78',glass:'#367b91',leaf:'#73a76b',planting:true},
- forge:{name:'Basalt Foundry',roof:'Butterfly furnace roof',window:'arch',wall:'#39464b',stone:'#d9e0df',metal:'#9aaeb4',wood:'#667b75',glass:'#598a9a',leaf:'#83a291',planting:false},
- conservatory:{name:'Garden Conservatory',roof:'Glazed barrel vault',window:'arch',wall:'#87b5a1',stone:'#e5e8d5',metal:'#658b73',wood:'#987558',glass:'#60aeb0',leaf:'#629c59',planting:true},
- citadel:{name:'Citadel Deco',roof:'Stepped office crown',window:'square',wall:'#e7eff3',stone:'#fcf9ec',metal:'#9fbec6',wood:'#397f93',glass:'#176c9f',leaf:'#81a3a1',planting:false},
- petal:{name:'Petal Garden House',roof:'Swept layered eaves',window:'chamfer',wall:'#e4b5c3',stone:'#e6e4dc',metal:'#536e6e',wood:'#795c64',glass:'#648aa1',leaf:'#7d9c72',planting:true},
- solstice:{name:'Sun Court',roof:'Pergola roof terrace',window:'arch',wall:'#eed071',stone:'#f3eee0',metal:'#467e83',wood:'#bb8560',glass:'#32a4b0',leaf:'#78a26c',planting:true},
- cloud:{name:'Cloud Pavilion',roof:'Ribbed pearl dome',window:'chamfer',wall:'#b8dce4',stone:'#edf1ed',metal:'#6ea6b4',wood:'#dcac97',glass:'#488fae',leaf:'#84afb0',planting:true},
- research:{name:'Folded Observatory',roof:'Asymmetric instrument folds',window:'chamfer',wall:'#a9c8c2',stone:'#e3e7de',metal:'#66847d',wood:'#788c8d',glass:'#387f8d',leaf:'#8ba78f',planting:false},
- workshop:{name:'Fired-Clay Workshop',roof:'Sawtooth and gantry',window:'square',wall:'#c68c78',stone:'#d9d4bf',metal:'#5d7678',wood:'#795951',glass:'#557e8e',leaf:'#93a480',planting:false},
- guild:{name:'Timber Guild Hall',roof:'Shingled gable and dormer',window:'arch',wall:'#d8dec5',stone:'#b2c4a0',metal:'#687e73',wood:'#765f4d',glass:'#699696',leaf:'#7ba56c',planting:true},
+ atelier:{name:'Atelier Terrace',roof:'Inhabited roof terrace',window:'chamfer',wall:'#167e79',stone:'#e6ece8',metal:'#cfaa60',wood:'#967753',glass:'#195b70',leaf:'#458653',planting:true},
+ forge:{name:'Basalt Foundry',roof:'Butterfly furnace roof',window:'arch',wall:'#242c30',stone:'#dde5e4',metal:'#98afb7',wood:'#405b53',glass:'#237789',leaf:'#46745b',planting:false},
+ conservatory:{name:'Garden Conservatory',roof:'Glazed barrel vault',window:'arch',wall:'#4b9876',stone:'#e8ede3',metal:'#244c3c',wood:'#886344',glass:'#238d94',leaf:'#367943',planting:true},
+ citadel:{name:'Citadel Deco',roof:'Stepped office crown',window:'square',wall:'#e4edf0',stone:'#f5f5ee',metal:'#809ca6',wood:'#185b73',glass:'#0b507c',leaf:'#47776a',planting:false},
+ petal:{name:'Petal Garden House',roof:'Swept layered eaves',window:'chamfer',wall:'#cf728c',stone:'#ebe6df',metal:'#243c40',wood:'#603f48',glass:'#356d89',leaf:'#477a4b',planting:true},
+ solstice:{name:'Sun Court',roof:'Pergola roof terrace',window:'arch',wall:'#e3b943',stone:'#eeede3',metal:'#1c5358',wood:'#a36e43',glass:'#168c9b',leaf:'#41794a',planting:true},
+ cloud:{name:'Cloud Pavilion',roof:'Ribbed pearl dome',window:'chamfer',wall:'#7fb9c9',stone:'#edf1ed',metal:'#38788c',wood:'#b77d68',glass:'#226982',leaf:'#448d7d',planting:true},
+ research:{name:'Folded Observatory',roof:'Asymmetric instrument folds',window:'chamfer',wall:'#5eaaa1',stone:'#e5ebe4',metal:'#294d48',wood:'#546d69',glass:'#1a6371',leaf:'#537d58',planting:false},
+ workshop:{name:'Fired-Clay Workshop',roof:'Sawtooth and gantry',window:'square',wall:'#b76650',stone:'#d9ded4',metal:'#273d40',wood:'#67463c',glass:'#2d667c',leaf:'#577841',planting:false},
+ guild:{name:'Timber Guild Hall',roof:'Shingled gable and dormer',window:'arch',wall:'#a8ba87',stone:'#d0dbbf',metal:'#2e4b3d',wood:'#604b37',glass:'#287577',leaf:'#3c7c45',planting:true},
 };
 const planetStyles:Record<string,ArchitectureStyle>={motherboard:'atelier',copper:'forge',garden:'conservatory',prism:'citadel',petal:'petal',solstice:'solstice',cloud:'cloud','ai-research':'research','project-foundry':'workshop','skills-technology':'guild'};
 export function planetArchitectureFor(stop:Pick<TransitStop,'id'|'theme'|'worldKind'>):ArchitectureStyle{

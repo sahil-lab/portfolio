@@ -2,9 +2,37 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {createRaceCar,createRaceTrack,createShip}=require('../app/friends-scene.ts');
 const {sampleWorldCourse,orbitWorldScale}=require('../lib/orbit-course.ts');
-const {sharedShipPose,friendsSites,worldRaceView}=require('../app/friends-activities.ts');
+const {sharedShipPose,friendsSites,worldRaceView,createFriendsMeadow}=require('../app/friends-activities.ts');
 const {orbitCourseLength}=require('../lib/orbit-course.ts');
 const {transitStops}=require('../app/transit-config.ts');
+test('nearby meadow reuses bounded buffers and only samples after crossing a ground cell',()=>{
+ const {createGroundCoverWindow}=require('../app/ground-cover.ts');let sampled=0;
+ const meadow=createGroundCoverWindow({sample:(x,z,seed)=>{sampled++;return {position:new T.Vector3(x,0,z),rotation:new T.Quaternion(),scale:1,flower:seed%11===0}}});
+ const buffers=meadow.patches.map(patch=>patch.near.instanceMatrix.array),observer=new T.Vector3(0,.8,0);
+ meadow.update(.1,false,observer);const initial=sampled;assert.equal(meadow.placements.length,meadow.capacity);
+ for(let frame=0;frame<60;frame++)meadow.update(.016,false,observer);assert.equal(sampled,initial,'camera-only frames resampled the meadow');
+ observer.x=25;meadow.update(.1,false,observer);assert.equal(sampled-initial,meadow.capacity/3,'a one-cell move should replace only three patches');
+ for(let visit=0;visit<20;visit++){observer.set(visit*125,.8,visit*-86);meadow.update(.1,false,observer);assert.ok(meadow.placements.length<=meadow.capacity);meadow.patches.forEach((patch,index)=>assert.equal(patch.near.instanceMatrix.array,buffers[index]))}
+ const before=sampled;meadow.update(.1,false,new T.Vector3(9999,0,0),false);assert.equal(sampled,before);assert.equal(meadow.root.visible,false);
+ require('../app/scene-resources.ts').disposeScene(meadow.root);
+});
+test('Commons meadow fills the field without planting station pads, approaches or the main walk',()=>{
+ const meadow=createFriendsMeadow();
+ assert.ok(meadow.placements.length>1000);assert.ok(meadow.placements.length<12000);
+ for(const placement of meadow.placements){
+  const {x,z}=placement.position;assert.ok(Math.abs(x)>3.4,'central walk is planted');
+  for(const site of friendsSites){
+   assert.ok(Math.abs(x-site.x)>site.width/2+1.2||Math.abs(z-site.z)>site.depth/2+1.2,site.id+' pad is planted');
+   assert.ok(Math.hypot(x-site.x,z-(site.z+site.depth/2+3.1))>2.5,site.id+' approach is planted');
+  }
+ }
+ let meshes=0;meadow.root.traverse(object=>{if(!object.isMesh)return;meshes++;assert.ok(object.isInstancedMesh||object.name==='Meadow_Lawn');assert.equal(object.castShadow,false)});
+ assert.ok(meshes>0&&meshes<80);
+ const lawn=meadow.root.getObjectByName('Meadow_Lawn');assert.ok(lawn);assert.equal(lawn.geometry.index.count,meadow.placements.length*6);
+ const vertices=lawn.geometry.attributes.position;for(let vertex=0;vertex<vertices.count;vertex++)for(const site of friendsSites)assert.ok(Math.abs(vertices.getX(vertex)-site.x)>site.width/2+.7||Math.abs(vertices.getZ(vertex)-site.z)>site.depth/2+.7,site.id+' lawn enters pad');
+ meadow.update(.1,false,new T.Vector3(0,.8,180));assert.ok(meadow.root.visible);
+ meadow.update(.1,false,new T.Vector3(0,.8,180),false);assert.equal(meadow.root.visible,false);
+});
 test('all selectable cars fit the track and retain four rotating wheels',()=>{
  for(const id of ['comet','vector','ion']){const car=createRaceCar(id),bounds=new T.Box3().setFromObject(car.root),size=bounds.getSize(new T.Vector3());assert.equal(car.wheels.length,4);assert.ok(size.x<3&&size.z>2.8&&size.y>1);assert.equal(car.root.name,'RaceCar_'+id)}
 });

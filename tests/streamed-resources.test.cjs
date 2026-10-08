@@ -38,6 +38,17 @@ test('unloaded glass materials leave the lighting registry and shader textures a
  const scene=new T.Scene(),material=new T.MeshStandardMaterial();material.userData.surface='glass';const mesh=new T.Mesh(new T.BoxGeometry(),material);scene.add(mesh);const lights=createCityLightResponse(scene);lights.update(1,1,0);assert.equal(lights.count,1);material.dispose();mesh.removeFromParent();assert.equal(lights.count,0);lights.update(1,0,0);assert.equal(lights.count,0);
  const texture=new T.Texture(),shader=new T.ShaderMaterial({uniforms:{water:{value:texture},repeat:{value:texture}}});let released=0;texture.addEventListener('dispose',()=>released++);scene.add(new T.Mesh(mesh.geometry,shader));disposeScene(scene);assert.equal(released,1);lights.dispose();
 });
+test('scene teardown releases the real renderer instance buffers as well as shared geometry',()=>{
+ const {WebGLObjects}=require('../node_modules/three/src/renderers/webgl/WebGLObjects.js'),scene=new T.Scene(),geometry=new T.BoxGeometry(),material=new T.MeshStandardMaterial(),removed=[],releasedObjects=[];
+ const rendererObjects=WebGLObjects({ARRAY_BUFFER:34962},{get:(_object,value)=>value,update(){}},{update(){},remove:attribute=>removed.push(attribute)},{releaseStatesOfObject:object=>releasedObjects.push(object.uuid)},{render:{frame:1}});
+ const instances=[new T.InstancedMesh(geometry,material,4),new T.InstancedMesh(geometry,material,2)];let geometryReleases=0,materialReleases=0;
+ geometry.addEventListener('dispose',()=>geometryReleases++);material.addEventListener('dispose',()=>materialReleases++);
+ for(const instance of instances){instance.setColorAt(0,new T.Color('#ed714f'));scene.add(instance);rendererObjects.update(instance)}
+ disposeScene(scene);
+ assert.deepEqual(releasedObjects,instances.map(instance=>instance.uuid),'renderer instance-state cleanup was never invoked');assert.equal(removed.length,4);
+ for(const instance of instances){assert.ok(removed.includes(instance.instanceMatrix));assert.ok(removed.includes(instance.instanceColor))}
+ assert.equal(geometryReleases,1);assert.equal(materialReleases,1);rendererObjects.dispose();
+});
 test('hidden GPU cleanup preserves CPU geometry, materials and resources shared with the active scene',()=>{
  const {releaseHiddenGpuResources}=require('../app/scene-resources.ts'),scene=new T.Scene(),hidden=new T.Group(),owned=new T.BoxGeometry(),shared=new T.BoxGeometry(),privateTexture=new T.Texture(),sharedTexture=new T.Texture(),environment=new T.Texture();hidden.visible=false;scene.add(hidden);scene.environment=environment;
  const material=new T.MeshStandardMaterial({map:privateTexture}),sharedMaterial=new T.MeshStandardMaterial({map:sharedTexture,envMap:environment}),alias=new T.BufferGeometry();alias.setAttribute('position',shared.attributes.position);alias.setIndex(shared.index);

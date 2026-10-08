@@ -163,3 +163,9 @@ test('project boards remain ray-selectable and the information board keeps its i
   assert.equal(buildings.blocked(projects[0].building.x,projects[0].building.z+7.6),false);disposeScene(scene);
 });
 
+test('shared interface color roles retain readable text and selected-state contrast',()=>{
+ const postcss=require('postcss'),luminance=value=>{const color=new T.Color(value);return color.r*.2126+color.g*.7152+color.b*.0722},contrast=(first,second)=>{const values=[luminance(first),luminance(second)].sort((left,right)=>right-left);return (values[0]+.05)/(values[1]+.05)};
+ const groups=[['app/globals.css',[['--foreground','--background'],['--muted-foreground','--background'],['--primary-foreground','--primary'],['--primary-foreground','--ring']]],['app/kingdom-ui.css',[['--hud-white','--hud-ink'],['--hud-muted','--hud-ink'],['--hud-ink','--hud-mint'],['--hud-ink','--hud-gold']]],['app/hud-controls.css',[['--hud-white','--hud-ink'],['--hud-muted','--hud-ink'],['--hud-ink','--hud-mint'],['--hud-ink','--hud-gold']]],['app/friends-hub.css',[['--club-ink','--club-bg'],['--club-muted','--club-bg'],['--club-deep','--club-jade'],['--club-deep','--club-gold']]]];
+ for(const [file,pairs] of groups){const colors=new Map(),sheet=postcss.parse(fs.readFileSync(file,'utf8'));sheet.walkDecls(declaration=>{if(declaration.prop.startsWith('--'))colors.set(declaration.prop,declaration.value)});for(const [foreground,background] of pairs){assert.ok(colors.has(foreground)&&colors.has(background));assert.ok(contrast(colors.get(foreground),colors.get(background))>=4.5,file+' '+foreground+' / '+background)}if(file==='app/friends-hub.css')sheet.walkRules('.friends-hub.friends-inworld',rule=>rule.walkDecls('background',declaration=>assert.equal(declaration.value,'var(--club-bg)')))}
+});
+

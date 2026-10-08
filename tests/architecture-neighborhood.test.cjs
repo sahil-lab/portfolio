@@ -31,6 +31,23 @@ test('streamed neighborhoods start with unique lightweight roofs and release sta
  assert.equal(town.detailed,false);assert.ok(town.shells.children.length);town.update(new T.Vector3(0,1,4));assert.equal(town.loading,true);assert.equal(town.detailed,false);await scheduler.run(()=>{},10);await scheduler.run(()=>{},10);assert.equal(town.detailed,true);assert.equal(town.shells.visible,false);assert.ok(town.nearShells.children.length);
  let released=0;town.details.traverse(object=>{if(object.geometry)object.geometry.addEventListener('dispose',()=>released++)});town.update(new T.Vector3(1000,0,0));assert.equal(town.detailed,false);assert.ok(released>0);assert.equal(town.shells.visible,true);town.update(new T.Vector3());town.dispose();scheduler.dispose();await Promise.resolve();assert.equal(town.detailed,false);disposeScene(scene);
 });
+test('queued neighborhoods bound staged geometry through shader preparation and cancel abandoned arrivals before allocation',async context=>{
+ const {createWorkScheduler}=require('../app/work-scheduler.ts'),{createAssetManager}=require('../app/asset-manager.ts'),craft=require('../app/building-craft.ts'),create=craft.createCraftedBuilding;
+ const scheduler=createWorkScheduler(),loads=createAssetManager({concurrency:1}),scene=new T.Scene(),built=[];let firstPrepared,finishFirst,lastPrepared,released=0;
+ const firstReady=new Promise(resolve=>{firstPrepared=resolve}),firstGate=new Promise(resolve=>{finishFirst=resolve}),lastReady=new Promise(resolve=>{lastPrepared=resolve});
+ context.mock.method(craft,'createCraftedBuilding',options=>{if(options.detail!==false)built.push(options.address);return create(options)});
+ const towns=Array.from({length:3},(_,index)=>createArchitectureNeighborhood(scene,'atelier',[{address:'queued/'+index,position:new T.Vector3(),rotation:new T.Quaternion(),width:4.8,depth:4.8,height:8}],100,undefined,{scheduler,
+  async runLoad(work,signal){signal.throwIfAborted();const lease=loads.acquire('town/'+index,work,()=>{}),abort=()=>lease.release();signal.addEventListener('abort',abort,{once:true});try{await lease.promise}finally{signal.removeEventListener('abort',abort);lease.release()}},
+  async prepare(staging){if(index===0){staging.traverse(object=>{if(object.geometry)object.geometry.addEventListener('dispose',()=>released++)});firstPrepared();await firstGate}if(index===2)lastPrepared()},
+ }));
+ try{
+  for(const town of towns)town.update(new T.Vector3());await firstReady;await scheduler.run(()=>{},10);
+  assert.deepEqual(built,['queued/0'],'waiting neighborhoods allocated full geometry before the first shader job finished');assert.equal(loads.snapshot().active,1);assert.equal(loads.snapshot().queued,2);
+  towns[0].update(new T.Vector3(1000,0,0));towns[1].update(new T.Vector3(1000,0,0));assert.equal(loads.snapshot().queued,1);assert.equal(loads.snapshot().active,1,'cancelling an active shader job must not overlap its allocation with the next one');
+  finishFirst();await lastReady;await scheduler.run(()=>{},10);
+  assert.deepEqual(built,['queued/0','queued/2']);assert.ok(released>0);assert.equal(towns[0].detailed,false);assert.equal(towns[1].detailed,false);assert.equal(towns[2].detailed,true);assert.equal(towns[2].shells.visible,false);assert.ok(towns[2].nearShells.children.length);
+ }finally{finishFirst();for(const town of towns)town.dispose();loads.dispose();scheduler.dispose();disposeScene(scene)}
+});
 test('the compressed shell library loads once and transfers templates without rebuilding',async context=>{
  const library=require('../app/architecture-shells.ts');library.clearArchitectureShells();let requests=0;
  context.mock.method(global,'fetch',async()=>{requests++;return new Response(fs.readFileSync('public/assets/world-v1/city-shells.bin'))});

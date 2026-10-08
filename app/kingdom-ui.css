@@ -17,13 +17,13 @@
 .kingdom,
 .portfolio-sheet,
 .machine-panel {
-  --hud-ink: #142b31;
-  --hud-glass: #142b31e6;
-  --hud-line: #b7dcd330;
-  --hud-white: #f0f7ed;
-  --hud-muted: #bccfc8;
-  --hud-mint: #bdebd6;
-  --hud-gold: #e4c891;
+  --hud-ink: #131b1e;
+  --hud-glass: #131b1ef2;
+  --hud-line: #c2d9ce4d;
+  --hud-white: #f4f7f1;
+  --hud-muted: #b9cdc3;
+  --hud-mint: #75dfbe;
+  --hud-gold: #dfbe74;
   font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
   letter-spacing: 0;
   color: var(--hud-white);
@@ -34,7 +34,7 @@
 .machine-panel * { letter-spacing: 0; }
 
 html:has(.kingdom), body:has(.kingdom) { overscroll-behavior: none; }
-.kingdom { background: #1d4148; }
+.kingdom { background: #151f22; }
 .kingdom .vignette {
   background: linear-gradient(180deg, #12252e59 0, #12252e12 13%, transparent 26%, transparent 80%, #0b202b61 100%);
 }
@@ -209,7 +209,7 @@ html:has(.kingdom), body:has(.kingdom) { overscroll-behavior: none; }
 .kingdom .pause-banner button { border-radius: 4px; background: var(--hud-mint); color: var(--hud-ink); }
 .kingdom .delivery-complete { border-radius: 6px; background: var(--hud-mint); box-shadow: 0 8px 25px #103b3426; }
 
-.portfolio-sheet[data-slot=sheet-content] { background: #142b31 !important; color: #eff6e8 !important; border-color: #aecfc23d; font-family: 'Space Grotesk', sans-serif; }
+.portfolio-sheet[data-slot=sheet-content] { background: var(--hud-ink) !important; color: var(--hud-white) !important; border-color: var(--hud-line); font-family: 'Space Grotesk', sans-serif; }
 .portfolio-sheet [data-slot=sheet-title] { font: 500 30px 'Fraunces', serif; color: #f1efd8; margin: 10px 0; }
 .portfolio-sheet [data-slot=sheet-description] { font-size: 12px; color: #b6cbc1; line-height: 1.7; }
 .portfolio-sheet h2,
@@ -226,16 +226,22 @@ html:has(.kingdom), body:has(.kingdom) { overscroll-behavior: none; }
 .portfolio-sheet .game-settings select { border-radius: 5px; background: #24464b; }
 .portfolio-sheet .game-settings button,
 .portfolio-sheet .skill-activate { border-color: #b5c8ae50; background: #284d44; }
-.machine-panel { background: #edf1e5; color: #233c40; }
+.machine-panel { background: #e6ece7; color: #172825; }
+.machine-panel button, .machine-panel input, .machine-panel select { background: #f5f8f4; color: #172825; border-color: #748b80; }
+.machine-panel .action { background: var(--hud-ink); color: var(--hud-white); }
+.machine-panel .busy { background: #edcc79; }
+.machine-panel .occupied, .machine-panel .hop-list .active { background: #97c9ae; }
+.machine-panel .log { background: #d2dfd5; }
+.portfolio-sheet .project-record button, .portfolio-sheet .demo button { background: var(--hud-mint); color: var(--hud-ink); border-color: var(--hud-mint); }
 .machine-panel h2 { font-family: 'Fraunces', serif; }
 .machine-panel .core-grid>div,
 .machine-panel .log,
 .machine-panel .machine-output { border-radius: 6px; }
 
-.kingdom .loading { z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #142b31; color: #d5ecd9; font: 500 21px 'Fraunces', serif; text-align: center; padding: 24px; }
+.kingdom .loading { z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--hud-ink); color: var(--hud-white); font: 500 21px 'Fraunces', serif; text-align: center; padding: 24px; }
 .kingdom .loading svg { color: var(--hud-gold); }
 .kingdom .loading small { color: #adc5bd; font: 11px 'Space Grotesk', sans-serif; }
-.kingdom[data-visible=true] .loading { inset: auto 16px 76px auto; width: 164px; padding: 10px 12px; gap: 8px; border: 1px solid var(--hud-line); border-radius: 6px; background: #142b31d9; pointer-events: none; }
+.kingdom[data-visible=true] .loading { inset: auto 16px 76px auto; width: 164px; padding: 10px 12px; gap: 8px; border: 1px solid var(--hud-line); border-radius: 6px; background: var(--hud-glass); pointer-events: none; }
 .kingdom[data-visible=true] .loading > svg, .kingdom[data-visible=true] .loading > span { display: none; }
 .kingdom[data-visible=true] .loading .boot-line { width: 100%; }
 .kingdom[data-ready=false] .location, .kingdom[data-ready=false] .controls, .kingdom[data-ready=false] .screen-movement { visibility: hidden; pointer-events: none; }

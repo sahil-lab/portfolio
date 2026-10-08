@@ -71,7 +71,7 @@ test('the lantern arcade adds layered light and architecture within a bounded ge
   const response=createCityLightResponse(scene);response.update(1,1,0);arcade.update();assert.ok(arcade.pools.material.opacity>.29);response.update(.1,0,0);arcade.update();assert.ok(arcade.pools.material.opacity<.04);response.dispose();disposeScene(scene);
 });
 
-test('the expanded city has hundreds of bounded homes, three detail levels and connected clear streets',()=>{
+test('the expanded city has hundreds of bounded homes, three detail levels and connected clear streets',context=>{
   global.document={createElement:()=>({width:0,height:0,getContext:()=>({font:'',fillRect(){},fillText(){},measureText(text){return {width:text.length*55}}})})};
   const {createCityExpansion}=require('../app/city-expansion.ts'),city=createCityExpansion(new T.Scene());
   assert.ok(city.lots.length>=900);assert.ok(city.neighborhoods.every(neighborhood=>neighborhood.levels.length===3));
@@ -87,7 +87,10 @@ test('the expanded city has hundreds of bounded homes, three detail levels and c
   assert.equal(city.root.getObjectByName('City_MidriseShells'),undefined);assert.equal(city.root.getObjectByName('City_DistantRoofscape'),undefined);
   for(const lot of city.lots){assert.ok(lot.x-lot.width/2>motherboardBounds.minX&&lot.x+lot.width/2<motherboardBounds.maxX);assert.ok(lot.z-lot.depth/2>motherboardBounds.minZ&&lot.z+lot.depth/2<motherboardBounds.maxZ);assert.equal(city.blocked(lot.x,lot.z,.8),true)}
   for(const [x,z] of [[0,240],[-100,79],[300,279],[0,-600],[500,1179],[0,19]])assert.equal(city.blocked(x,z,.8),false);
-  const player=new T.Group();player.position.set(-115,.8,79);city.update(.1,false,player,true);assert.ok(city.root.visible);city.update(.1,false,player,false);assert.equal(city.root.visible,false);
+  const checked=new Set(),released=new Set();for(const block of city.architecture){const update=block.town.update;context.mock.method(block.town,'update',(observer,active)=>{checked.add(block);if(!active)released.add(block);return update(observer,active)})}
+  const player=new T.Group();player.position.set(-115,.8,79);city.update(.1,false,player,true);assert.ok(city.root.visible);assert.ok(checked.size<city.architecture.length/4,'distant neighborhoods still receive detail updates');
+  for(const block of city.architecture)if(block.town.records.some(record=>new T.Vector3(block.x,0,block.z).add(record.position).distanceToSquared(player.position)<(105*1.35)**2))assert.ok(checked.has(block),'a block inside the original detail range was skipped');
+  const activeCount=checked.size;city.update(.1,false,player,false);assert.equal(city.root.visible,false);assert.equal(released.size,activeCount,'leaving the mainland did not retire previously active blocks');
   const camera=new T.PerspectiveCamera();camera.position.set(0,2000,9000);city.update(.1,true,player,true,camera);assert.ok([...city.farRegions.values()].every(region=>region.root.visible));assert.ok([...city.farRegions.values()].every(region=>region.root.children.length<=12));assert.ok([...city.farRegions.values()].every(region=>region.blocks.every(({far})=>far.children.every(mesh=>!mesh.visible))));
   assert.ok(city.neighborhoods.every(neighborhood=>!neighborhood.visible),'consolidated skyline skips per-block render traversal');
   const nearest=city.neighborhoods[0];camera.position.copy(nearest.position);city.update(.1,true,player,true,camera);assert.ok(nearest.visible,'individual detail returns when approached');

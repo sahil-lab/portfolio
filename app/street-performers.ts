@@ -3,6 +3,7 @@ import {createCuteResident} from './cute-resident';
 import {batchScenery} from './static-batching';
 import {lifeGeometry,lifeKitReady,type LifePart} from './life-kit';
 import {createSurfaceRelief} from './crafted-surfaces';
+import {createResidentInstances} from './resident-instances';
 
 export const streetPerformerKinds=['painter','juggler','violinist'] as const;
 export type StreetPerformerKind=typeof streetPerformerKinds[number];
@@ -63,6 +64,7 @@ export function createStreetPerformer(kind:StreetPerformerKind,seed=0,height:(ho
     for(let index=0;index<3;index++){const ball=mesh('Juggler_Ball_'+index,'Ball',[.16,.16,.16],[0,0,0],[rose,jade,brass][index],actor.root);balls.push(ball)}
   }
   batchScenery(actor.root,{parts:actor.movingParts,balls,bow,props,hiddenLegs});
+  const actorInstances=createResidentInstances(root,[actor]);
   const target=new T.Vector3();let time=0;
   function update(delta:number,reduced:boolean){
     const step=Number.isFinite(delta)?Math.max(0,Math.min(delta,.1)):0;if(!reduced)time+=step;actor.update(step,{moving:false,reduced,attentive:true});
@@ -76,8 +78,8 @@ export function createStreetPerformer(kind:StreetPerformerKind,seed=0,height:(ho
       hand(0,target.set(-.43,1.22,.34).add(actor.root.position));hand(1,target.set(.43,1.22,.34).add(actor.root.position));
       actor.feet.forEach((foot,index)=>{const phase=wheel!.rotation.z+index*Math.PI,side=index?.15:-.15,ankle=new T.Vector3(side,.43+Math.sin(phase)*.13,Math.cos(phase)*.13),knee=new T.Vector3(side,.74,.22+Math.cos(phase)*.065),hip=new T.Vector3(side,1.04,0),leg=pedalingLegs[index];foot.position.copy(ankle).sub(actor.root.position);foot.rotation.x=Math.cos(phase)*.16;leg.pedal.position.copy(ankle).add(new T.Vector3(0,-.075,0));for(const [segment,from,to] of [[leg.upper,hip,knee],[leg.lower,knee,ankle]] as const){segment.position.copy(from).add(to).multiplyScalar(.5);segment.scale.y=from.distanceTo(to);segment.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),to.clone().sub(from).normalize())}});
     }
-    root.userData.motionTime=time;
+    actorInstances.update();root.userData.motionTime=time;
   }
   update(0,true);
-  return {root,actor,props,balls,wheel,bow,brush,kind,radius:performerRadii[kind],update};
+  return {root,actor,actorInstances,props,balls,wheel,bow,brush,kind,radius:performerRadii[kind],update};
 }

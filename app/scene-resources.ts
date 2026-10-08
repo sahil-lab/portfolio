@@ -29,6 +29,7 @@ export function disposeScene(root:T.Object3D){
   const renderable=object as T.Mesh;
   if(renderable.geometry)geometries.add(renderable.geometry);
   if(renderable.material)for(const material of Array.isArray(renderable.material)?renderable.material:[renderable.material])materials.add(material);
+  if((object as T.InstancedMesh).isInstancedMesh)(object as T.InstancedMesh).dispose();
     if(object instanceof T.SkinnedMesh)skeletons.add(object.skeleton);
   if(object instanceof T.Light&&'shadow' in object)(object.shadow as T.LightShadow).dispose();
  });

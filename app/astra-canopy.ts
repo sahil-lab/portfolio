@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {astraPalette} from './astra-lighting';
 import {worldKitGeometry} from './world-kit';
 
@@ -9,6 +10,23 @@ const branchTips=[
 
 export type CanopyKind='tree'|'banyan';
 export type CanopyDetail='full'|'distant';
+
+export function createCanopyFruitGeometry(kind:CanopyKind,detail:CanopyDetail){
+  const tips=kind==='banyan'?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
+  const pieces:T.BufferGeometry[]=[],centers:number[][]=[],color=new T.Color(),radius=kind==='banyan'?.25:.32;
+  function painted(source:T.BufferGeometry,paint:string){
+    const geometry=source.index?source.toNonIndexed():source;if(geometry!==source)source.dispose();geometry.deleteAttribute('uv');
+    const colors=new Float32Array(geometry.attributes.position.count*3);color.set(paint);for(let vertex=0;vertex<geometry.attributes.position.count;vertex++)color.toArray(colors,vertex*3);geometry.setAttribute('color',new T.BufferAttribute(colors,3));pieces.push(geometry);
+  }
+  tips.forEach(([horizontal,height,depth],branch)=>{
+    for(let fruit=0;fruit<3;fruit++){
+      const angle=branch*1.7+fruit*2.399963,x=horizontal+Math.cos(angle)*.65,y=height-.63-(fruit%2)*.28,z=depth+Math.sin(angle)*.55;centers.push([x,y,z]);
+      const body=detail==='full'?new T.SphereGeometry(radius,6,4):new T.OctahedronGeometry(radius,0);body.scale(1,1.08,1);body.translate(x,y,z);painted(body,(branch+fruit)%3===0?'#e65349':(branch+fruit)%3===1?'#f3b43d':'#e88339');
+      if(detail==='full')painted(new T.CylinderGeometry(.023,.028,.24,4).translate(x,y+radius+.06,z),'#696544');
+    }
+  });
+  const geometry=mergeGeometries(pieces)!;pieces.forEach(piece=>piece.dispose());geometry.userData.fruitCount=centers.length;geometry.userData.fruitCenters=centers;return geometry;
+}
 
 function taperedBranch(points:T.Vector3[],radius:number,segments=18,sides=7){
   const curve=new T.CatmullRomCurve3(points),geometry=new T.TubeGeometry(curve,segments,radius,sides,false);
@@ -25,6 +43,7 @@ function taperedBranch(points:T.Vector3[],radius:number,segments=18,sides=7){
 export function createAstraCanopy(name:string,scale=1,kind:CanopyKind='tree',detail:CanopyDetail='full'){
   const root=new T.Group();root.name=name;root.scale.setScalar(scale);
   root.userData.canopyStyle='astra-layered-leaf';root.userData.treeKind=kind;
+  const fruitGeometry=createCanopyFruitGeometry(kind,detail),fruitMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.65,metalness:0}),fruit=new T.InstancedMesh(fruitGeometry,fruitMaterial,1);fruitMaterial.userData.surface='natural';fruit.name='Canopy_HangingFruit';fruit.setMatrixAt(0,new T.Matrix4());fruit.castShadow=fruit.receiveShadow=true;fruit.computeBoundingSphere();root.add(fruit);root.userData.fruitCount=fruitGeometry.userData.fruitCount;
   const banyan=kind==='banyan',segments=detail==='full'?18:6,sides=detail==='full'?7:5,leavesPerBranch=detail==='full'?42:12;
   const tips=banyan?[...branchTips.map(([horizontal,height,depth])=>[horizontal*1.48,height*.9+.5,depth*1.7]),[0,7.6,-6],[-3.6,6.8,-4.9],[5.4,7.1,-4.1]]:branchTips;
   const trunks=[{x:0,z:0,radius:banyan?.8:.42,height:7}];

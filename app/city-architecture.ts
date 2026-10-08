@@ -4,7 +4,7 @@ import {addFacadeCraft,type FacadeFloor} from './facade-craft';
 import {architectureRecipe} from './architecture-profiles';
 import {authoredBlock,applyAuthoredArchitecture,architectureKitReady,applyArchitectureSurface} from './architecture-kit';
 
-export const cityPalette={pearl:'#fff5e9',ink:'#30434c',glass:'#279fc7',teal:'#46b9ad',coral:'#f18d83',yellow:'#f1c866',lawn:'#80bd69',steel:'#c2d8da'};
+export const cityPalette={pearl:'#edf1ec',ink:'#182225',glass:'#167ea5',teal:'#218e7a',coral:'#e86659',yellow:'#dfb64d',lawn:'#558f51',steel:'#a7b8bc'};
 
 export function cityBlock(width:number,height:number,depth:number,radius=.2){
   const authored=authoredBlock(width,height,depth,Math.min(width,height,depth)<.1?0:Math.min(radius,Math.min(width,height,depth)*.24));if(authored)return authored;
@@ -51,9 +51,9 @@ export function createCityBuilding(options:{width?:number;height?:number;depth?:
   const width=(options.width??3.7)*(recipe?.width??1),height=options.height??5.7,depth=(options.depth??3.2)*(recipe?.depth??1);
   const root=new T.Group();root.name='City_SculptedResidence';root.userData.authoredArchitecture=architectureKitReady();
   if(recipe)root.userData.architectureRecipe=recipe;
-  const material={...cityMaterials(options.accent,options.glass??'#79adb8'),
-    wood:new T.MeshStandardMaterial({color:'#b68d69',roughness:.86}),
-    sage:new T.MeshStandardMaterial({color:'#91a88b',roughness:.82}),
+  const material={...cityMaterials(options.accent,options.glass??'#286c7d'),
+    wood:new T.MeshStandardMaterial({color:'#95714c',roughness:.86}),
+    sage:new T.MeshStandardMaterial({color:'#62805e',roughness:.82}),
   };
   material.paint.roughness=.66;material.paint.clearcoat=.18;material.paint.clearcoatRoughness=.6;
   material.pearl.roughness=.76;material.pearl.clearcoat=.1;material.pearl.clearcoatRoughness=.64;

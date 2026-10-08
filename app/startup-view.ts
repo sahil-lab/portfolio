@@ -1,10 +1,11 @@
 import * as T from 'three';
 import {createCapitalFountain} from './capital-fountain';
 import {disposeScene} from './scene-resources';
+import {kingdomPalette} from './kingdom-art';
 
 export function createStartupView(host:HTMLElement,scene:T.Scene,renderer:T.WebGLRenderer,onVisible:()=>void,reduced=false,pixelRatio:(width:number,height:number)=>number=()=>1){
  const root=new T.Group();root.name='Startup_Plaza';scene.add(root);
- const ground=new T.Mesh(new T.CircleGeometry(27,96).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:'#71847d',roughness:.95}));ground.position.set(52,-.04,180);root.add(ground);
+ const ground=new T.Mesh(new T.CircleGeometry(27,96).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:kingdomPalette.paving,roughness:.95}));ground.position.set(52,-.04,180);root.add(ground);
  const fountain=createCapitalFountain();fountain.root.position.set(52,0,180);root.add(fountain.root);
  const camera=new T.PerspectiveCamera(50,1,.5,18000),target=new T.Vector3(104,14.1,402),originalScale=new T.Vector3();
  let frame=0,stopped=false,shown=false,building=false,dirty=true,last=0,width=0,height=0;

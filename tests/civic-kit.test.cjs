@@ -28,7 +28,8 @@ test('civic plaques retain both readable faces and use high-contrast title and s
  const draws=[],context=new Proxy({fillText(text){draws.push({text,color:this.fillStyle,font:this.font})}},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)});
  const previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>context})};
  const kit=createCivicKit(),root=new T.Group();
- try{kit.plaque(root,'SAHIL UPADHYAY','Senior Engineering Lead / Full-Stack & AI',0,4,0,16);const faces=[];root.traverse(object=>{if(object.userData.readableDisplay)faces.push(object)});assert.equal(faces.length,2);assert.equal(faces[0].material.toneMapped,false);assert.equal(draws[0].color,'#f3f4eb');assert.equal(draws[1].color,'#d0ddd9');assert.ok(parseFloat(draws[1].font.split(' ')[1])>=54)}finally{global.document=previous;disposeScene(root)}
+ const {kingdomPalette}=require('../app/kingdom-art.ts'),luminance=value=>{const color=new T.Color(value);return color.r*.2126+color.g*.7152+color.b*.0722};
+ try{kit.plaque(root,'SAHIL UPADHYAY','Senior Engineering Lead / Full-Stack & AI',0,4,0,16);const faces=[];root.traverse(object=>{if(object.userData.readableDisplay)faces.push(object)});assert.equal(faces.length,2);assert.equal(faces[0].material.toneMapped,false);assert.equal(draws[0].color,kingdomPalette.pearl);assert.equal(draws[1].color,'#c8d4d0');for(const draw of draws)assert.ok((luminance(draw.color)+.05)/(luminance(kingdomPalette.ink)+.05)>=7,'plaque lettering contrast');assert.ok(parseFloat(draws[1].font.split(' ')[1])>=54)}finally{global.document=previous;disposeScene(root)}
 });
 
 test('native civic profiles remodel furniture and sign housings without changing their behavior',async()=>{

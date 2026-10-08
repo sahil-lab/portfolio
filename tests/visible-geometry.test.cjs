@@ -8,10 +8,11 @@ test('visibility compaction retains original vertices and avoids uploads when th
  const {batches}=createVisibleGeometry(scene,parts),batch=batches[0],camera=new T.PerspectiveCamera(50,1,.1,100);camera.position.set(0,0,10);camera.lookAt(0,0,0);camera.updateMatrixWorld(true);scene.updateMatrixWorld(true);batch.select(camera);
  assert.equal(batch.mesh.geometry.drawRange.count,72);const version=batch.mesh.geometry.index.version;batch.select(camera);assert.equal(batch.mesh.geometry.index.version,version);
  const original=source.toNonIndexed(),positions=batch.mesh.geometry.attributes.position;
+ assert.equal(positions.count,source.attributes.position.count*parts.length,'roofscape duplicated indexed vertices');
  for(const [partIndex,part] of parts.entries())for(let vertex=0;vertex<original.attributes.position.count;vertex++){
-  const expected=new T.Vector3().fromBufferAttribute(original.attributes.position,vertex).applyMatrix4(part.matrix),actual=new T.Vector3().fromBufferAttribute(positions,partIndex*36+vertex);assert.ok(actual.distanceTo(expected)<1e-6);
+  const expected=new T.Vector3().fromBufferAttribute(original.attributes.position,vertex).applyMatrix4(part.matrix),actual=new T.Vector3().fromBufferAttribute(positions,batch.mesh.geometry.index.getX(partIndex*36+vertex));assert.ok(actual.distanceTo(expected)<1e-6);
  }
- second.visible=false;batch.select(camera);assert.equal(batch.mesh.geometry.drawRange.count,36);assert.deepEqual(Array.from(batch.mesh.geometry.index.array.slice(0,36)),Array.from({length:36},(_,index)=>index));
+ second.visible=false;batch.select(camera);assert.equal(batch.mesh.geometry.drawRange.count,36);assert.deepEqual(Array.from(batch.mesh.geometry.index.array.slice(0,36)),Array.from(source.index.array));
  first.castShadow=false;batch.select(camera,true);assert.equal(batch.mesh.geometry.drawRange.count,0);batch.select(camera);assert.equal(batch.mesh.geometry.drawRange.count,36);original.dispose();source.dispose();disposeScene(scene);
 });
 

@@ -1,11 +1,25 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {createAstraCanopy,type CanopyKind,type CanopyDetail} from './astra-canopy';
+import {createAstraCanopy,createCanopyFruitGeometry,type CanopyKind,type CanopyDetail} from './astra-canopy';
 import {disposeScene} from './scene-resources';
 import {createSpatialIndex} from './spatial-index';
 import {worldKitGeometry,worldKitReady} from './world-kit';
+import {mergeIndexedGeometries} from './static-batching';
 
 export type CanopyPlacement={id:string;kind:CanopyKind;position:T.Vector3;rotation:T.Quaternion;scale:number;stretch?:number;patch:string};
+function fruitingCrown(crown:T.BufferGeometry,kind:CanopyKind,detail:CanopyDetail){
+ const fruit=createCanopyFruitGeometry(kind,detail),positions=fruit.attributes.position;
+ crown.setAttribute('canopyFruit',new T.Float32BufferAttribute(new Float32Array(crown.attributes.position.count),1));
+ for(const [name,attribute] of Object.entries(crown.attributes)){
+  const source=fruit.getAttribute(name),values=new (attribute.array.constructor as typeof Float32Array)(positions.count*attribute.itemSize),target=new T.BufferAttribute(values,attribute.itemSize,attribute.normalized);
+  for(let vertex=0;vertex<positions.count;vertex++)for(let component=0;component<attribute.itemSize;component++){
+   const value=name==='canopyFruit'?1:name==='canopyWeight'?T.MathUtils.clamp((positions.getY(vertex)-3)/8,0,1):name==='canopyPhase'?positions.getX(vertex)*.8+positions.getZ(vertex):source?.getComponent(vertex,component)??0;
+   target.setComponent(vertex,component,value);
+  }
+  fruit.setAttribute(name,target);
+ }
+ const geometry=mergeIndexedGeometries([crown,fruit])!;geometry.userData={...crown.userData,fruitCount:fruit.userData.fruitCount,fruitCenters:fruit.userData.fruitCenters};crown.dispose();fruit.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();if(geometry.boundingSphere)geometry.boundingSphere.radius+=.2;return geometry;
+}
 export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='full'){
  const source=createAstraCanopy('Canopy_Source',1,kind,detail),woodParts:T.BufferGeometry[]=[];source.root.updateMatrixWorld(true);
  const prefix='Kit_'+(kind==='tree'?'Tree':'Banyan')+'_'+(detail==='full'?'Full':'Distant'),authoredWood=worldKitGeometry(prefix+'_Wood',true),authoredCrown=worldKitGeometry(prefix+'_Crown',true);
@@ -13,7 +27,7 @@ export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='fu
   const positions=authoredCrown.attributes.position,weights=new Float32Array(positions.count),phases=new Float32Array(positions.count);let radius=0;
   for(let index=0;index<positions.count;index++){weights[index]=T.MathUtils.clamp((positions.getY(index)-3)/8,0,1);phases[index]=positions.getX(index)*.8+positions.getZ(index);radius=Math.max(radius,Math.hypot(positions.getX(index),positions.getZ(index)))}
   authoredCrown.setAttribute('canopyWeight',new T.BufferAttribute(weights,1));authoredCrown.setAttribute('canopyPhase',new T.BufferAttribute(phases,1));authoredCrown.computeBoundingBox();authoredCrown.computeBoundingSphere();if(authoredCrown.boundingSphere)authoredCrown.boundingSphere.radius+=.2;
-  const trunks=source.trunks.map(trunk=>({...trunk})),height=authoredCrown.boundingBox!.max.y;disposeScene(source.root);return {wood:authoredWood,crown:authoredCrown,trunks,radius:radius+.2,height,kind};
+  const trunks=source.trunks.map(trunk=>({...trunk})),height=authoredCrown.boundingBox!.max.y;disposeScene(source.root);return {wood:authoredWood,crown:fruitingCrown(authoredCrown,kind,detail),trunks,radius:radius+.2,height,kind};
  }
  authoredWood?.dispose();authoredCrown?.dispose();
  source.root.traverse(object=>{
@@ -36,7 +50,7 @@ export function createCanopyAsset(kind:CanopyKind='tree',detail:CanopyDetail='fu
  wood.computeBoundingBox();wood.computeBoundingSphere();crown.computeBoundingBox();crown.computeBoundingSphere();if(crown.boundingSphere)crown.boundingSphere.radius+=.2;
  let radius=0;for(let vertex=0;vertex<count;vertex++)radius=Math.max(radius,Math.hypot(positions[vertex*3],positions[vertex*3+2]));
  const trunks=source.trunks.map(trunk=>({...trunk})),height=crown.boundingBox!.max.y;leaf.dispose();disposeScene(source.root);
- return {wood,crown,trunks,radius:radius+.2,height,kind};
+ return {wood,crown:fruitingCrown(crown,kind,detail),trunks,radius:radius+.2,height,kind};
 }
 export function createCanopyMaterials(){
  const wood=new T.MeshStandardMaterial({vertexColors:true,roughness:.92,metalness:.035}),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:.01,side:T.DoubleSide});

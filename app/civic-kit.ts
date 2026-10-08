@@ -3,12 +3,13 @@ import {createReadableDisplay} from './readable-display';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
 import {craftedBox,createSurfaceRelief} from './crafted-surfaces';
 import {craftGeometry,type CraftPart} from './craft-kit';
+import {kingdomPalette} from './kingdom-art';
 
 const civicProfiles:Partial<Record<string,CraftPart>>={Civic_BenchSlat:'BenchSlat',Civic_BenchBack:'BenchBack',Civic_BenchFoot:'BenchFoot',Civic_BenchBackPost:'BenchBack',Civic_BenchBackBrace:'BenchSlat',Civic_LampLantern:'Lantern',Civic_LampCrown:'LanternCap',Civic_LanternCap:'LanternCap',Civic_RoundedLanternCrown:'LanternCap',Civic_RecyclingBin:'Bin',Civic_WasteBin:'Bin',Civic_BinLid:'BinLid',Civic_FlowerBedRim:'FlowerBedRim',Civic_PlaqueBacking:'PlaqueBacking'};
 
 export function createCivicKit(){
  const finish=(color:string,roughness=.7,metalness=.1)=>new T.MeshStandardMaterial({color,roughness,metalness,vertexColors:true});
- const materials={stone:finish('#ccd5ce'),ink:finish('#263e46'),brass:finish('#b1935c',.46,.65),wood:finish('#9c785c',.91),leaf:finish('#477e60',.96),tip:finish('#8aac76',.96),petal:finish('#dca4af',.88),warm:finish('#f6e5bd',.35),paving:finish('#899d99',.96)};
+ const materials={stone:finish(kingdomPalette.stone),ink:finish(kingdomPalette.ink),brass:finish(kingdomPalette.brass,.46,.65),wood:finish('#876344',.91),leaf:finish('#286649',.96),tip:finish('#76a66a',.96),petal:finish('#d96580',.88),warm:finish('#fff0cd',.35),paving:finish(kingdomPalette.paving,.96)};
  materials.warm.emissive.set('#ffe0a3');materials.warm.emissiveIntensity=.12;materials.leaf.userData.surface=materials.tip.userData.surface=materials.wood.userData.surface='natural';
  materials.stone.userData.surface='ceramic';materials.paving.userData.surface='natural';
  const stoneRelief=createSurfaceRelief('stone'),woodRelief=createSurfaceRelief('timber'),metalRelief=createSurfaceRelief('brushed');
@@ -74,7 +75,7 @@ export function createCivicKit(){
  }
  function plaque(parent:T.Object3D,title:string,subtitle:string,x:number,y:number,z:number,width=6,facade=false){
     const canvas=document.createElement('canvas');canvas.width=width>=8?1536:width>=5?1024:768;canvas.height=canvas.width/4;const context=canvas.getContext('2d')!;context.scale(canvas.width/1536,canvas.width/1536);
-  if(!facade){context.fillStyle='#18333d';context.fillRect(0,0,1536,384);context.strokeStyle='#b79558';context.lineWidth=6;context.strokeRect(13,13,1510,358)}context.textAlign='center';context.textBaseline='middle';context.fillStyle='#f3f4eb';context.font=(facade?'500 108px':'700 118px')+' "Space Grotesk", sans-serif';context.fillText(title,768,143,1410);context.fillStyle='#d0ddd9';context.font='500 54px "Space Grotesk", sans-serif';context.fillText(subtitle,768,277,1390);
+  if(!facade){context.fillStyle=kingdomPalette.ink;context.fillRect(0,0,1536,384);context.strokeStyle=kingdomPalette.brass;context.lineWidth=6;context.strokeRect(13,13,1510,358)}context.textAlign='center';context.textBaseline='middle';context.fillStyle=kingdomPalette.pearl;context.font=(facade?'500 108px':'700 118px')+' "Space Grotesk", sans-serif';context.fillText(title,768,143,1410);context.fillStyle='#c8d4d0';context.font='500 54px "Space Grotesk", sans-serif';context.fillText(subtitle,768,277,1390);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;const group=new T.Group();group.name='Civic_Plaque_'+title;group.position.set(x,y,z);parent.add(group);if(!facade)box(group,'Civic_PlaqueBacking',new T.Vector3(),[width+.16,width/4+.16,.22],materials.ink);const display=createReadableDisplay(group,'Civic_PlaqueText',texture,width,width/4,.25,new T.Vector3());if(facade){display.front.material.alphaTest=.3;display.front.material.transparent=true;display.front.material.depthWrite=false;group.userData.architecturalLettering=true}return group;
  }
  return {materials,solids,box,beam,tree,bench,lamp,flowers,utilities,plaque,contact,
