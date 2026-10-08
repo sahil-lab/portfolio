@@ -14,6 +14,7 @@ function digest(geometry){
  return hash.digest('hex');
 }
 async function main(){
+ require('./build-hero-models.cjs');
  const bytes=fs.readFileSync(path.resolve(__dirname,'../public/assets/premium-v1/architecture-kit.glb')),kit=(await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'')).scene;
  assert.equal(installArchitectureKit(kit),true);disposeScene(kit);
  const root=new T.Group(),exportMaterial=new T.MeshStandardMaterial({vertexColors:true}),expected=new Map();root.userData.architectureShellLibrary=1;

@@ -9,6 +9,7 @@ export const weatherScreenSite={x:0,z:63,width:27,height:12};
 export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.DirectionalLight){
   const root=new T.Group();root.name='LocalWeather';scene.add(root);
   let weather={...defaultWeather},clock=0,lastActive=true,lastInside=false,lastReduced=false,lightingMode:WorldLightingMode='local';
+  let visual=visualWeather(weather,lightingMode,clock);
   const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1024;const context=canvas.getContext('2d')!;
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
   const frameMaterial=new T.MeshPhysicalMaterial({color:'#eff3e9',roughness:.38,metalness:.12,clearcoat:.4});
@@ -58,7 +59,8 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   function update(dt:number,reduced:boolean,active:boolean,inside:boolean,instant=false){
     lastActive=active;lastInside=inside;lastReduced=reduced;
     if(!reduced)clock+=Math.max(0,Math.min(dt,.1));
-    const visual=visualWeather(weather,lightingMode,clock),atmosphere=sky.update(visual.snapshot,dt,reduced,active,instant,visual.tint),frozen=weather.kind==='snow'||weather.kind==='sleet';
+    visual=visualWeather(weather,lightingMode,clock);
+    const atmosphere=sky.update(visual.snapshot,dt,reduced,active,instant,visual.tint),frozen=weather.kind==='snow'||weather.kind==='sleet';
     rain.visible=active&&!inside&&atmosphere.rainCount>0;snow.visible=active&&!inside&&atmosphere.snowCount>0;
     rainGeometry.setDrawRange(0,atmosphere.rainCount*2);snowGeometry.setDrawRange(0,atmosphere.snowCount);
     if(rain.visible||snow.visible){
@@ -72,7 +74,7 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   }
   update(0,false,true,false,true);
   return {root,sky,update,tint:sky.tint,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
-    lighting:(mode:WorldLightingMode)=>{lightingMode=mode},get visual(){return visualWeather(weather,lightingMode,clock)},
+    lighting:(mode:WorldLightingMode)=>{if(lightingMode!==mode){lightingMode=mode;visual=visualWeather(weather,lightingMode,clock)}},get visual(){return visual},
     blocked:(x:number,z:number,y:number)=>Math.abs(z-63)<1.1&&(y>3.8&&Math.abs(x)<14.7||[-11.5,11.5].some(post=>Math.abs(x-post)<1.7)),
     near:()=>player.position.y<3&&Math.hypot(player.position.x,Math.abs(player.position.z-63)-7)<6,
     details:()=>`${weather.label}. ${Math.round(weather.temperature)}\u00b0C, feels like ${Math.round(weather.feelsLike)}\u00b0C. Wind ${Math.round(weather.wind)} km/h. Humidity ${weather.humidity}%. ${weather.status}.`,

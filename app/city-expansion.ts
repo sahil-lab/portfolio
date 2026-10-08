@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {mergeIndexedGeometries} from './static-batching';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {architectureMaterials} from './building-craft';
 import {createCuteResident} from './cute-resident';
@@ -27,9 +27,9 @@ function bakeModel(root:T.Object3D):Skin[]{
   root.updateMatrixWorld(true);const groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
   root.traverse(object=>{
     if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;
-    const list=groups.get(object.material)??[],instance=new T.Matrix4();for(let index=0;index<(object instanceof T.InstancedMesh?object.count:1);index++){const matrix=object.matrixWorld.clone();if(object instanceof T.InstancedMesh){object.getMatrixAt(index,instance);matrix.multiply(instance)}const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(matrix);list.push(geometry)}groups.set(object.material,list);originals.add(object.geometry);
+    const list=groups.get(object.material)??[],instance=new T.Matrix4();for(let index=0;index<(object instanceof T.InstancedMesh?object.count:1);index++){const matrix=object.matrixWorld.clone();if(object instanceof T.InstancedMesh){object.getMatrixAt(index,instance);matrix.multiply(instance)}const geometry=object.geometry.clone();geometry.applyMatrix4(matrix);list.push(geometry)}groups.set(object.material,list);originals.add(object.geometry);
   });
-  const skins=[...groups].map(([material,geometries])=>{const geometry=mergeGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
+  const skins=[...groups].map(([material,geometries])=>{const geometry=mergeIndexedGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
   originals.forEach(geometry=>geometry.dispose());return skins;
 }
 

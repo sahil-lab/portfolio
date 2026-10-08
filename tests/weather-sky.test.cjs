@@ -55,3 +55,19 @@ test('the sun and moon fit within the permitted upward view from the motherboard
   const rig=createGameCamera(camera,scene,player);rig.rotate(0,-100,false);for(let frame=0;frame<60;frame++)rig.update(1/60,false,defaultSettings);camera.updateMatrixWorld(true);
   for(const object of [sky.solar,sky.moon]){const projected=object.getWorldPosition(new T.Vector3()).project(camera);assert.ok(Math.abs(projected.x)<.85&&Math.abs(projected.y)<.85)}disposeScene(scene);
 });
+
+test('weather visuals are sampled once per update and refresh immediately for modes and live reports',context=>{
+ const lighting=require('../app/world-lighting.ts'),sample=lighting.visualWeather,sampling=context.mock.method(lighting,'visualWeather'),previousDocument=global.document;
+ global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
+ const scene=new T.Scene(),player=new T.Group(),sun=new T.DirectionalLight();scene.add(player,sun);
+ try{
+  const {createWeatherWorld}=require('../app/weather-world.ts'),world=createWeatherWorld(scene,player,sun),initial=world.visual;let calls=sampling.mock.callCount();
+  for(let read=0;read<8;read++)assert.equal(world.visual===initial,true);assert.equal(sampling.mock.callCount(),calls);
+  world.lighting('night');assert.equal(sampling.mock.callCount(),++calls);assert.equal(world.visual.night,1);assert.equal(world.visual.snapshot.isDay,false);world.lighting('night');assert.equal(sampling.mock.callCount(),calls);
+  world.update(.1,false,true,false);assert.equal(sampling.mock.callCount(),++calls);assert.deepEqual(world.visual,sample(world.snapshot,'night',.1));
+  world.lighting('cycle');assert.equal(sampling.mock.callCount(),++calls);world.update(.1,false,true,false);assert.equal(sampling.mock.callCount(),++calls);assert.deepEqual(world.visual,sample(world.snapshot,'cycle',.2));
+  const frozen=world.visual;world.update(.1,true,true,false);assert.equal(sampling.mock.callCount(),++calls);assert.deepEqual(world.visual,frozen);
+  const report={...defaultWeather,kind:'rain',precipitation:4,cloudCover:95,wind:12,isDay:false,updatedAt:'2026-10-09T22:15'};world.set(report);assert.equal(sampling.mock.callCount(),++calls);assert.deepEqual(world.snapshot,report);assert.deepEqual(world.visual,sample(report,'cycle',.2));
+  for(const mode of ['local','day','sunset','night','cycle']){world.lighting(mode);assert.deepEqual(world.visual,sample(report,mode,.2));const current=world.visual;assert.equal(world.visual===current,true)}
+ }finally{global.document=previousDocument;disposeScene(scene)}
+});

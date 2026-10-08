@@ -106,6 +106,8 @@ test('Blender paving preserves geometry and separates asphalt, stone and road ma
  for(const [name,kind] of [['Road_CurvedAsphalt','asphalt'],['Capital_RadialPaving','stone']]){
   const mesh=new T.Mesh(geometry,base);mesh.name=name;scene.add(mesh);assert.equal(applyAuthoredPaving(mesh),true);assert.equal(mesh.material.userData.authoredPaving,kind);assert.equal(mesh.geometry,geometry);assert.deepEqual(geometry.attributes.position.array,source);
   const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};mesh.material.onBeforeCompile(shader,{});assert.match(shader.vertexShader,/instanceMatrix\*kitPosition/);assert.match(shader.fragmentShader,/kitHeightDerivative/);assert.match(shader.fragmentShader,/kitSurface/);
+  assert.equal((shader.fragmentShader.match(/kitSurface\(kitWorldPosition,kitWeights\)/g)??[]).length,1);assert.equal((shader.fragmentShader.match(/pow\(abs\(normalize\(kitWorldNormal\)\)/g)??[]).length,1);
+  assert.match(shader.fragmentShader,/roughness\*kitSample\.g/);assert.match(shader.fragmentShader,/kitHeightDerivative\(kitSample\.r,kitWeights\)/);assert.ok(shader.fragmentShader.indexOf('vec4 kitSample=')<shader.fragmentShader.indexOf('roughness*kitSample.g'));
  }
  const stripe=new T.Mesh(geometry,base);stripe.name='Latitude_Road_0_Centerline';assert.equal(applyAuthoredPaving(stripe),false);batchScenery(scene,{});assert.equal(new Set(scene.children.map(object=>object.material.userData.authoredPaving)).size,2);disposeScene(scene);
 });

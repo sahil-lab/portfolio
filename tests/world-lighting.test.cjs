@@ -37,3 +37,20 @@ test('practical light emission can feed bloom without raising the ordinary windo
  response.update(.1,0,0);for(const mesh of scene.children)assert.equal(mesh.material.emissiveIntensity,.2);response.dispose();
  const {disposeScene}=require('../app/scene-resources.ts');disposeScene(scene);geometry.dispose();
 });
+
+test('steady lighting skips material writes while new materials and external changes still update',context=>{
+ const scene=new T.Scene(),geometry=new T.BoxGeometry(),material=new T.MeshStandardMaterial({emissive:'#193443',emissiveIntensity:.08,roughness:.9});material.userData.surface='glass';material.userData.cityPaving=true;scene.add(new T.Mesh(geometry,material));
+ const response=createCityLightResponse(scene);response.update(1,.8,.6);const expectedColor=material.emissive.clone(),expectedIntensity=material.emissiveIntensity,expectedRoughness=material.roughness,copy=context.mock.method(material.emissive,'copy');
+ let intensity=material.emissiveIntensity,roughness=material.roughness,intensityWrites=0,roughnessWrites=0;
+ Object.defineProperty(material,'emissiveIntensity',{configurable:true,get:()=>intensity,set:value=>{intensity=value;intensityWrites++}});
+ Object.defineProperty(material,'roughness',{configurable:true,get:()=>roughness,set:value=>{roughness=value;roughnessWrites++}});
+ for(let frame=0;frame<60;frame++)response.update(1/60,.8,.6);
+ assert.equal(copy.mock.callCount(),0);assert.equal(intensityWrites,0);assert.equal(roughnessWrites,0);
+ const added=new T.MeshStandardMaterial({emissive:'#193443',emissiveIntensity:.08,roughness:.9});added.userData.surface='glass';added.userData.cityPaving=true;scene.add(new T.Mesh(geometry,added));response.update(1,.8,.6);
+ assert.equal(response.count,2);assert.ok(added.emissive.equals(expectedColor));assert.equal(added.emissiveIntensity,expectedIntensity);assert.equal(added.roughness,expectedRoughness);assert.equal(copy.mock.callCount(),0);
+ material.emissive.setRGB(1,0,1);material.emissiveIntensity=2;material.roughness=1;response.update(.01,.8,.6);
+ assert.ok(material.emissive.equals(expectedColor));assert.equal(material.emissiveIntensity,expectedIntensity);assert.equal(material.roughness,expectedRoughness);
+ material.userData.preserveEmissiveColor=true;response.update(.01,.8,.6);assert.equal(material.emissive.getHexString(),'193443');
+ response.update(.01,0,0);assert.equal(material.emissiveIntensity,.08);assert.equal(material.roughness,.9);added.dispose();assert.equal(response.count,1);response.dispose();
+ const {disposeScene}=require('../app/scene-resources.ts');disposeScene(scene);
+});

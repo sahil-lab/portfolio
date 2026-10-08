@@ -4,14 +4,11 @@ import {worldKitRelief} from './world-kit';
 const finishes=new WeakMap<T.Material,Map<string,T.MeshStandardMaterial>>();
 const declarations='varying vec3 kitWorldPosition; varying vec3 kitWorldNormal;\n';
 const sampling=`
-vec4 kitSurface(vec3 point) {
- vec3 weights=pow(abs(normalize(kitWorldNormal)),vec3(6.0));
- weights/=max(dot(weights,vec3(1.0)),0.0001);
+vec4 kitSurface(vec3 point,vec3 weights) {
  return texture2D(bumpMap,point.yz*0.125)*weights.x+texture2D(bumpMap,point.xz*0.125)*weights.y+texture2D(bumpMap,point.xy*0.125)*weights.z;
 }
-vec2 kitHeightDerivative() {
- float center=kitSurface(kitWorldPosition).r;
- return bumpScale*vec2(kitSurface(kitWorldPosition+dFdx(kitWorldPosition)).r-center,kitSurface(kitWorldPosition+dFdy(kitWorldPosition)).r-center);
+vec2 kitHeightDerivative(float center,vec3 weights) {
+ return bumpScale*vec2(kitSurface(kitWorldPosition+dFdx(kitWorldPosition),weights).r-center,kitSurface(kitWorldPosition+dFdy(kitWorldPosition),weights).r-center);
 }
 `;
 
@@ -38,11 +35,15 @@ export function applyAuthoredPaving(mesh:T.Mesh){
     kitWorldPosition=(modelMatrix*kitPosition).xyz;kitWorldNormal=normalize(mat3(modelMatrix)*kitNormal);`);
    shader.fragmentShader=declarations+shader.fragmentShader;
    shader.fragmentShader=shader.fragmentShader.replace('#include <bumpmap_pars_fragment>','#include <bumpmap_pars_fragment>\n'+sampling);
-   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace('dHdxy_fwd()','kitHeightDerivative()'));
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','float roughnessFactor=roughness*kitSurface(kitWorldPosition).g;');
-   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=mix('+(asphalt?'0.92,1.04':'0.74,1.05')+',kitSurface(kitWorldPosition).r);');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace('dHdxy_fwd()','kitHeightDerivative(kitSample.r,kitWeights)'));
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','float roughnessFactor=roughness*kitSample.g;');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    vec3 kitWeights=pow(abs(normalize(kitWorldNormal)),vec3(6.0));
+    kitWeights/=max(dot(kitWeights,vec3(1.0)),0.0001);
+    vec4 kitSample=kitSurface(kitWorldPosition,kitWeights);
+    diffuseColor.rgb*=mix(${asphalt?'0.92,1.04':'0.74,1.05'},kitSample.r);`);
   };
-  finish.customProgramCacheKey=()=>key+'/blender-paving-'+kind;finish.needsUpdate=true;cache.set(kind,finish);finishes.set(original,cache);
+  finish.customProgramCacheKey=()=>key+'/blender-paving-shared-sample-'+kind;finish.needsUpdate=true;cache.set(kind,finish);finishes.set(original,cache);
  }
  mesh.material=finish;mesh.userData.authoredPaving=kind;return true;
 }

@@ -27,16 +27,24 @@ export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,sec
  return {...light,morning:sampleMorning(mode,seconds,weather),snapshot,tint};
 }
 export function createCityLightResponse(scene:T.Scene){
- const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;nightIntensity:number;roughness:number;window:boolean;paving:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
+ const surfaces=new Map<T.MeshStandardMaterial,{emissive:T.Color;intensity:number;nightIntensity:number;roughness:number;window:boolean;paving:boolean;appliedEmissive:T.Color;appliedIntensity:number;night?:number;preserve?:boolean}>(),warm=new T.Color('#f6d8a1');let elapsed=2;
  const removed=(event:{target:unknown})=>{const material=event.target as T.MeshStandardMaterial;surfaces.delete(material);material.removeEventListener('dispose',removed)};
  return {
   update(delta:number,night:number,wet:number){
    elapsed+=Math.max(0,delta);if(elapsed>=1){elapsed=0;scene.traverse(object=>{if(!(object instanceof T.Mesh))return;for(const material of Array.isArray(object.material)?object.material:[object.material]){
     if(!(material instanceof T.MeshStandardMaterial)||surfaces.has(material))continue;
     const practical=material.userData.surface==='light',window=material.userData.surface==='glass'||practical,paving=material.userData.cityPaving===true;
-    if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,practical?4:1.2):.42,roughness:material.roughness,window,paving});material.addEventListener('dispose',removed)}
+    if(window||paving){const illumination=material.userData.nightIllumination;surfaces.set(material,{emissive:material.emissive.clone(),intensity:material.emissiveIntensity,nightIntensity:Number.isFinite(illumination)?T.MathUtils.clamp(illumination,0,practical?4:1.2):.42,roughness:material.roughness,window,paving,appliedEmissive:material.emissive.clone(),appliedIntensity:material.emissiveIntensity});material.addEventListener('dispose',removed)}
    }})}
-    for(const [material,base] of surfaces){if(base.window){material.emissive.copy(base.emissive).lerp(warm,material.userData.preserveEmissiveColor?0:night);material.emissiveIntensity=base.intensity*(1-night)+base.nightIntensity*night}if(base.paving)material.roughness=Math.max(.24,base.roughness-wet*.46)}
+    for(const [material,base] of surfaces){
+     if(base.window){
+      const preserve=!!material.userData.preserveEmissiveColor;
+      if(base.night!==night||base.preserve!==preserve){base.appliedEmissive.copy(base.emissive).lerp(warm,preserve?0:night);base.appliedIntensity=base.intensity*(1-night)+base.nightIntensity*night;base.night=night;base.preserve=preserve}
+      if(!material.emissive.equals(base.appliedEmissive))material.emissive.copy(base.appliedEmissive);
+      if(material.emissiveIntensity!==base.appliedIntensity)material.emissiveIntensity=base.appliedIntensity;
+     }
+     if(base.paving){const roughness=Math.max(.24,base.roughness-wet*.46);if(material.roughness!==roughness)material.roughness=roughness}
+    }
   },
   dispose(){for(const material of surfaces.keys())material.removeEventListener('dispose',removed);surfaces.clear()},
   get count(){return surfaces.size},

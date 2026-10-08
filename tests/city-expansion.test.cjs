@@ -75,6 +75,12 @@ test('the expanded city has hundreds of bounded homes, three detail levels and c
   global.document={createElement:()=>({width:0,height:0,getContext:()=>({font:'',fillRect(){},fillText(){},measureText(text){return {width:text.length*55}}})})};
   const {createCityExpansion}=require('../app/city-expansion.ts'),city=createCityExpansion(new T.Scene());
   assert.ok(city.lots.length>=900);assert.ok(city.neighborhoods.every(neighborhood=>neighborhood.levels.length===3));
+  for(const name of ['City_PlantedTreeCourt','City_StrollingResidents_']){
+    const templates=new Set();city.root.traverse(object=>{if(object.isMesh&&object.name.startsWith(name))templates.add(object.geometry)});assert.ok(templates.size>0,name);
+    let storedBytes=0,expandedBytes=0,indexed=0;
+    for(const geometry of templates){if(geometry.index){storedBytes+=geometry.index.array.byteLength;indexed++}const count=geometry.index?.count??geometry.attributes.position.count;for(const attribute of Object.values(geometry.attributes)){storedBytes+=attribute.array.byteLength;expandedBytes+=count*attribute.itemSize*attribute.array.BYTES_PER_ELEMENT}}
+    assert.ok(indexed>0,name+' lost indexed vertices');assert.ok(storedBytes<expandedBytes,name+' still stores expanded triangle vertices');
+  }
   const recipes=city.architecture.flatMap(({town})=>town.records.map(record=>record.recipe));assert.equal(recipes.length,city.lots.length);assert.equal(new Set(recipes.map(recipe=>recipe.seed)).size,city.lots.length);assert.equal(new Set(city.lots.map(lot=>lot.address)).size,city.lots.length);
   for(const region of city.farRegions.values()){
     for(const block of region.blocks)for(const batch of city.roofscape.batches)for(const range of batch.ranges.filter(range=>range.state===block.state)){

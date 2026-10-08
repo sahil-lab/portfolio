@@ -1,0 +1,20 @@
+{
+  "monument": {
+    "url": "/assets/hero-v1/monument.bin",
+    "sha256": "894ff7e3091e33e9c817091fbc333686e4824a72193a622a280cf2dccd0875a1",
+    "bytes": 4245783,
+    "decodedBytes": 6800840
+  },
+  "dog": {
+    "url": "/assets/hero-v1/dog.bin",
+    "sha256": "5b2430e36da59cecf917ef3e51aad0f5ff361c4c8b42bcacf16e47f6e23bc7ae",
+    "bytes": 4549999,
+    "decodedBytes": 6117224
+  },
+  "angel": {
+    "url": "/assets/hero-v1/angel.bin",
+    "sha256": "a9173514a6d5b9fbc0871a8baa0b211234c64f0fb062cfecbe3bb757cc7ff895",
+    "bytes": 5708606,
+    "decodedBytes": 8329360
+  }
+}
