@@ -21,7 +21,7 @@ const projectBulletinLayout=[{x:-30,z:32,yaw:0},{x:0,z:32,yaw:0},{x:30,z:32,yaw:
 export function createProjectBulletins(parent:T.Object3D,player:T.Group,open:(project:ProjectBulletin)=>void,allowed:()=>boolean=()=>true){
   const root=new T.Group();root.name='Golden_Statue_Project_Bulletins';root.position.set(goldMonumentSite.x,0,goldMonumentSite.z);parent.add(root);
   const pearl=new T.MeshStandardMaterial({color:'#d4ded9',roughness:.68,metalness:.12}),metal=new T.MeshStandardMaterial({color:'#526563',roughness:.5,metalness:.35});let enabled=true;
-  const solids:T.Box3[]=[],localPlayer=new T.Vector3(),localPoint=new T.Vector3(),matrix=new T.Matrix4(),{width,height}=projectBulletinSize;
+  const solids:T.Box3[]=[],localPlayer=new T.Vector3(),localPoint=new T.Vector3(),collisionBounds=new T.Box3(),matrix=new T.Matrix4(),{width,height}=projectBulletinSize;
   function box(group:T.Group,name:string,width:number,height:number,depth:number,y:number,material:T.Material){const mesh=new T.Mesh(cityBlock(width,height,depth,.12),material);mesh.name=name;mesh.position.y=y;mesh.castShadow=mesh.receiveShadow=true;mesh.userData.cameraSolid=true;group.add(mesh);return mesh}
   const entries=projectBulletins.map((project,index)=>{
     const site=projectBulletinLayout[index],group=new T.Group();group.name='Project_Bulletin_'+project.id;group.position.set(site.x,0,site.z);group.rotation.y=site.yaw;root.add(group);
@@ -53,7 +53,7 @@ export function createProjectBulletins(parent:T.Object3D,player:T.Group,open:(pr
   }
   return {root,entries,solids,select,setEnabled:(value:boolean)=>{enabled=value},
     near:()=>active()&&player.position.y<6&&Math.hypot(player.position.x-root.position.x,player.position.z-root.position.z)<70,
-    blocked:(x:number,z:number,y:number)=>solids.some(bounds=>bounds.clone().expandByScalar(.45).containsPoint(localPoint.set(x-root.position.x,y-root.position.y,z-root.position.z))),
+    blocked:(x:number,z:number,y:number)=>{localPoint.set(x-root.position.x,y-root.position.y,z-root.position.z);return solids.some(bounds=>collisionBounds.copy(bounds).expandByScalar(.45).containsPoint(localPoint))},
     prompt:()=>{if(!active())return null;const entry=entries.find(near);return entry?'E \u00b7 Open '+entry.project.name:null},
     interact:()=>{if(!active())return false;const entry=entries.find(near);return entry?activate(entry):false},
   };

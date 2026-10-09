@@ -17,7 +17,8 @@ A dashboard 404 can also mean the wrong account/team or an unavailable project; 
 ## Linux PC assets
 
 `npm run build:vercel` automatically runs `prebuild:vercel`, which invokes
-`npm run friends:prepare` before the adapter builds. This creates the v86 WebAssembly,
+`node scripts/build-city-shells.cjs --prepare-friends` before the adapter builds.
+This prepares city shells, losslessly packed hero models and the v86 WebAssembly,
 firmware, Linux image, license, and manifest under `public/assets/friends-pc`.
 These generated files are intentionally ignored by Git, so a fresh deployment
 must prepare them even when Linux already works on a developer's computer.
@@ -41,10 +42,17 @@ local relay or provision a public proxy.
 npm ci
 npm run build:vercel
 node scripts/check-vercel-output.cjs
-node node_modules/vite/bin/vite.js preview --config vite.vercel.config.ts --port 3001
 ```
 
-Visit <http://localhost:3001/>, `/resume` and `/projects`. The preview runs the generated Vercel output locally; it is not evidence of a successful hosted deployment.
+These commands validate the generated deployment output without deploying it.
+With the current plugins, `vite preview --config vite.vercel.config.ts` can request
+a missing `dist/server/index.js`; it is not a reliable runner for this Vercel build.
+Local artifact verification must serve `.vercel/output/static` first, then route
+remaining requests to the default Fetch handler in
+`.vercel/output/functions/__server.func/index.mjs`. The 9 October statue safety
+checks used that routing on Node 24, with the verification-only adapter and
+desktop/mobile evidence under `outputs/performance/oct9-statue-safety/`.
+Local success is not evidence of a successful hosted deployment.
 
 To verify Linux without a guest relay against a running local preview:
 

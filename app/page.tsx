@@ -15,6 +15,7 @@ import {emptyTransit,type TransitStatus} from './transit-state';
 import {transitStops} from './transit-config';
 import {TouchControls} from './touch-controls';
 import {ComfortSettings} from './comfort-settings';
+import {notifyEmbeddedPortfolio} from './embed-policy';
 import {defaultSettings,loadSave,writeSave,loadRecovery,writeRecovery,type Settings} from './persistence';
 
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
@@ -62,6 +63,7 @@ export default function Home(){
  // WebGL initialization is an external operation; report its synchronous failure so HTML access remains available.
  // oxlint-disable-next-line react/react-compiler
  useEffect(()=>{
+  if(notifyEmbeddedPortfolio(window)){setReady(true);return}
   if(!host.current)return;const target=host.current,controller=new AbortController();let cancelled=false,world:ReturnType<typeof createWorld>|null=null;
     const frame=requestAnimationFrame(()=>{const prepareAssets=()=>Promise.all([import('./world-kit').then(module=>module.prepareWorldKit()),import('./architecture-kit').then(module=>module.prepareArchitectureKit()),import('./craft-kit').then(module=>module.prepareCraftKit()),import('./life-kit').then(module=>module.prepareLifeKit()),import('./architecture-shells').then(module=>module.prepareArchitectureShells())]);void import('./world').then(async({createWorldProgressively})=>{
    if(cancelled)return;const saved=loadSave();setSettings(saved.settings);if(saved.delivery)setDelivery(saved.delivery);

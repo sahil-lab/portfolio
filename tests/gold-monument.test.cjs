@@ -98,12 +98,16 @@ test('standalone portrait never starts fallback after disposal',async context=>{
  assert.deepEqual(calls,[goldMonumentAsset]);assert.equal(monument.status,'disposed');assert.equal(world.children.length,0);
 });
 
-test('five project bulletins retain the supplied HTTPS links and independent statue-side approaches',()=>{
+test('five project bulletins retain the supplied HTTPS links and independent statue-side approaches',context=>{
  const {createProjectBulletins,projectBulletins}=require('../app/project-bulletins.ts'),{disposeScene}=require('../app/scene-resources.ts'),previous=global.document,draws=[];global.document={createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},measureText:text=>({width:text.length*35}),fillText(text,x,y,width){draws.push({text,x,y,width})}})})};
  const scene=new T.Scene(),player=new T.Group(),opened=[];scene.scale.setScalar(2);const gallery=createProjectBulletins(scene,player,project=>opened.push(project.url));
  try{assert.equal(gallery.entries.length,5);assert.deepEqual(projectBulletins.map(project=>project.url),['https://portfolio-resume-lake.vercel.app/','https://ecofusion.vercel.app/','https://cosmic-wellness.vercel.app/','https://mindful-goal-seven.vercel.app/','https://3d-code-pad-jp5m.vercel.app/']);assert.ok(projectBulletins.every(project=>project.destination==='Live project'));
   for(const [index,entry] of gallery.entries.entries()){player.position.copy(entry.approach);assert.equal(gallery.blocked(player.position.x,player.position.z,player.position.y),false);assert.equal(gallery.blocked(gallery.root.position.x+entry.group.position.x,gallery.root.position.z+entry.group.position.z,10),true);assert.match(gallery.prompt(),new RegExp(entry.project.name));assert.equal(gallery.interact(),true);assert.equal(opened.at(-1),entry.project.url);assert.equal(entry.bounds.intersectsBox(new T.Box3(new T.Vector3(-14,0,-14),new T.Vector3(14,51,14))),false);for(const other of gallery.entries.slice(index+1))assert.equal(entry.bounds.intersectsBox(other.bounds),false);assert.equal(entry.faces.front.material.map.uuid,entry.faces.back.material.map.uuid);assert.equal(entry.faces.front.material.toneMapped,false);assert.equal(entry.faces.front.geometry.parameters.width,27);assert.equal(entry.faces.front.geometry.parameters.height,12);assert.ok(draws.some(draw=>draw.text===entry.project.name));assert.equal(entry.group.userData.previewState,'fallback');}
-  assert.ok(draws.every(draw=>draw.x>=0&&draw.y>0&&draw.y<640&&draw.width<=1344));gallery.setEnabled(false);assert.equal(gallery.prompt(),null);assert.equal(gallery.interact(),false);
+  assert.ok(draws.every(draw=>draw.x>=0&&draw.y>0&&draw.y<640&&draw.width<=1344));
+  const points=Array.from({length:120},(_,index)=>new T.Vector3(gallery.root.position.x-45+index%15*6,index%3*5,gallery.root.position.z-15+Math.floor(index/15)*7));
+  const expected=points.map(point=>gallery.solids.some(bounds=>bounds.clone().expandByScalar(.45).containsPoint(point.clone().sub(gallery.root.position))));let copies=0;for(const bounds of gallery.solids){const clone=bounds.clone.bind(bounds);context.mock.method(bounds,'clone',()=>{copies++;return clone()})}
+  for(let repeat=0;repeat<10;repeat++)for(const [index,point] of points.entries())assert.equal(gallery.blocked(point.x,point.z,point.y),expected[index]);assert.equal(copies,0,'board collision checks allocated temporary boxes');
+  gallery.setEnabled(false);assert.equal(gallery.prompt(),null);assert.equal(gallery.interact(),false);
  }finally{disposeScene(scene);global.document=previous}
 });
 
@@ -136,22 +140,33 @@ test('project preview residency is bounded and leaving the gallery unloads runni
  assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
  assert.deepEqual(budget.update([],3010,1,false),{load:[],unload:[4],visible:[]});assert.equal(budget.residents.size,0);
 });
-test('stopped and failed statue-side previews detach their browsing contexts and remain reloadable',()=>{
+for(const placement of ['top-level','embedded','self','redirected'])test('project preview frame safety and ownership: '+placement,()=>{
  const previous=global.document;
  class Element{
-  constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document}
+  constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document;this.contentWindow={}}
   setAttribute(name,value){this[name]=value}
   removeAttribute(name){delete this[name]}
   appendChild(child){child.remove();this.children.push(child);child.parentNode=this;return child}
   removeChild(child){this.children=this.children.filter(value=>value!==child);child.parentNode=null;return child}
   remove(){this.parentNode?.removeChild(this)}
  }
- global.document={createElement:()=>new Element(),addEventListener(){},removeEventListener(){},hidden:false,defaultView:{Element}};
+ const browser=Object.assign(new EventTarget(),{Element,location:{href:'https://portfolio.test/'}});browser.self=browser;browser.top=placement==='embedded'?{}:browser;
+ global.document={createElement:()=>new Element(),addEventListener(){},removeEventListener(){},hidden:false,defaultView:browser};
  let previews;
  try{
-  const {createProjectPagePreviews}=require('../app/project-page-previews.ts'),entry={project:{name:'Fixture',id:'fixture',url:'https://example.test/'},group:new T.Group()};
+  const {createProjectPagePreviews}=require('../app/project-page-previews.ts'),entry={project:{name:'Fixture',id:'fixture',url:placement==='self'?'https://portfolio.test/?project=fixture':'https://example.test/'},group:new T.Group()};
   previews=createProjectPagePreviews(new Element(),new T.Scene(),new T.PerspectiveCamera(),new T.Group(),{entries:[entry],root:new T.Group()});const frame=previews.frames[0];
+  if(placement==='embedded'||placement==='self'){frame.start();assert.equal(frame.iframe.parentNode===null,true,'unsafe nested website was attached');assert.equal(frame.iframe.src,undefined);assert.equal(entry.group.userData.previewState,'fallback');assert.equal(previews.stats.loaded,0);return}
+  if(placement==='redirected'){
+   const {portfolioEmbedMessage}=require('../app/embed-policy.ts'),send=source=>{const event=new Event('message');Object.assign(event,{source,data:{type:portfolioEmbedMessage}});browser.dispatchEvent(event)};
+   frame.start();send({});assert.ok(frame.iframe.parentNode,'an unrelated window disabled a preview');send(frame.iframe.contentWindow);assert.equal(frame.iframe.parentNode,null);assert.equal(frame.allowed,false);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.equal(frame.iframe.parentNode,null);return;
+  }
   assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);
   frame.start();assert.ok(frame.iframe.parentNode);frame.iframe.onerror();assert.equal(frame.iframe.parentNode,null);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.ok(frame.iframe.parentNode);
  }finally{previews?.dispose();global.document=previous}
+});
+
+test('embedded portfolio detection notifies its parent before any world needs to be constructed',()=>{
+ const {notifyEmbeddedPortfolio,portfolioEmbedMessage}=require('../app/embed-policy.ts'),sent=[],browser={parent:{postMessage:(message,target)=>sent.push({message,target})}};browser.self=browser;browser.top=browser;
+ assert.equal(notifyEmbeddedPortfolio(browser),false);assert.deepEqual(sent,[]);browser.top={};assert.equal(notifyEmbeddedPortfolio(browser),true);assert.deepEqual(sent,[{message:{type:portfolioEmbedMessage},target:'*'}]);browser.parent.postMessage=()=>{throw new Error('Parent unavailable')};assert.equal(notifyEmbeddedPortfolio(browser),true);
 });

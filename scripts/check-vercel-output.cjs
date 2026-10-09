@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const packageInfo = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
-assert.equal(packageInfo.scripts['prebuild:vercel'], 'npm run friends:prepare', 'Vercel must prepare the generated Linux files before building');
+assert.equal(packageInfo.scripts['prebuild:vercel'], 'node scripts/build-city-shells.cjs --prepare-friends', 'Vercel must prepare the city, hero and Linux assets before building');
 const root = path.resolve(__dirname, '../.vercel/output');
 const config = JSON.parse(fs.readFileSync(path.join(root, 'config.json'), 'utf8'));
 assert.equal(config.version, 3);

@@ -12,6 +12,53 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Statue Preview Safety, 9 October 2026
+
+The reported Vercel restart near the golden statue remains accepted but was not
+reproduced locally. This patch removes two independently testable risks in that
+area without changing the statue, board geometry, project links, quality settings
+or normal live external previews.
+
+Direct self-embeds and project previews inside an already embedded portfolio are
+blocked. A portfolio loaded under another deployment alias notifies its parent
+before constructing a 3D world. The parent accepts that fixed notification only
+from the owning iframe, releases that frame and its residency budget, and keeps
+the existing project-name fallback. Later approaches do not retry the rejected
+frame. Alias protection requires the embedded deployment to include this guard;
+it cannot control arbitrary third-party applications or older deployments.
+
+Board collision queries now reuse one padded box rather than cloning a box for
+each candidate. The regression exercises 1,200 queries with identical collision
+results and unchanged source bounds: 30,000 temporary box clones before, zero
+after. This is an allocation-count result, not a measured whole-app speedup.
+
+Validation used an isolated copy of published commit `9103b24` plus only these
+safeguards, preserving its progressive startup, recovery, rendering and asset
+implementation. Unrelated working-tree changes were not copied or overwritten.
+All 44 statue/control tests passed, along with TypeScript, scoped lint,
+`npm run build:vercel` and `node scripts/check-vercel-output.cjs`.
+
+The generated Vercel Fetch handler and filesystem-first static output were served
+locally on Node 24. Chrome desktop (1440x960) and mobile touch emulation (390x844)
+each passed eight `--preview-safety` checks. A controlled deployment alias loaded
+the same portfolio once, allocated zero nested WebGL contexts and did not retry
+on three return visits. The other four controlled live HTML pages still loaded.
+Both runs retained one document, scene and canvas, with no page errors or context
+loss; canvas-pixel checks and reviewed captures were nonblank, with no page
+overflow. External fixtures do not certify actual third-party scripts or physical
+Safari/Android behavior.
+
+Evidence, captures, build logs, source fingerprints and the local-only Vercel
+adapter are under `outputs/performance/oct9-statue-safety/`. The snapshot is under
+`outputs/performance-source/oct9-statue-safety/`. The generic Vite preview command
+requested a missing `dist/server/index.js`; the tests instead used the actual
+generated `.vercel/output` handler and assets.
+
+No deployment was performed. The hosted restart's cause remains unconfirmed,
+and browser/OS tab termination cannot be prevented by these guards. Preloading
+all five project websites at startup is not implemented; existing bounded,
+visibility-based loading is preserved for normal external pages.
+
 ## Mobile Input And Hotspot Monitoring, 9 October 2026
 
 The mobile joystick now owns its native pointer lifecycle independently of the
