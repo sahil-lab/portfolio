@@ -10,6 +10,21 @@ export const kingdomPalette={
   paving:'#1b2123',stone:'#bbc5bf',walkway:'#9aa8a1',
 };
 
+let microRoughness:T.DataTexture|null=null;
+/** One shared 128px map of +-4% roughness variation so flat paint stops reading as uniform plastic. */
+export function finishMicroRoughness(){
+  if(microRoughness)return microRoughness;
+  const size=128,data=new Uint8Array(size*size*4);
+  const noise=(horizontal:number,vertical:number)=>{let value=Math.imul(horizontal+53,374761393)^Math.imul(vertical+29,668265263);value=Math.imul(value^(value>>>13),1274126177);return ((value^(value>>>16))>>>0)/4294967295};
+  for(let row=0;row<size;row++)for(let column=0;column<size;column++){
+    const broad=noise(Math.floor(column/16),Math.floor(row/16)),medium=noise(Math.floor(column/5)+97,Math.floor(row/5)),grain=noise(column,row);
+    const value=Math.round(T.MathUtils.clamp(247+(broad-.5)*12+(medium-.5)*7+(grain-.5)*4,235,255)),offset=(row*size+column)*4;
+    data[offset]=data[offset+1]=data[offset+2]=value;data[offset+3]=255;
+  }
+  microRoughness=new T.DataTexture(data,size,size,T.RGBAFormat);microRoughness.name='Finish_MicroRoughness';microRoughness.wrapS=microRoughness.wrapT=T.RepeatWrapping;microRoughness.magFilter=T.LinearFilter;microRoughness.minFilter=T.LinearMipmapLinearFilter;microRoughness.generateMipmaps=true;microRoughness.anisotropy=4;microRoughness.needsUpdate=true;
+  return microRoughness;
+}
+
 export function finishKingdomMaterials(scene:T.Object3D){
   completeArchitectureAttributes(scene);
   const finished=new Set<T.Material>();
@@ -23,10 +38,12 @@ export function finishKingdomMaterials(scene:T.Object3D){
       material.dithering=true;
       const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.vertexColors||material.userData.surface==='natural',ceramic=material.userData.surface==='ceramic';
       if(!polished&&!natural&&!ceramic&&!material.map){
-        material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.36:.55,material.metalness>.35?.58:.82);
-        if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,0,.24);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.38,.65)}
+        // Floors keep authored satin trims distinct from matte walls; ceilings stop surfaces going chalky.
+        material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.3:.46,material.metalness>.35?.5:.82);
+        if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,0,.35);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.3,.65)}
+        if(!material.roughnessMap){material.roughnessMap=finishMicroRoughness();material.needsUpdate=true}
       }
-      material.envMapIntensity=polished?Math.min(material.envMapIntensity,1.05):natural?.4:Math.min(material.envMapIntensity,material.metalness>.35?.85:.6);
+      material.envMapIntensity=polished?Math.min(material.envMapIntensity,1.05):natural?.5:Math.min(material.envMapIntensity,material.metalness>.35?1:.9);
       if(material.map)material.map.anisotropy=Math.max(material.map.anisotropy,4);
     }
   });

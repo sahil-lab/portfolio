@@ -46,6 +46,62 @@ longer imposes the previous solid ceiling on orbital camera movement.
 - Far-away discovery labels fade; full labels return on approach. Existing
   artwork and machine emissions are not recolored by the finishing pass.
 
+## Rendering Finish Pass, 9 October 2026
+
+A rendering-pipeline response to the stylised daylight reference (bevelled,
+open-shadow miniature look). Geometry, assets, content and quality tiers are
+unchanged; this pass only rebalances light transport, material response and
+the final colour pipeline. It is not a Blender re-bake or a bevel remodel.
+
+- `app/kingdom-grade.ts` installs the project grade through Three's
+  `CustomToneMapping` hook: Khronos Neutral curve, then a mild chroma-aware
+  vibrance (muted surfaces regain colour, saturated paint is untouched) and a
+  faint warm black floor so shadows never crush. Because it lives in the shared
+  tone-mapping chunk, the direct renderer, the postprocessing `OutputPass` and
+  every quality tier produce the same finish at zero extra pass cost.
+- Image-based lighting is the material glue. The downloaded studio HDR is no
+  longer used at runtime (the file stays for the Blender export importer):
+  `app/sky-environment.ts` renders the sky the player can see (zenith, horizon,
+  ground bounce and a soft glow around the key light, with no hard sun disk) to
+  a 128px cubemap and prefilters it with PMREM. Reflections, broad highlights
+  and shade fill therefore follow weather, time of day and the local vertical
+  on every planet, and orbit/transit reflections show space rather than a
+  photographic studio. Skylight is paled to half the dome's chroma (real sky
+  fill is far less blue than the zenith) and dim night skies rise to a moonlit
+  floor so shade never goes black. Refreshes reuse one prefiltered target so
+  materials keep their programs; they are throttled to 4 Hz (2 Hz on Low) and
+  only happen when the quantized sky signature changes or after a WebGL context
+  restore. Measured in isolated Chrome: zero refreshes over 120 steady frames,
+  about .1-.4 ms per forced refresh including a GPU finish, 27 refreshes across
+  a full day-to-night cross-fade (`outputs/performance/oct9-sky-environment/
+  probe.json`). The finishing pass allows non-metal, metal and natural surfaces
+  up to .9 / 1 / .5 environment response (previously .6 / .85 / .4).
+- Daylight key and fill were rebalanced for the sky environment (clear sky sun
+  2.9 at a slightly warmer `#ffdfb4`, hemisphere .25; fixed `day` mode matches)
+  so lit paint stays under the Neutral shoulder instead of bleaching while the
+  environment carries the shade. The motherboard day sky and fog move from pale
+  cyan to a deep clean blue with a warm-neutral ground bounce.
+- Material hierarchy: the shared finish keeps authored satin trims distinct
+  from matte walls (non-metal roughness floor .46, metals .3-.5, clearcoat up
+  to .35) instead of flattening everything to a .55 floor. Plain untextured
+  finishes share one 128px micro-roughness map (about +-4%) so flat paint stops
+  reading as uniform plastic; crafted edge radii grow from 14% to 17% of the
+  shortest dimension (capped at .15) at identical triangle counts.
+- Depth-based AO is subtler (blend .72, scale 1.15) so contacts read without
+  dark outlines.
+- `scripts/check-kingdom-visuals.cjs` now records display tone statistics for
+  every capture (mean/median/p5/p95 luma, HSV saturation and value). Workshop
+  desktop-high day captures moved from mean .555 / p5 .128 / saturation .344
+  (baseline) to .542 / .192 / .365 with the sky environment: shade is a third
+  brighter at the same overall exposure, and the sky-fill blue cast seen in the
+  first environment calibration (p5 .245, saturation .442) was removed by
+  paling the skylight. Night keeps its practical lights at mean .20 / p5 .078.
+  Plaza, lantern quarter, Commons, Copper surface and orbit, first-person
+  movement and night views pass with no errors. Reports:
+  `outputs/playtest/grade-before-checks.json`,
+  `outputs/playtest/sky-env2-checks.json` and
+  `outputs/playtest/sky-env2-world-checks.json`.
+
 ## Planted Miniature World Pass, 2 October 2026
 
 This pass addresses the bare surroundings, pointed ornament and disconnected

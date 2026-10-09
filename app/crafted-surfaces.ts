@@ -6,10 +6,10 @@ import {applyPremiumSurface} from './premium-materials';
 /** Real edge radii keep highlights stable; thin traces retain their inexpensive geometry. */
 export function craftedBox(w:number,h:number,d:number){
   const shortest=Math.min(w,h,d);
-  const authored=authoredBlock(w,h,d,shortest<.22||Math.max(w,h,d)>100?0:Math.min(shortest*.14,.12));if(authored)return authored;
+  const authored=authoredBlock(w,h,d,shortest<.22||Math.max(w,h,d)>100?0:Math.min(shortest*.17,.15));if(authored)return authored;
   return shortest<.22||Math.max(w,h,d)>100
     ?new T.BoxGeometry(w,h,d)
-    :new RoundedBoxGeometry(w,h,d,1,Math.min(shortest*.14,.12));
+    :new RoundedBoxGeometry(w,h,d,1,Math.min(shortest*.17,.15));
 }
 
 export function createSurfaceRelief(kind:'stone'|'timber'|'brushed'){

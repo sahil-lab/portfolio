@@ -18,14 +18,15 @@ export function astraLightStory(weather:WeatherSnapshot){
   const golden=night||cold||rain?0:MathUtils.clamp(edgeLight,0,1)*(1-cover);
   return {
     night,rain,cold,cover,golden,
-    zenith:night?'#203248':storm?'#839baa':cold?'#accbdc':golden>.45?'#82b5d8':'#559fdf',
-    horizon:night?'#566879':storm?'#c0d0d5':weather.kind==='fog'?'#d5dedb':golden>.45?'#f4d3b0':'#bde0f2',
+    zenith:night?'#203248':storm?'#839baa':cold?'#accbdc':golden>.45?'#82b5d8':'#3b8bd2',
+    horizon:night?'#566879':storm?'#c0d0d5':weather.kind==='fog'?'#d5dedb':golden>.45?'#f4d3b0':'#8fc3e6',
     nadir:night?'#233c47':'#8eafae',
-    sunlight:night?.38:storm?.95:MathUtils.lerp(3.1,1.45,cover)*(1-golden*.1),
-    sunColor:night?'#b9d3ef':cold?'#e3f3fb':golden>.45?'#ffd5a5':'#ffe5c2',
-    skyLight:night?'#a2bbd3':rain?'#c2d0d6':'#c5dbe8',
-    groundLight:night?'#35424b':golden>.45?'#877665':'#465e52',
-    ambient:night?.24:storm?.66:MathUtils.lerp(.44,.65,cover)-golden*.16,
+    // Daylight keeps lit albedo under the Neutral shoulder so paint stays saturated instead of bleaching.
+    sunlight:night?.38:storm?.95:MathUtils.lerp(2.9,1.2,cover)*(1-golden*.1),
+    sunColor:night?'#b9d3ef':cold?'#e3f3fb':golden>.45?'#ffd5a5':'#ffdfb4',
+    skyLight:night?'#a2bbd3':rain?'#c2d0d6':'#dbe4e9',
+    groundLight:night?'#35424b':golden>.45?'#877665':'#5f6259',
+    ambient:night?.24:storm?.46:MathUtils.lerp(.25,.42,cover)-golden*.08,
     environment:night?.11:rain?.25:MathUtils.lerp(.34,.29,golden),
     rim:night?.4:rain?.47:.44,
     fog:weather.kind==='fog'?.0105:storm?.0042:rain?.0028:night?.001:golden>.45?.0011:.00065,

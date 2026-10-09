@@ -95,12 +95,17 @@ async function main(){
       const pixels=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
         const canvas=document.querySelector('.world canvas'),sample=document.createElement('canvas');sample.width=96;sample.height=64;
         const context=sample.getContext('2d');context.drawImage(canvas,0,0,96,64);const data=context.getImageData(0,0,96,64).data,colors=new Set();let sum=0,lit=0;
-        for(let index=0;index<data.length;index+=4){colors.add(`${data[index]>>3},${data[index+1]>>3},${data[index+2]>>3}`);sum=(sum+data[index]*(index+1)+data[index+1]*7)%2147483647;if(data[index]+data[index+1]+data[index+2]>45)lit++}
+        const lumas=[];let saturation=0,value=0;
+        for(let index=0;index<data.length;index+=4){colors.add(`${data[index]>>3},${data[index+1]>>3},${data[index+2]>>3}`);sum=(sum+data[index]*(index+1)+data[index+1]*7)%2147483647;if(data[index]+data[index+1]+data[index+2]>45)lit++;
+          const red=data[index]/255,green=data[index+1]/255,blue=data[index+2]/255,brightest=Math.max(red,green,blue);lumas.push(.2126*red+.7152*green+.0722*blue);value+=brightest;saturation+=brightest>0?(brightest-Math.min(red,green,blue))/brightest:0}
+        // Display-referred tone statistics (sRGB-encoded canvas values) for before/after grading comparisons.
+        lumas.sort((left,right)=>left-right);const quantile=fraction=>lumas[Math.min(lumas.length-1,Math.floor(fraction*lumas.length))],round=number=>Math.round(number*1000)/1000;
+        const tone={mean:round(lumas.reduce((total,luma)=>total+luma,0)/lumas.length),median:round(quantile(.5)),p5:round(quantile(.05)),p95:round(quantile(.95)),saturation:round(saturation/lumas.length),value:round(value/lumas.length)};
         const controls=[...document.querySelectorAll('.topbar button,.topbar .brand,.location,.interaction,.touch-joystick,.controls,.scene-action')].filter(element=>getComputedStyle(element).display!=='none').map(element=>{const rect=element.getBoundingClientRect();return {name:element.getAttribute('aria-label')??element.textContent.trim(),x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
         const mapNodes=[...document.querySelectorAll('.mini-map button')].filter(element=>element.getBoundingClientRect().width>0).map(element=>{const rect=element.getBoundingClientRect();return [rect.x,rect.y]});
         const toolbar=[...document.querySelectorAll('.topbar button')].map(element=>{const rect=element.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
         const assetsReady=document.fonts.check('500 14px "Space Grotesk"')&&document.fonts.check('500 25px "Fraunces"');
-        resolve({viewport:[innerWidth,innerHeight],colors:colors.size,litFraction:lit/(96*64),hash:sum,overflow:document.documentElement.scrollWidth>innerWidth,controls,mapNodes,toolbar,assetsReady,render:globalThis.__kingdomReview.renderStats()});
+        resolve({viewport:[innerWidth,innerHeight],colors:colors.size,litFraction:lit/(96*64),tone,hash:sum,overflow:document.documentElement.scrollWidth>innerWidth,controls,mapNodes,toolbar,assetsReady,render:globalThis.__kingdomReview.renderStats()});
       }))));
       assert.ok(pixels.colors>40,`${name}: world canvas is blank`);assert.ok(pixels.litFraction>.5,`${name}: world is underexposed`);assert.equal(pixels.overflow,false,`${name}: horizontal overflow`);
       for(const control of pixels.controls){assert.ok(control.x>=-1&&control.x+control.width<=pixels.viewport[0]+1,`${name}: clipped control ${control.name}`)}
@@ -113,7 +118,7 @@ async function main(){
         assert.ok(first.x+first.width<=second.x+.1||second.x+second.width<=first.x+.1||first.y+first.height<=second.y+.1||second.y+second.height<=first.y+.1,`${name}: toolbar controls overlap`);
       }
       await page.screenshot({path:path.join(output,`${prefix}-${name}.png`)});checks.push({name,...pixels});
-      console.log(`${name}: ${pixels.colors} canvas colors, ${pixels.render.calls} draws, ${pixels.render.triangles} triangles; layout and assets verified`);
+      console.log(`${name}: ${pixels.colors} canvas colors, ${pixels.render.calls} draws, ${pixels.render.triangles} triangles; tone ${JSON.stringify(pixels.tone)}; layout and assets verified`);
       return pixels;
     }
     const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));

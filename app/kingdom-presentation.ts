@@ -10,7 +10,7 @@ import type {Settings} from './persistence';
 import {createShaderPreparation} from './shader-preparation';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
-export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.85};
+export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.72};
 export const presentationPixelBudget=1600000;
 export function presentationPixelRatio(width:number,height:number,ratio:number){return Math.min(ratio,Math.sqrt(presentationPixelBudget/Math.max(1,width*height)))}
 
@@ -31,7 +31,7 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
     composer=new EffectComposer(renderer,target);
     occlusion=new GTAOPass(scene,camera,1,1);occlusion.setGBuffer(composer.readBuffer.depthTexture!);
     occlusion.blendIntensity=kingdomOcclusion.strength;
-    occlusion.updateGtaoMaterial({radius:kingdomOcclusion.radius,thickness:kingdomOcclusion.thickness,distanceExponent:1,distanceFallOff:1,scale:1.3,samples:8});
+    occlusion.updateGtaoMaterial({radius:kingdomOcclusion.radius,thickness:kingdomOcclusion.thickness,distanceExponent:1,distanceFallOff:1,scale:1.15,samples:8});
     occlusion.updatePdMaterial({radius:4,samples:8,rings:2,lumaPhi:10,depthPhi:1,normalPhi:3});
     const resizeOcclusion=occlusion.setSize.bind(occlusion);
     occlusion.setSize=(nextWidth,nextHeight)=>{const ratio=Math.min(1,Math.sqrt(kingdomOcclusion.pixelBudget/Math.max(1,nextWidth*nextHeight)));resizeOcclusion(Math.max(1,Math.floor(nextWidth*ratio)),Math.max(1,Math.floor(nextHeight*ratio)))};

@@ -26,8 +26,7 @@ export function createAstraAtmosphere(scene:T.Scene,tint:(look:Partial<SkyLook>)
       const story=astraLightStory(weather),blend=previous===''?1:1-Math.exp(-Math.min(Math.max(dt,0),.25)*1.4);
       const signature=[active,weather.kind,weather.isDay,weather.cloudCover,weather.updatedAt].join('/');
       if(signature!==previous){tint(active?astraSkyTint(weather):{});previous=signature}
-      const environmentScale=scene.userData.studioEnvironment==='ready'?.55:1;
-      scene.environmentIntensity=T.MathUtils.lerp(scene.environmentIntensity,(active?story.environment:environment)*environmentScale,blend);
+      scene.environmentIntensity=T.MathUtils.lerp(scene.environmentIntensity,active?story.environment:environment,blend);
       for(const entry of lights){
         if(active){skyColor.set(story.skyLight);groundColor.set(story.groundLight)}else{skyColor.copy(entry.sky);groundColor.copy(entry.ground)}
         entry.light.color.lerp(skyColor,blend);entry.light.groundColor.lerp(groundColor,blend);
