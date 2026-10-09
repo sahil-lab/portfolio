@@ -12,6 +12,76 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Mobile Input And Hotspot Monitoring, 9 October 2026
+
+The mobile joystick now owns its native pointer lifecycle independently of the
+render loop. World input resets release camera pointer captures and emit a
+scene-scoped `kingdom-input-reset` event. The joystick releases its own capture,
+centers its knob and publishes neutral movement immediately on that event,
+disable, pointer cancellation/loss, page hide/show, blur, viewport changes,
+graphics loss and unmount. Other camera fingers cannot release its active touch.
+Capture failures and missed mouse-button releases leave it usable for a fresh
+gesture. Neutral movement does not enable audio and also clears input while paused.
+
+All 18 controls tests and the restored indexed-merge helper check passed, along
+with TypeScript, scoped lint and production build. The native Chrome touch test
+passed 23 checks covering movement/release, simultaneous camera input, travel
+while held, pause/resume, persisted page events, orientation, graphics recovery,
+back navigation and a fresh reload. Desktop/mobile captures were nonblank with
+one canvas and no horizontal overflow. The navigation test returned a fresh
+document rather than a real back-forward-cache hit; persisted page events were
+also tested explicitly. This is local touch emulation, not physical Safari/Android
+certification or a guarantee against main-thread stalls.
+
+The initial 23-check run used a working tree with separate local changes that
+removed saved-location recovery. It verified input reset and fresh-mount paths,
+not saved-location restoration. Those local changes and their two build
+compatibility repairs are excluded from the mobile-control publication. The
+selective commit retains the published recovery, startup, batching and asset
+implementations; unrelated working-tree edits remain local.
+
+Control evidence is in `outputs/performance/oct9-mobile-controls/`, including
+`browser/joystick.json`, the build source fingerprints and the first harness
+failure. That failure attempted a fresh CDP touch before releasing a deliberately
+held contact across navigation; the corrected test still asserts that the stale
+contact cannot revive movement.
+
+### Hotspot Findings
+
+A separate, earlier local production tour monitored 17 stops on desktop and
+mobile, with 68 samples per tour across arrival, movement, camera sweeps and
+settled frames. Stops included all five project boards, Lantern Quarter, the
+mall, signature shops, outer city detail, commons, workshop, Copper and Prism,
+and returns to the mainland. The monitored source is recorded separately in
+`outputs/performance/oct9-hotspot-monitor/source.json`; surrounding source changed
+afterward, so these are historical diagnostics, not timings for the control fix.
+
+| Observation | Desktop | Mobile Emulation |
+| --- | ---: | ---: |
+| Settled project-board mean frame range | 39.34-42.63 ms | 33.33-35.61 ms |
+| Largest project-board frame interval | 1,333.5 ms | 233.6 ms |
+| Plaza camera-sweep maximum interval | 999.9 ms | 1,716.6 ms |
+| Copper arrival maximum interval | 6,099.9 ms | 9,133.0 ms |
+| Post-GC heap: initial plaza | 342.43 MiB | 339.12 MiB |
+| Post-GC heap: mainland return | 429.88 MiB | 426.14 MiB |
+
+Each tour retained one document, scene and canvas, with no unexpected context
+loss or recorded frame fault. All five external website requests failed with
+`net::ERR_SSL_PROTOCOL_ERROR`, so their actual scripts were not measured. The
+observed stalls cannot be attributed to those scripts. Board visits coincided
+with neighborhood detail changes, and substantial delays also occurred away
+from the boards, especially around planet arrivals and camera sweeps.
+
+One mobile workshop sample contained a 7,142,690.4 ms timing discontinuity and
+the run also recorded a network change. That sample is excluded from useful
+frame-time conclusions; it is not evidence of a two-hour application stall.
+The interrupted mobile run is not a controlled performance baseline. Heap growth
+across a single tour includes caches and different residency states and does
+not by itself prove a leak. No reload fix or general FPS improvement is claimed
+from this monitoring. Raw reports remain under
+`outputs/performance/oct9-hotspot-monitor/desktop/` and
+`outputs/performance/oct9-hotspot-monitor/mobile/`.
+
 ## Lossless Model Loading, 9 October 2026
 
 This follow-up is limited to asset delivery and lifetime safety. The previous

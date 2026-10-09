@@ -1,9 +1,9 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},resilience:{type:'boolean'},streaming:{type:'boolean'},memory:{type:'boolean'},mainland:{type:'boolean'},statue:{type:'boolean'},websites:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string'},quality:{type:'string',default:'auto'},mobile:{type:'boolean'},touch:{type:'boolean'},joystick:{type:'boolean'},browser:{type:'string',default:'msedge'},recover:{type:'boolean'},resilience:{type:'boolean'},streaming:{type:'boolean'},memory:{type:'boolean'},mainland:{type:'boolean'},statue:{type:'boolean'},websites:{type:'boolean'},hotspots:{type:'boolean'},performance:{type:'boolean'},flicker:{type:'boolean'},shadows:{type:'boolean'},output:{type:'string'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(options.output??'outputs/playtest/camera-lifecycle');fs.mkdirSync(output,{recursive:true});
 async function main(){
- const browser=await chromium.launch({channel:options.browser,headless:true,args:options.memory||options.mainland?['--enable-precise-memory-info']:[]}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:options.flicker?{width:1124,height:914}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
+ const browser=await chromium.launch({channel:options.browser,headless:true,args:options.memory||options.mainland||options.hotspots?['--enable-precise-memory-info']:[]}),page=await browser.newPage({viewport:options.mobile?{width:390,height:844}:options.flicker?{width:1124,height:914}:{width:1440,height:960},deviceScaleFactor:2,isMobile:!!options.mobile,hasTouch:!!options.mobile}),events=[],errors=[],snapshots=[];
  page.setDefaultTimeout(options.memory||options.mainland?90000:30000);page.on('pageerror',error=>errors.push(error.message));page.on('crash',()=>events.push({event:'renderer-crash'}));page.on('framenavigated',frame=>{if(frame===page.mainFrame())events.push({event:'navigation',url:frame.url()})});
  page.on('console',message=>{if(/context lost|context restored|Shader Error|out of memory|too many active webgl/i.test(message.text()))events.push({event:'console',message:message.text()})});
  await page.exposeFunction('__cameraLifecycleEvent',event=>events.push(event));
@@ -31,6 +31,100 @@ async function main(){
    });snapshots.push({label,...state});console.log('CAMERA_STATE '+JSON.stringify({label,...state}));return state;
   }
   const original=await snapshot('ready');assert.ok(original.canvas,'world canvas missing');assert.ok(original.scene,'world scene missing');
+  if(options.joystick){
+   assert.equal(options.mobile,true,'Joystick checks need a touch viewport');const client=await page.context().newCDPSession(page),checks=[];let point;
+   await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});
+   const frames=count=>page.evaluate(count=>new Promise(resolve=>{let remaining=count;const next=()=>{if(--remaining)requestAnimationFrame(next);else resolve()};requestAnimationFrame(next)}),count);
+   async function attachProbe(){
+    await page.waitForFunction(()=>{const main=document.querySelector('main.kingdom');if(main?.getAttribute('data-ready')!=='true')return false;let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next)if(hook.memoizedState?.current?.renderer){globalThis.__cameraLifecycleWorld=hook.memoizedState.current;return true}fiber=fiber.return}return false},null,{timeout:180000});
+    await page.evaluate(()=>{
+    const world=__cameraLifecycleWorld,joystick=document.querySelector('.touch-joystick');if(globalThis.__joystickReview?.scene===world.scene.uuid)return;
+     const state={scene:world.scene.uuid,last:[0,0],pointer:null,cameraDown:0,moves:0};globalThis.__joystickReview=state;const stick=world.stick;
+     world.stick=(horizontal,vertical)=>{state.last=[horizontal,vertical];state.moves++;return stick(horizontal,vertical)};
+     joystick.addEventListener('pointerdown',event=>{state.pointer=event.pointerId});world.renderer.domElement.addEventListener('pointerdown',()=>state.cameraDown++);
+    });
+   }
+   async function state(){return page.evaluate(()=>{const element=document.querySelector('.touch-joystick'),knob=element.querySelector('span'),transform=getComputedStyle(knob).transform,matrix=new DOMMatrix(transform==='none'?undefined:transform),world=__cameraLifecycleWorld,probe=__joystickReview;return {last:probe.last,offset:[matrix.m41,matrix.m42],captured:probe.pointer!==null&&element.hasPointerCapture(probe.pointer),cameraDown:probe.cameraDown,position:world.player.position.toArray(),document:__cameraDocument,scene:world.scene.uuid,visible:getComputedStyle(element).display!=='none',disabled:element.disabled}})}
+   async function neutral(label){const value=await state();assert.deepEqual(value.last,[0,0],label+' retained movement');assert.deepEqual(value.offset,[0,0],label+' retained displaced knob');assert.equal(value.captured,false,label+' retained capture');checks.push({label,...value});return value}
+   async function start(){
+    const bounds=await page.locator('.touch-joystick').boundingBox();assert.ok(bounds,'joystick is unavailable');point={x:bounds.x+bounds.width*.5,y:bounds.y+bounds.height*.5,id:1,radiusX:2,radiusY:2,force:1};await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});point={...point,x:point.x+28};await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point]});const value=await state();assert.ok(value.last[0]>.5);assert.equal(value.captured,true);return value;
+   }
+   const end=()=>client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+   async function usable(label){await start();await frames(8);await end();await neutral(label)}
+   try{
+    await attachProbe();assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza')),true);await frames(8);await neutral('initial');
+    const before=await state();await start();await frames(12);const moved=await state();assert.ok(Math.hypot(...moved.position.map((value,index)=>value-before.position[index]))>.02,'native joystick did not move the character');assert.equal(moved.cameraDown,before.cameraDown,'joystick touch reached camera input');await end();const stopped=await neutral('native-release');await frames(8);const after=await state();assert.ok(Math.hypot(...after.position.map((value,index)=>value-stopped.position[index]))<.02,'character kept moving after release');
+    await start();const cameraBounds=await page.locator('.world canvas').boundingBox(),cameraPoint={x:cameraBounds.x+cameraBounds.width*.35,y:cameraBounds.y+cameraBounds.height*.5,id:2,radiusX:2,radiusY:2,force:1},cameraBefore=(await state()).cameraDown;
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point,cameraPoint]});await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point,{...cameraPoint,x:cameraPoint.x+45}]});assert.ok((await state()).last[0]>.5);assert.equal((await state()).cameraDown,cameraBefore+1);await end();await neutral('two-finger-release');
+    await start();await page.evaluate(()=>__cameraLifecycleWorld.goProjectBulletins());await neutral('world-travel-reset');await end();await usable('fresh-touch-after-travel');
+    await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza'));await start();await page.getByRole('button',{name:'System controls',exact:true}).click();await page.getByRole('button',{name:'Pause',exact:true}).click();await neutral('paused');assert.equal((await state()).disabled,true);await end();await page.getByRole('button',{name:'Resume',exact:true}).click();await page.keyboard.press('Escape');await usable('fresh-touch-after-resume');
+    for(const type of ['pagehide','pageshow']){await start();await page.evaluate(type=>dispatchEvent(new PageTransitionEvent(type,{persisted:true})),type);await neutral(type);await end();await usable('fresh-touch-after-'+type)}
+    await start();await page.setViewportSize({width:844,height:390});await neutral('landscape-resize');await end();await page.setViewportSize({width:390,height:844});await usable('portrait-restored');
+    await start();await page.evaluate(()=>{const extension=__cameraLifecycleWorld.renderer.getContext().getExtension('WEBGL_lose_context');if(!extension)throw Error('Context-loss testing unavailable');globalThis.__joystickLoss=extension;extension.loseContext()});await page.waitForFunction(()=>__cameraContextsLost===1);await neutral('graphics-lost');await end();await page.evaluate(()=>__joystickLoss.restoreContext());await page.waitForFunction(()=>__cameraContextsRestored===1&&__cameraLifecycleWorld.renderReady!==false&&!__cameraLifecycleWorld.renderer.getContext().isContextLost(),null,{timeout:60000});await frames(4);await usable('graphics-restored');
+    const away=new URL('/__joystick-navigation-check',options.url).href;await page.route(away,route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Navigation check</title><p>Navigation check</p>'}));
+    await start();const leaving=await state();await page.goto(away,{waitUntil:'domcontentloaded'});await page.goBack({waitUntil:'domcontentloaded',timeout:180000});await attachProbe();await frames(4);const returned=await neutral('navigation-return');checks.push({label:'navigation-lifecycle',sameDocument:leaving.document===returned.document,sameScene:leaving.scene===returned.scene});await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...point,x:point.x+4}]});await neutral('stale-touch-after-navigation');await end();await usable('fresh-touch-after-navigation');
+    await start();await page.reload({waitUntil:'domcontentloaded',timeout:180000});await attachProbe();await frames(4);await neutral('fresh-mount');await end();await usable('fresh-touch-after-reload');
+    for(const [label,width,height] of [['mobile',390,844],['desktop',1440,960]]){
+     await page.setViewportSize({width,height});await frames(4);const pixels=await page.evaluate(()=>{const world=__cameraLifecycleWorld;world.renderer.render(world.scene,world.camera);const canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const context=canvas.getContext('2d');context.drawImage(world.renderer.domElement,0,0,96,64);const data=context.getImageData(0,0,96,64).data,colors=new Set();for(let offset=0;offset<data.length;offset+=4)colors.add([data[offset]>>4,data[offset+1]>>4,data[offset+2]>>4].join(','));return {colors:colors.size,viewport:[innerWidth,innerHeight],overflow:document.documentElement.scrollWidth>innerWidth,canvases:document.querySelectorAll('.world canvas').length}});assert.deepEqual(pixels.viewport,[width,height]);assert.ok(pixels.colors>20);assert.equal(pixels.overflow,false);assert.equal(pixels.canvases,1);checks.push({label:'visual-'+label,...pixels});await page.screenshot({path:path.join(output,'joystick-'+label+'.png')});
+    }
+    assert.deepEqual(errors,[]);console.log('JOYSTICK_LIFECYCLE_OK '+JSON.stringify({checks:checks.length}));
+   }finally{await end().catch(()=>{});fs.writeFileSync(path.join(output,'joystick.json'),JSON.stringify({checks,events,errors},null,2)+'\n');await client.detach()}
+   return;
+  }
+  if(options.hotspots){
+   const client=await page.context().newCDPSession(page),samples=[],requests=[],failures=[],navigation=[],children=[];
+   await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});
+   const persist=()=>fs.writeFileSync(path.join(output,'hotspots.json'),JSON.stringify({method:'Local production exploration; arrival, movement, camera sweeps and settled frames measured separately. JS heap is not GPU memory; external sites are verified individually.',fixtures:!!options.performance,quality:options.quality,mobile:!!options.mobile,original,samples,requests,failures,navigation,children,errors},null,2)+'\n');
+   page.on('request',request=>{if(request.resourceType()==='document'||/\.(?:glb|bin|hdr|png)(?:\?|$)/.test(request.url()))requests.push({url:request.url(),type:request.resourceType(),at:Date.now()})});
+   page.on('requestfailed',request=>failures.push({url:request.url(),type:request.resourceType(),error:request.failure()?.errorText,at:Date.now()}));
+   page.on('framenavigated',frame=>navigation.push({top:frame===page.mainFrame(),url:frame.url(),at:Date.now()}));
+   await page.evaluate(()=>{
+    const world=__cameraLifecycleWorld,state={frames:[],tasks:[],last:0,started:performance.now(),peakHeap:0,draws:0,triangles:0,finished:false,camera:null,render:world.renderer.render,handle:0};globalThis.__hotspotReview=state;
+    state.observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())state.tasks.push({start:entry.startTime,duration:entry.duration,attribution:entry.attribution?.map(value=>({name:value.name,src:value.containerSrc}))})});state.observer.observe({type:'longtask'});
+    const next=now=>{if(state.finished)return;if(state.last){state.frames.push(now-state.last);state.draws+=world.renderer.info.render.calls;state.triangles+=world.renderer.info.render.triangles}state.last=now;state.peakHeap=Math.max(state.peakHeap,performance.memory?.usedJSHeapSize??0);state.handle=requestAnimationFrame(next)};state.handle=requestAnimationFrame(next);
+    world.renderer.render=function(scene,camera){if(camera===world.camera&&state.camera){camera.up.set(0,1,0);camera.position.copy(state.camera.position);camera.lookAt(state.camera.target);camera.updateMatrixWorld(true)}return state.render.call(this,scene,camera)};
+   });
+   const frames=count=>page.evaluate(count=>new Promise(resolve=>{let remaining=count;const next=()=>{if(--remaining)requestAnimationFrame(next);else resolve()};requestAnimationFrame(next)}),count);
+   const begin=()=>page.evaluate(()=>{const state=__hotspotReview;state.observer.takeRecords();state.frames=[];state.tasks=[];state.last=0;state.started=performance.now();state.peakHeap=state.draws=state.triangles=0});
+   async function finish(location,phase){
+    await frames(2);
+    const sample=await page.evaluate(({location,phase})=>new Promise(resolve=>requestAnimationFrame(()=>{
+     const world=__cameraLifecycleWorld,state=__hotspotReview,ordered=state.frames.slice().sort((first,second)=>first-second),count=ordered.length,mean=count?state.frames.reduce((sum,value)=>sum+value,0)/count:0,probe=document.createElement('canvas');probe.width=96;probe.height=64;const context=probe.getContext('2d');context.drawImage(world.renderer.domElement,0,0,96,64);const pixels=context.getImageData(0,0,96,64).data,colors=new Set();for(let offset=0;offset<pixels.length;offset+=4)colors.add([pixels[offset]>>4,pixels[offset+1]>>4,pixels[offset+2]>>4].join(','));
+     resolve({location,phase,durationMs:performance.now()-state.started,frames:count,meanFrameMs:mean,p95FrameMs:ordered[Math.min(count-1,Math.floor(count*.95))]??0,maxFrameMs:ordered.at(-1)??0,framesOver100ms:ordered.filter(value=>value>100).length,meanDraws:count?state.draws/count:0,meanTriangles:count?state.triangles/count:0,heapMiB:(performance.memory?.usedJSHeapSize??0)/1048576,peakHeapMiB:state.peakHeap/1048576,geometries:world.renderer.info.memory.geometries,textures:world.renderer.info.memory.textures,programs:world.renderer.info.programs.length,city:world.city.streaming(),streaming:world.transport.streaming.snapshot(),previews:{...world.projectPages.stats},position:world.player.position.toArray(),viewport:[innerWidth,innerHeight],pixelRatio:world.renderer.getPixelRatio(),document:__cameraDocument,scene:world.scene.uuid,canvasInsertions:__cameraCanvasInsertions,lost:__cameraContextsLost,faults:world.scene.userData.frameFaultCount??0,colors:colors.size,longTasks:state.tasks.filter(task=>task.start>=state.started)});
+    })),{location,phase});
+    samples.push(sample);persist();assert.equal(sample.document,original.document,'document restarted at '+location);assert.equal(sample.scene,original.scene,'scene restarted at '+location);assert.equal(sample.canvasInsertions,original.insertions);assert.equal(sample.lost,0);assert.equal(sample.faults,0);assert.ok(sample.colors>20,'blank scene at '+location);assert.deepEqual(sample.viewport,options.mobile?[390,844]:[1440,960]);
+    console.log('HOTSPOT '+JSON.stringify({location,phase,meanMs:sample.meanFrameMs,p95Ms:sample.p95FrameMs,maxMs:sample.maxFrameMs,longTasks:sample.longTasks.length,peakHeapMiB:sample.peakHeapMiB,city:sample.city,previewStarts:sample.previews.starts,previewStops:sample.previews.stops}));return sample;
+   }
+   async function inspectFrames(location){
+    for(const element of await page.locator('iframe[data-project-bulletin]').all()){
+     const frame=await (await element.elementHandle()).contentFrame();if(!frame)continue;
+     const state=await frame.evaluate(()=>({url:location.href,title:document.title,ready:document.readyState,canvases:document.querySelectorAll('canvas').length,frames:document.querySelectorAll('iframe').length,isKingdom:!!document.querySelector('main.kingdom')})).catch(error=>({error:error.message}));children.push({location,...state,siteLoaded:!!state.url?.startsWith('https://')&&state.ready==='complete'});persist();
+     if(state.isKingdom){await page.evaluate(()=>__cameraLifecycleWorld.projectPages.render(false));throw Error('A project board embeds another full Kingdom world at '+location)}
+    }
+   }
+   const route=[{name:'plaza',kind:'plaza'},...Array.from({length:5},(_,board)=>({name:'board-'+board,kind:'board',board})),{name:'gallery-return',kind:'plaza'},{name:'lantern-quarter',kind:'city'},{name:'mall',kind:'place',id:'lantern-mall'},{name:'signature-shop',kind:'place',id:'loop-glaze'},{name:'outer-neighborhood',kind:'outer'},{name:'commons',kind:'commons'},{name:'workshop',kind:'workshop'},{name:'copper-arrival',kind:'planet',id:1},{name:'copper-shop',kind:'signature',id:'copper'},{name:'prism-arrival',kind:'planet',id:3},{name:'mainland-return',kind:'plaza'}];
+   try{
+    await page.evaluate(()=>Promise.allSettled([__cameraLifecycleWorld.goldMonument.ready,__cameraLifecycleWorld.dog.ready,__cameraLifecycleWorld.angel.ready]));
+    for(const site of route){
+     await begin();
+     const arrived=await page.evaluate(site=>{
+      const world=__cameraLifecycleWorld;__hotspotReview.camera=null;
+      if(site.kind==='plaza')return world.goCapital('plaza');if(site.kind==='city')return world.goCity();if(site.kind==='place')return world.goEverydayPlace(site.id);if(site.kind==='commons'){world.goCommons();return true}if(site.kind==='workshop'){world.home();return true}if(site.kind==='planet')return world.goSharedPlanet(site.id);if(site.kind==='signature')return world.goSignatureShop(site.id);
+      if(site.kind==='outer'){if(!world.goCapital('plaza'))return false;world.player.position.set(-100,.8,-600);return true}
+      if(!world.goProjectBulletins())return false;const entry=world.projectGallery.entries[site.board];world.player.position.copy(entry.approach);world.scene.updateMatrixWorld(true);const target=entry.faces.front.getWorldPosition(world.player.position.clone()),normal=world.player.position.clone().set(0,0,1).transformDirection(entry.faces.front.matrixWorld);__hotspotReview.camera={target,position:target.clone().addScaledVector(normal,Math.max(80,40/world.camera.aspect))};return true;
+     },site);assert.equal(arrived,true,'destination unavailable: '+site.name);
+     await frames(site.kind==='board'?150:45);await finish(site.name,'arrival');if(site.kind==='board')await inspectFrames(site.name);
+     await begin();for(const key of ['w','d']){await page.keyboard.down(key);try{await frames(30)}finally{await page.keyboard.up(key)}}await finish(site.name,'moving');
+     await begin();await page.evaluate(()=>{__hotspotReview.camera=null});const bounds=await page.locator('.world canvas').boundingBox();assert.ok(bounds);await page.mouse.move(bounds.x+bounds.width*.5,bounds.y+bounds.height*.5);await page.mouse.down();try{for(const horizontal of [.82,.18,.5])await page.mouse.move(bounds.x+bounds.width*horizontal,bounds.y+bounds.height*.53,{steps:8})}finally{await page.mouse.up()}await frames(30);await finish(site.name,'camera-sweep');
+     await begin();await page.waitForFunction(()=>{const world=__cameraLifecycleWorld,current=world.transport.journey.current;return current?world.transport.streaming.ready(current):world.city.streaming().loading===0},null,{timeout:180000});await frames(90);const settled=await finish(site.name,'settled');await page.screenshot({path:path.join(output,'hotspot-'+site.name+'.png')});
+     if(['plaza','gallery-return','mainland-return'].includes(site.name)){await client.send('HeapProfiler.collectGarbage');settled.postGcHeapMiB=await page.evaluate(()=>performance.memory.usedJSHeapSize/1048576);persist()}
+    }
+    assert.equal(navigation.filter(event=>event.top).length,0);assert.deepEqual(errors,[]);console.log('HOTSPOT_TOUR_COMPLETE '+JSON.stringify({locations:route.length,samples:samples.length,realSitesLoaded:children.filter(child=>child.siteLoaded).length,failedRequests:failures.length}));
+   }finally{
+    persist();await page.evaluate(()=>{const state=globalThis.__hotspotReview;if(state){state.finished=true;cancelAnimationFrame(state.handle);state.observer.disconnect();__cameraLifecycleWorld.renderer.render=state.render;__cameraLifecycleWorld.setPaused(true)}}).catch(()=>{});await client.detach();
+   }
+   return;
+  }
   if(options.websites){
    assert.equal(options.performance,undefined,'Website diagnosis must use real pages, not fixtures');
    const requests=[],failures=[],navigation=[],samples=[];

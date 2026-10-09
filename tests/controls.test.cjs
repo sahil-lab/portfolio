@@ -136,6 +136,61 @@ test('independent camera pointers pinch and cancel without leaving movement pres
  const send=(type,id,x,y)=>{const e=new Event(type,{cancelable:true});Object.assign(e,{pointerId:id,clientX:x,clientY:y,pointerType:'touch'});canvas.dispatchEvent(e)};
  binding.state.stick={x:1,y:0};send('pointerdown',11,100,100);send('pointerdown',22,200,100);send('pointermove',22,230,100);assert.ok(zoom<0);assert.equal(look,0);send('pointercancel',11,100,100);send('pointermove',22,240,100);assert.equal(look,10);assert.equal(binding.state.axes().x,1);window.dispatchEvent(new Event('blur'));assert.equal(binding.state.axes().x,0);assert.equal(binding.state.pointers.size,0);binding.dispose();
 });
+test('world input resets release captures and notify isolated controls without waiting for a frame',()=>{
+ const {bindGameInput}=require('../app/game-input.ts'),previous={window:global.window,document:global.document,HTMLElement:global.HTMLElement};global.window=new EventTarget();global.document=new EventTarget();global.document.hidden=false;global.HTMLElement=class{};
+ class Canvas extends EventTarget{
+  captured=new Set();
+  setPointerCapture(id){this.captured.add(id)}
+  hasPointerCapture(id){return this.captured.has(id)}
+  releasePointerCapture(id){this.captured.delete(id)}
+ }
+ const canvas=new Canvas();let resets=0,selections=0;canvas.addEventListener('kingdom-input-reset',()=>resets++);
+ const input=bindGameInput(canvas,{interact(){},pause(){},look(){},zoom(){},select(){selections++},touchSelect(){selections++},gesture(){}}),send=(type,id)=>{const event=new Event(type,{cancelable:true});Object.assign(event,{pointerId:id,clientX:100,clientY:100,pointerType:'touch',buttons:type==='pointerup'?0:1});canvas.dispatchEvent(event)};
+ try{
+  send('pointerdown',1);send('pointerdown',2);input.state.stick={x:1,y:1};input.state.keys.add('w');input.state.clear();assert.equal(canvas.captured.size,0,'reset left live pointer capture');assert.equal(resets,1);assert.deepEqual(input.state.axes(),{x:0,z:0});
+  send('pointerup',1);send('pointerup',2);assert.equal(selections,0,'old touches activated the world after a reset');
+  for(const type of ['blur','resize','pagehide','pageshow','orientationchange']){send('pointerdown',3);window.dispatchEvent(new Event(type));assert.equal(canvas.captured.size,0,type);assert.equal(input.state.pointers.size,0,type)}
+  send('pointerdown',4);canvas.dispatchEvent(new Event('webglcontextlost'));assert.equal(canvas.captured.size,0);assert.equal(input.state.pointers.size,0);
+  send('pointerdown',5);input.setEnabled(false);assert.equal(canvas.captured.size,0);input.setEnabled(true);send('pointerdown',6);input.dispose();assert.equal(canvas.captured.size,0);
+ }finally{input.dispose();Object.assign(global,previous)}
+});
+function joystickFixture(){
+ const {bindMovementJoystick}=require('../app/game-input.ts'),view=new EventTarget(),owner=new EventTarget(),scope=new EventTarget(),knob={style:{}},moves=[];owner.defaultView=view;owner.hidden=false;view.visualViewport=new EventTarget();
+ class Surface extends EventTarget{
+  disabled=false;captured=new Set();ownerDocument=owner;
+  closest(){return scope}
+  getBoundingClientRect(){return {left:0,top:0,width:104,height:104}}
+  setPointerCapture(id){this.captured.add(id)}
+  hasPointerCapture(id){return this.captured.has(id)}
+  releasePointerCapture(id){this.captured.delete(id);send(this,'lostpointercapture',id)}
+ }
+ function send(target,type,pointerId=1,clientX=84,clientY=52,buttons=1){const event=new Event(type,{cancelable:true});Object.assign(event,{pointerId,clientX,clientY,buttons,button:0,pointerType:'touch'});target.dispatchEvent(event)}
+ const surface=new Surface(),binding=bindMovementJoystick(surface,knob,(horizontal,vertical)=>moves.push([horizontal,vertical]));return {surface,knob,view,owner,scope,moves,send,binding};
+}
+test('movement joystick isolates its touch and resets independently of scene rendering',()=>{
+ const fixture=joystickFixture(),{surface,knob,view,scope,moves,send,binding}=fixture;
+ try{
+  send(surface,'pointerdown');assert.ok(moves.at(-1)[0]>0);assert.equal(surface.captured.has(1),true);const moving=moves.at(-1);
+  send(view,'pointermove',2,0,0);send(view,'pointerup',2);assert.deepEqual(moves.at(-1),moving,'camera finger released the joystick');
+  scope.dispatchEvent(new Event('kingdom-input-reset'));assert.deepEqual(moves.at(-1),[0,0]);assert.equal(knob.style.transform,'translate(0px,0px)');assert.equal(surface.captured.size,0);
+  send(view,'pointermove',1);assert.deepEqual(moves.at(-1),[0,0],'an old touch revived movement');send(surface,'pointerdown',3);send(view,'pointermove',3,52,10);assert.ok(moves.at(-1)[1]<0);send(view,'pointerup',3);assert.deepEqual(moves.at(-1),[0,0]);assert.equal(surface.captured.size,0);
+  send(surface,'pointerdown',4);binding.setEnabled(false);assert.deepEqual(moves.at(-1),[0,0]);assert.equal(surface.captured.size,0);send(surface,'pointerdown',5);assert.equal(surface.captured.size,0);binding.setEnabled(true);send(surface,'pointerdown',6);assert.ok(moves.at(-1)[0]>0);
+ }finally{binding.dispose()}
+});
+test('movement joystick clears on browser, capture, graphics, and unmount boundaries',()=>{
+ const {surface,knob,view,owner,scope,moves,send,binding}=joystickFixture();
+ try{
+  for(const [target,type] of [[view,'blur'],[view,'resize'],[view,'orientationchange'],[view,'pagehide'],[view,'pageshow'],[view.visualViewport,'resize'],[owner,'visibilitychange'],[surface,'lostpointercapture']]){
+   send(surface,'pointerdown');if(type==='visibilitychange')owner.hidden=true;send(target,type);assert.deepEqual(moves.at(-1),[0,0],type);assert.equal(surface.captured.size,0,type);assert.equal(knob.style.transform,'translate(0px,0px)',type);owner.hidden=false;
+  }
+  send(surface,'pointerdown');scope.dispatchEvent(new Event('webglcontextlost'));assert.deepEqual(moves.at(-1),[0,0]);send(surface,'pointerdown',2);assert.equal(surface.captured.size,0);scope.dispatchEvent(new Event('webglcontextrestored'));send(surface,'pointerdown',3);assert.equal(surface.captured.has(3),true);send(view,'pointermove',3,80,52,0);assert.deepEqual(moves.at(-1),[0,0]);assert.equal(surface.captured.size,0);
+  send(surface,'pointerdown',4);binding.dispose();assert.deepEqual(moves.at(-1),[0,0]);const count=moves.length;send(surface,'pointerdown',5);send(view,'pointermove',5);view.dispatchEvent(new Event('pageshow'));scope.dispatchEvent(new Event('kingdom-input-reset'));assert.equal(moves.length,count,'disposed listeners survived');
+ }finally{binding.dispose()}
+});
+test('movement joystick recovers after failed capture and ignores disabled touches',()=>{
+ const {surface,view,moves,send,binding}=joystickFixture(),capture=surface.setPointerCapture.bind(surface);
+ try{surface.setPointerCapture=()=>{throw new Error('Pointer already ended')};send(surface,'pointerdown');assert.deepEqual(moves.at(-1),[0,0]);surface.setPointerCapture=capture;surface.disabled=true;send(surface,'pointerdown',2);assert.equal(surface.captured.size,0);surface.disabled=false;send(surface,'pointerdown',3);assert.equal(surface.captured.has(3),true);send(view,'pointercancel',3);assert.equal(surface.captured.size,0);assert.deepEqual(moves.at(-1),[0,0])}finally{binding.dispose()}
+});
 test('angel touch selection ignores drags and flight keys clear on release, blur and disabled input',context=>{
  const {bindGameInput}=require('../app/game-input.ts'),original={window:global.window,document:global.document,HTMLElement:global.HTMLElement};
  global.window=new EventTarget();global.document=new EventTarget();document.hidden=false;global.HTMLElement=class{};
