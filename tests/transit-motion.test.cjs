@@ -160,19 +160,3 @@ test('native vehicle bodies preserve wheels, couplers, exhaust bindings and rout
   }
  }finally{for(const root of [asset,oldRover.root,oldRocket.root,rover.root,train.root,rocket.root])disposeScene(root)}
 });
-test('repeated vehicle assembly reuses finished geometry without sharing paint or animated state',context=>{
- const batching=require('../app/static-batching.ts'),batch=batching.batchScenery,{createTransitModels}=require('../app/transit-models.ts');let builds=0;
- context.mock.method(batching,'batchScenery',(...args)=>{builds++;return batch(...args)});
- const models=createTransitModels(),firstRover=models.rover('#c85c74'),firstRocket=models.rocket('#c85c74'),initialBuilds=builds;
- assert.ok(initialBuilds>=2);firstRover.wheels[0].rotation.x=1.2;firstRocket.flame.visible=true;firstRocket.flame.scale.y=3;
- const nextRover=models.rover('#3b9b88'),nextRocket=models.rocket('#3b9b88');
- assert.equal(builds,initialBuilds,'each station rebuilt and rebatched the same vehicle');
- assert.equal(Math.abs(nextRover.wheels[0].rotation.x),0);assert.notEqual(nextRover.wheels[0].uuid,firstRover.wheels[0].uuid);assert.equal(nextRocket.flame.visible,false);assert.equal(nextRocket.flame.scale.y,1);assert.notEqual(nextRocket.flame.uuid,firstRocket.flame.uuid);
- for(const [first,next] of [[firstRover,nextRover],[firstRocket,nextRocket]]){
-  const colors=model=>{const result=[];model.root.traverse(object=>{if(object.isMesh)for(const material of Array.isArray(object.material)?object.material:[object.material])result.push(material.color.getHexString())});return result};
-  assert.ok(colors(first).includes('c85c74'));assert.ok(colors(next).includes('3b9b88'));assert.equal(colors(first).includes('3b9b88'),false);assert.equal(colors(next).includes('c85c74'),false);
-  const before=[],after=[];first.root.traverse(object=>{if(object.isMesh)before.push(object.geometry)});next.root.traverse(object=>{if(object.isMesh)after.push(object.geometry)});assert.equal(after.length,before.length);
-  for(const [index,geometry] of before.entries()){assert.deepEqual(after[index].index?.array??null,geometry.index?.array??null);for(const name of Object.keys(geometry.attributes))assert.deepEqual(after[index].attributes[name].array,geometry.attributes[name].array,name)}
- }
- const {disposeScene}=require('../app/scene-resources.ts');for(const model of [firstRover,firstRocket,nextRover,nextRocket])disposeScene(model.root);
-});

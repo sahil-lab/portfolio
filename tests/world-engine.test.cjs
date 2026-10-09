@@ -1,8 +1,31 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
-const T=require('three'),{createShadowFollow}=require('../app/lighting-rig.ts');
+const T=require('three'),{createShadowFollow,prepareVarianceShadowBlur}=require('../app/lighting-rig.ts');
 const {createQualityGovernor,qualityTiers,qualityThresholds,tierOrder,isQualityChoice,renderPixelRatio}=require('../app/quality-tiers.ts');
 const {createAtmosphereBlend}=require('../app/atmosphere-blend.ts');
+const {resizeRenderer}=require('../app/kingdom-presentation.ts');
+
+test('drawing-buffer resizing skips unchanged dimensions and updates real size or quality changes once',()=>{
+  let width=1,height=1,ratio=1;const calls=[],style={};
+  const renderer={domElement:{style},getSize:target=>target.set(width,height),getPixelRatio:()=>ratio,setDrawingBufferSize(nextWidth,nextHeight,nextRatio){calls.push([nextWidth,nextHeight,nextRatio]);width=nextWidth;height=nextHeight;ratio=nextRatio}};
+  assert.equal(resizeRenderer(renderer,390,844,1.25),true);assert.deepEqual(calls,[[390,844,1.25]]);assert.deepEqual(style,{width:'390px',height:'844px'});
+  for(let frame=0;frame<120;frame++)assert.equal(resizeRenderer(renderer,390,844,1.25),false);assert.equal(calls.length,1);
+  assert.equal(resizeRenderer(renderer,844,390,1.25),true);assert.equal(resizeRenderer(renderer,844,390,2),true);assert.deepEqual(calls,[[390,844,1.25],[844,390,1.25],[844,390,2]]);
+  assert.deepEqual(style,{width:'844px',height:'390px'});assert.equal(resizeRenderer(renderer,844,390,2),false);
+});
+
+test('variance blur preserves resolution and sampling without an unused depth allocation or target churn',()=>{
+  const sun=new T.DirectionalLight(),shadow=sun.shadow;shadow.mapSize.set(2048,2048);shadow.radius=5;shadow.blurSamples=8;
+  const original=new T.WebGLRenderTarget(2048,2048,{format:T.RGFormat,type:T.HalfFloatType});shadow.mapPass=original;let disposed=0;
+  original.addEventListener('dispose',()=>{disposed++});const target=prepareVarianceShadowBlur(shadow);
+  assert.equal(disposed,1);assert.equal(target.width,original.width);assert.equal(target.height,original.height);
+  for(const key of ['format','type','minFilter','magFilter','generateMipmaps','colorSpace'])assert.equal(target.texture[key],original.texture[key],key);
+  assert.equal(target.depthBuffer,false);assert.equal(target.depthTexture,null);assert.equal(shadow.map,null);assert.equal(shadow.radius,5);assert.equal(shadow.blurSamples,8);
+  target.addEventListener('dispose',()=>{disposed++});for(let frame=0;frame<120;frame++)assert.equal(prepareVarianceShadowBlur(shadow)===target,true);assert.equal(disposed,1);
+  shadow.mapSize.set(3072,3072);const high=prepareVarianceShadowBlur(shadow);assert.equal(disposed,2);assert.equal(high.width,3072);assert.equal(high.height,3072);
+  high.addEventListener('dispose',()=>{disposed++});const bounded=prepareVarianceShadowBlur(shadow,2048);assert.equal(disposed,3);assert.equal(bounded.width,2048);assert.equal(bounded.height,2048);
+  assert.equal(prepareVarianceShadowBlur(shadow,2048)===bounded,true);assert.equal(shadow.mapSize.width,3072);bounded.dispose();
+});
 
 function lightSpace(sun,scene,point){
   scene.updateMatrixWorld(true);sun.shadow.camera.updateProjectionMatrix();sun.shadow.updateMatrices(sun);
@@ -60,7 +83,8 @@ test('quality governor demotes at once, promotes only after calm windows and nev
   assert.equal(governor.sample(NaN),null);assert.equal(governor.sample(0),null);
   assert.deepEqual(tierOrder,['low','balanced','high']);
   for(const tier of tierOrder)assert.ok(qualityTiers[tier].pixelRatio>=1&&Number.isFinite(qualityTiers[tier].shadowMapSize));
-  for(const tier of tierOrder)assert.equal(qualityTiers[tier].shadowRadius/qualityTiers[tier].shadowMapSize,3/2048,'shadow softness stays stable as resolution changes');
+  const {shadowSoftness}=require('../app/quality-tiers.ts');for(const tier of tierOrder){assert.equal(qualityTiers[tier].shadowRadius/qualityTiers[tier].shadowMapSize,shadowSoftness,'shadow softness stays stable as resolution changes');assert.ok(qualityTiers[tier].shadowBlurSamples>=6)}
+  assert.ok(qualityTiers.high.shadowMapSize<=3072,'variance shadow maps hold three buffers, so the map stays within memory limits');
   assert.ok(qualityTiers.high.shadowInterval<qualityTiers.balanced.shadowInterval);
   assert.equal(isQualityChoice('auto'),true);assert.equal(isQualityChoice('ultra'),false);
 });

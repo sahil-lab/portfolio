@@ -40,7 +40,7 @@ async function main(){
     await settings('balanced');await frames(6);const balanced=await probe();report.push(['balanced',balanced]);
     assert.deepEqual(balanced.shadowMap,[2048,2048],'balanced shadow map');assert.equal(balanced.renderPixels[0],1280*1,'balanced pixel ratio capped by DPR 1');
     await settings('high');await frames(6);const high=await probe();report.push(['high',high]);
-    assert.deepEqual(high.shadowMap,[4096,4096],'high tier reallocates the shadow map');
+    assert.deepEqual(high.shadowMap,[3072,3072],'high tier reallocates the shadow map');
     await settings('low');await frames(6);const low=await probe();report.push(['low',low]);
     assert.equal(low.mapSize,1024,'low tier requests a small map');assert.ok(low.stats.calls<balanced.stats.calls,'low tier renders fewer passes (no shadow/bloom)');
     await settings('auto');await frames(6);const auto=await probe();report.push(['auto',auto]);

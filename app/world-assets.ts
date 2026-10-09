@@ -11,7 +11,8 @@ export function createWorldAssets(dependencies:{fetch?:typeof fetch;parse?:(data
  };
  return {manager,
   async model(id:WorldAssetId){
-    const asset=assetManifest[id],urls='fallbackUrl' in asset?[asset.url,asset.fallbackUrl]:[asset.url],packed='compressed' in asset?asset.compressed:undefined;
+    const asset:{url:string;fallbackUrl?:string;priority:number;compressed?:{url:string;sha256:string;decodedBytes:number}}=assetManifest[id];
+    const urls=asset.fallbackUrl?[asset.url,asset.fallbackUrl]:[asset.url],packed=asset.compressed;
     const attempts=urls.map(url=>({url,downloadUrl:url as string,compressed:false}));
     if(packed&&typeof DecompressionStream!=='undefined')attempts.unshift({url:asset.url,downloadUrl:packed.url+'?v='+packed.sha256,compressed:true});let failure:unknown;
     for(const {url,downloadUrl,compressed} of attempts){

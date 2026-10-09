@@ -2,54 +2,6 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright'),output=path.resolve(process.env.CANOPY_OUTPUT??'outputs/playtest/canopy');fs.mkdirSync(output,{recursive:true});
 const {hash}=require('./complete-export-format.cjs'),url=process.env.CANOPY_WORLD_URL??'http://localhost:4332/',candidate=process.env.CANOPY_CANDIDATE,sourceHash=candidate?hash(fs.readFileSync(candidate)):null,sourcePaths=['app/world-kit.ts','app/canopy-grove.ts','app/astra-canopy.ts'],sourceHashes=Object.fromEntries(sourcePaths.map(file=>[file,hash(fs.readFileSync(file))]));
-async function meadowReview(){
- const files=[...sourcePaths,'app/ground-cover.ts','app/friends-activities.ts','app/creative-plaza.ts','app/city-expansion.ts','app/planet-canopy.ts','app/world.ts','scripts/check-canopy.cjs'],fingerprint=()=>Object.fromEntries(files.map(file=>[file,hash(fs.readFileSync(file))])),fingerprints=fingerprint();
- const browser=await chromium.launch({channel:'chrome',headless:true}),context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1}),page=await context.newPage(),errors=[],checks=[];
- page.setDefaultTimeout(180000);page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(/Shader Error|VALIDATE_STATUS|Error compiling|mergeGeometries.*failed/i.test(message.text()))errors.push(message.text())});
- await page.addInitScript(()=>{if(window!==window.top)return;localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'}}))});
- try{
-  await page.goto(url,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('main.kingdom')?.getAttribute('data-ready')==='true');
-  await page.evaluate(()=>{
-   const main=document.querySelector('main.kingdom');let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];
-   while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next){const world=hook.memoizedState?.current;if(world?.activities?.meadow){globalThis.__meadowWorld=world;globalThis.__meadowScene=world.scene;globalThis.__meadowCanvas=world.renderer.domElement;return}}fiber=fiber.return}throw Error('Meadow world missing');
-  });
-  const views=[{subject:'field',index:0},{subject:'commons',index:0},{subject:'city',index:0},{subject:'tree',index:0},{subject:'tree',index:2},{subject:'tree',index:7},{subject:'tree',index:9}];
-  for(const view of views)for(const [device,width,height] of [['desktop',1440,960],['mobile',390,844]]){
-   await page.setViewportSize({width,height});
-   const result=await page.evaluate(async({subject,index})=>{
-    const world=globalThis.__meadowWorld;world.setPaused(false);if(!world.goSharedPlanet(index))throw Error('Travel refused');if(index&&!await world.transport.streaming.load(index))throw Error('Planet load failed');
-    const planet=index?world.transport.landscapes[index]:null,cover=subject==='field'?world.activities.meadow:subject==='commons'?world.plaza.meadow:planet?planet.vegetation.meadow:world.city.meadow,grove=planet?.vegetation??world.city.banyanGroves;
-    const record=subject==='tree'?(planet?grove.records.find(tree=>tree.kind==='tree'&&tree.direction.y>0):grove.placements[0]):null;
-    const center=world.player.position.clone().set(0,1,184),up=world.player.up.clone().set(0,1,0),forward=up.clone().set(0,0,1),right=up.clone().set(1,0,0);let span=29,height=10,geometry=null;
-    if(subject==='commons')center.set(0,1,103);if(subject==='city')center.set(-450,1,-1121);
-    if(record){
-     const asset=grove.assets.get(record.kind+'/full');up.applyQuaternion(record.rotation);forward.applyQuaternion(record.rotation);right.applyQuaternion(record.rotation);height=asset.height*record.scale*(record.stretch??1);span=asset.radius*record.scale;center.copy(record.position).addScaledVector(up,height*.5);world.player.position.copy(record.position).addScaledVector(forward,span+3).addScaledVector(up,.8);world.player.quaternion.copy(record.rotation);geometry=asset.crown;
-    }else world.player.position.copy(center).addScaledVector(forward,8);
-    world.player.up.copy(up);world.transport.updateFlightView(.016,false,world.player,index);
-    if(index)planet.vegetation.update(.016,false,world.player.position,true);else{world.city.update(.016,false,world.player,true,world.camera);world.plaza.meadow.update(.016,false,world.player.position,true);world.activities.meadow.update(.016,false,world.player.position,true)}
-    await new Promise(resolve=>{let frames=6;const frame=()=>{if(--frames)requestAnimationFrame(frame);else{world.setPaused(true);requestAnimationFrame(resolve)}};requestAnimationFrame(frame)});
-    cover.update(0,false,world.player.position,true);if(record)grove.update(0,false,world.player.position,true);
-    const scale=world.scene.scale.x,host=world.renderer.domElement.parentElement;world.renderer.setSize(host.clientWidth,host.clientHeight);world.camera.aspect=host.clientWidth/host.clientHeight;world.camera.updateProjectionMatrix();
-    const half=Math.min(world.camera.fov*Math.PI/360,Math.atan(Math.tan(world.camera.fov*Math.PI/360)*world.camera.aspect)),distance=Math.hypot(span,height*.5)/Math.sin(half)*1.07;
-    world.camera.up.copy(up);world.camera.position.copy(center).addScaledVector(forward,distance*.93).addScaledVector(right,distance*.18).addScaledVector(up,distance*(record?.2:.5)).multiplyScalar(scale);world.camera.lookAt(center.clone().multiplyScalar(scale));world.camera.updateMatrixWorld(true);world.scene.updateMatrixWorld(true);
-    const canvas=document.createElement('canvas');canvas.width=240;canvas.height=160;const context=canvas.getContext('2d',{willReadFrequently:true});
-    const pixels=()=>{world.renderer.render(world.scene,world.camera);context.drawImage(world.renderer.domElement,0,0,240,160);return context.getImageData(0,0,240,160).data},difference=(first,second)=>{let count=0;for(let offset=0;offset<first.length;offset+=4)if(Math.abs(first[offset]-second[offset])+Math.abs(first[offset+1]-second[offset+1])+Math.abs(first[offset+2]-second[offset+2])>10)count++;return count};
-    const visible=pixels(),colors=new Set();for(let offset=0;offset<visible.length;offset+=4)colors.add([visible[offset]>>4,visible[offset+1]>>4,visible[offset+2]>>4].join(','));
-    cover.root.visible=false;const absent=pixels();cover.root.visible=true;let fruitPixels=null;
-    if(geometry){
-     const mask=geometry.attributes.canopyFruit,indices=geometry.index;let cutoff=0;while(cutoff<(indices?.count??mask.count)&&!mask.getX(indices?indices.getX(cutoff):cutoff))cutoff++;
-     const start=geometry.drawRange.start,count=geometry.drawRange.count;geometry.setDrawRange(0,cutoff);const noFruit=pixels();geometry.setDrawRange(start,count);fruitPixels=difference(pixels(),noFruit);
-    }
-    const before=pixels();for(let frame=0;frame<40;frame++)cover.update(.1,false,world.player.position,true);const moving=pixels();cover.update(0,true,world.player.position,true);const still=pixels();cover.update(1,true,world.player.position,true);const frozen=pixels();cover.update(0,false,world.player.position,true);pixels();
-    const rect=world.renderer.domElement.getBoundingClientRect();return {subject,index,viewport:[innerWidth,innerHeight],canvas:[rect.width,rect.height],clumps:cover.placements.length,capacity:cover.capacity??null,colors:colors.size,grassPixels:difference(visible,absent),fruitPixels,motionPixels:difference(before,moving),reducedMotionFrozen:difference(still,frozen)===0,sameScene:world.scene===globalThis.__meadowScene,sameCanvas:world.renderer.domElement===globalThis.__meadowCanvas,authored:geometry?.userData.authoredKit??null};
-   },view);
-   const name=view.subject+'-'+view.index+'-'+device;await page.screenshot({path:path.join(output,name+'.png')});checks.push({name,...result});
-   assert.deepEqual(result.viewport,[width,height]);assert.ok(Math.abs(result.canvas[0]-width)<1&&Math.abs(result.canvas[1]-height)<1,name+' canvas framing');assert.ok(result.colors>20,name+' blank canvas');assert.ok(result.grassPixels>5,name+' invisible grass');if(result.fruitPixels!==null)assert.ok(result.fruitPixels>3,name+' hidden fruit');assert.ok(result.motionPixels>0,name+' grass motion');assert.ok(result.reducedMotionFrozen&&result.sameScene&&result.sameCanvas,name+' lifecycle');console.log('MEADOW_VIEW '+JSON.stringify({name,grassPixels:result.grassPixels,fruitPixels:result.fruitPixels,motionPixels:result.motionPixels}));
-  }
-  assert.deepEqual(errors,[]);assert.deepEqual(fingerprint(),fingerprints);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({checks,errors,fingerprints},null,2)+'\n');console.log('MEADOW_REVIEW_OK '+checks.length+' views');
- }catch(error){await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({message:error.message,checks,errors},null,2)+'\n');throw error}
- finally{await browser.close()}
-}
 async function main(){
  const browser=await chromium.launch({channel:'msedge',headless:true,args:['--enable-unsafe-swiftshader']}),page=await browser.newPage({viewport:{width:1440,height:960},deviceScaleFactor:1}),errors=[],shaderErrors=[],captures=[];
  page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(/Shader Error|VALIDATE_STATUS|Error compiling|mergeGeometries.*failed/i.test(message.text()))shaderErrors.push(message.text())});
@@ -100,4 +52,4 @@ async function main(){
  }catch(error){await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:error.message,errors,shaderErrors,captures},null,2)+'\n');throw error}
  finally{await browser.close()}
 }
-(process.argv.includes('--meadow')?meadowReview:main)().catch(error=>{console.error(error);process.exitCode=1});
+main().catch(error=>{console.error(error);process.exitCode=1});

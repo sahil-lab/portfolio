@@ -21,18 +21,21 @@ test('generated GLSL uses float literals only and omits the midtone power when n
 });
 
 test('the grade keeps a faint warm black floor, revives muted colours and preserves saturated paint and highlights',()=>{
-  const neutralGrade={lift:[0,0,0],vibrance:0,midtone:1},black=gradeDisplayColor([0,0,0]);
+  const neutralGrade={lift:[0,0,0],saturation:1,vibrance:0,warmth:0,midtone:1},black=gradeDisplayColor([0,0,0]);
   for(const [index,channel] of black.entries())assert.ok(Math.abs(channel-kingdomGrade.lift[index])<1e-9);
   assert.ok(black[0]>black[1]&&black[1]>black[2],'shadow floor is slightly warm');assert.ok(black[0]<.005,'the floor stays faint');
   const grey=gradeDisplayColor([.18,.18,.18]),plainGrey=gradeDisplayColor([.18,.18,.18],1,neutralGrade);
   assert.ok(Math.abs(grey[1]-plainGrey[1])<.004,'neutral greys keep their Neutral-curve midtone');
   const white=gradeDisplayColor([4,4,4]);for(const channel of white)assert.ok(channel>.95&&channel<=1);
+  const bright=gradeDisplayColor([.6,.6,.6]),brightPlain=gradeDisplayColor([.6,.6,.6],1,neutralGrade),dim=gradeDisplayColor([.04,.04,.04]),dimPlain=gradeDisplayColor([.04,.04,.04],1,neutralGrade);
+  assert.ok(bright[0]>bright[2]&&bright[0]-brightPlain[0]>.005&&bright[0]-brightPlain[0]<.02,'highlights lean slightly warm');assert.ok(Math.abs(dim[0]-dim[2]-(dimPlain[0]-dimPlain[2]))<.0015,'shadows stay neutral apart from the floor');
   let previous=-1;for(let step=0;step<=40;step++){const value=gradeDisplayColor([step/20,step/20,step/20])[1];assert.ok(value>previous);previous=value}
   const chroma=([r,g,b])=>(Math.max(r,g,b)-Math.min(r,g,b))/Math.max(r,g,b);
   const muted=[.3,.33,.36],mutedGraded=gradeDisplayColor(muted),mutedPlain=gradeDisplayColor(muted,1,neutralGrade);
   assert.ok(chroma(mutedGraded)>chroma(mutedPlain)*1.08,'muted surfaces gain colour');
   const vivid=[.5,.05,.04],vividGraded=gradeDisplayColor(vivid),vividPlain=gradeDisplayColor(vivid,1,neutralGrade);
-  assert.ok(vividGraded[0]>vividGraded[1]&&vividGraded[1]>vividGraded[2]);assert.ok(chroma(vividGraded)<chroma(vividPlain)*1.03,'saturated paint is left alone');
+  assert.ok(vividGraded[0]>vividGraded[1]&&vividGraded[1]>vividGraded[2]);assert.ok(chroma(vividGraded)<chroma(vividPlain)*1.1,'saturated paint is left mostly alone');
+  assert.ok(chroma(mutedGraded)/chroma(mutedPlain)>chroma(vividGraded)/chroma(vividPlain),'vibrance favours muted surfaces over saturated ones');
   for(const channel of vividGraded)assert.ok(channel>=0&&channel<=1);
   const opened=gradeDisplayColor([.05,.05,.05],1,{...kingdomGrade,midtone:1.2});assert.ok(opened[1]>gradeDisplayColor([.05,.05,.05])[1]);
 });

@@ -2,17 +2,6 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText:text=>({width:text.length*25})},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};
 const T=require('three'),kit=require('../app/world-kit'),{disposeScene}=require('../app/scene-resources');
-function checkFruitingTreeBudget(full,distant,kind){
- const count=geometry=>(geometry.index?.count??geometry.attributes.position.count)/3;
- function parts(asset,detail){
-  const crown=asset.crown,mask=crown.attributes.canopyFruit,indices=crown.index;let fruit=0;
-  assert.ok(mask,'fruit must remain identifiable in the shared draw');
-  for(let offset=0;offset<(indices?.count??mask.count);offset+=3){const flags=[0,1,2].map(corner=>mask.getX(indices?indices.getX(offset+corner):offset+corner));assert.ok(flags.every(flag=>flag===flags[0]),'triangle mixes leaf and fruit vertices');if(flags[0])fruit++}
-  const fruitCount=kind==='tree'?21:30;assert.equal(crown.userData.fruitCount,fruitCount);assert.equal(fruit,fruitCount*(detail==='full'?52:8));
-  return {base:count(asset.wood)+count(crown)-fruit,total:count(asset.wood)+count(crown)};
- }
- const near=parts(full,'full'),far=parts(distant,'distant');assert.ok(near.base<(kind==='tree'?5000:12000));assert.ok(far.base<near.base*.3);assert.ok(far.total<near.total*.3);
-}
 let exported;
 test.before(async()=>{
  const {GLTFLoader}=require('three/addons/loaders/GLTFLoader.js'),bytes=fs.readFileSync(path.resolve(__dirname,'../public/assets/kingdom-world-kit.glb'));
@@ -28,13 +17,6 @@ test('the Blender kit exports bounded meshes, real vertex shading and independen
  const first=kit.worldKitGeometry('Kit_CourierHead'),second=kit.worldKitGeometry('Kit_CourierHead'),position=second.attributes.position.getX(0);first.attributes.position.setX(0,50);assert.equal(second.attributes.position.getX(0),position);assert.ok(second.attributes.color.array.every(value=>value>=.4&&value<=1));first.dispose();second.dispose();
 });
 
-test('prepared kit color variants are computed once and return independent geometry',context=>{
- const stone=kit.worldKitRelief(),asphalt=kit.worldKitRelief('asphalt');kit.installWorldKit(exported,stone,asphalt);const clamp=T.MathUtils.clamp;let calls=0;context.mock.method(T.MathUtils,'clamp',(...args)=>{calls++;return clamp(...args)});
- const first=kit.worldKitGeometry('Kit_ResidentHead'),computed=calls;assert.ok(computed>0);const second=kit.worldKitGeometry('Kit_ResidentHead');assert.equal(calls,computed);assert.notEqual(first.attributes.color.array.buffer,second.attributes.color.array.buffer);assert.deepEqual(first.attributes.color.array,second.attributes.color.array);first.attributes.color.setX(0,.1);assert.notEqual(second.attributes.color.getX(0),first.attributes.color.getX(0));
- const tinted=kit.worldKitGeometry('Kit_ResidentHead',true);assert.ok(calls>computed);const prepared=calls,again=kit.worldKitGeometry('Kit_ResidentHead',true);assert.equal(calls,prepared);assert.deepEqual(tinted.attributes.color.array,again.attributes.color.array);first.dispose();const retained=kit.worldKitGeometry('Kit_ResidentHead');assert.deepEqual(retained.attributes.color.array,second.attributes.color.array);
- kit.installWorldKit(exported,stone,asphalt);const fresh=kit.worldKitGeometry('Kit_ResidentHead');assert.ok(calls>prepared);assert.deepEqual(fresh.attributes.color.array,second.attributes.color.array);for(const geometry of [second,tinted,again,retained,fresh])geometry.dispose();
-});
-
 test('authored courier and resident bodies retain animation, recoloring and bounded accessories',()=>{
  const courier=require('../app/courier').createCourier(),{createCuteResident}=require('../app/cute-resident');
  assert.equal(courier.root.userData.authoredKit,true);assert.equal(courier.parts.body.geometry.userData.authoredKit,'Kit_CourierBody');courier.setColor('#c98a74');assert.equal(courier.parts.body.material.color.getHexString(),'c98a74');
@@ -47,20 +29,11 @@ test('authored courier and resident bodies retain animation, recoloring and boun
  courier.root.traverse(object=>{if(object.isMesh&&object.material.vertexColors)assert.ok(object.geometry.attributes.color,object.name)});disposeScene(courier.root);
 });
 
-test('loaded canopy assets do not construct disposable duplicate tree scenes',context=>{
- const source=require('../app/astra-canopy'),{createCanopyAsset}=require('../app/canopy-grove'),original=source.createAstraCanopy;let constructed=0;
- context.mock.method(source,'createAstraCanopy',(...args)=>{constructed++;return original(...args)});
- for(const kind of ['tree','banyan'])for(const detail of ['full','distant']){
-  const asset=createCanopyAsset(kind,detail),reference=original('Reference',1,kind,detail);assert.deepEqual(asset.trunks,reference.trunks);assert.ok(asset.wood.userData.authoredKit);assert.ok(asset.crown.userData.authoredKit);assert.equal(asset.crown.userData.fruitCount,kind==='tree'?21:30);asset.wood.dispose();asset.crown.dispose();disposeScene(reference.root);
- }
- assert.equal(constructed,0,'loaded canopy assets allocated a throwaway tree and fruit scene');
-});
-
 test('authored tree and banyan LODs keep baked shading, wind weights and physical roots',()=>{
  const {createCanopyAsset,createCanopyGrove}=require('../app/canopy-grove');
  for(const kind of ['tree','banyan']){
-  const full=createCanopyAsset(kind,'full'),distant=createCanopyAsset(kind,'distant');
-  assert.ok(full.wood.userData.authoredKit);assert.ok(full.crown.userData.authoredKit);checkFruitingTreeBudget(full,distant,kind);assert.equal(full.trunks.length,kind==='tree'?1:11);assert.ok(full.crown.attributes.canopyWeight.array.every(Number.isFinite));assert.ok(full.radius>5&&full.radius<13);for(const asset of [full,distant]){asset.wood.dispose();asset.crown.dispose()}
+  const full=createCanopyAsset(kind,'full'),distant=createCanopyAsset(kind,'distant'),triangles=asset=>[asset.wood,asset.crown].reduce((sum,geometry)=>sum+(geometry.index?.count??geometry.attributes.position.count)/3,0);
+  assert.ok(full.wood.userData.authoredKit);assert.ok(full.crown.userData.authoredKit);assert.ok(triangles(full)<(kind==='tree'?5000:12000));assert.ok(triangles(distant)<triangles(full)*.3);assert.equal(full.trunks.length,kind==='tree'?1:11);assert.ok(full.crown.attributes.canopyWeight.array.every(Number.isFinite));assert.ok(full.radius>5&&full.radius<13);for(const asset of [full,distant]){asset.wood.dispose();asset.crown.dispose()}
  }
  const grove=createCanopyGrove([{id:'banyan',kind:'banyan',position:new T.Vector3(),rotation:new T.Quaternion(),scale:1,patch:'one'}],point=>point.setY(-.6));assert.equal(grove.root.userData.authoredKit,true);assert.equal(grove.columns.length,11);assert.equal(grove.blocked(new T.Vector3()),true);grove.update(.1,false,new T.Vector3(),true);assert.equal(grove.groups[0].full.visible,true);grove.update(.1,true,new T.Vector3(1000,0,0),false);assert.equal(grove.groups[0].distant.visible,true);disposeScene(grove.root);
 });
@@ -72,9 +45,9 @@ test('collectible tree kit remodels full and distant silhouettes without changin
  try{
     assert.ok(bytes.length<1200000);assert.equal(kit.installWorldKit(candidate,stone,asphalt),true);
   for(const kind of ['tree','banyan']){
-  const full=createCanopyAsset(kind,'full'),distant=createCanopyAsset(kind,'distant');
+   const full=createCanopyAsset(kind,'full'),distant=createCanopyAsset(kind,'distant'),triangles=asset=>[asset.wood,asset.crown].reduce((sum,geometry)=>sum+(geometry.index?.count??geometry.attributes.position.count)/3,0);
    try{
-   checkFruitingTreeBudget(full,distant,kind);
+    assert.ok(triangles(full)<(kind==='tree'?5000:12000));assert.ok(triangles(distant)<triangles(full)*.3);
     for(const [detail,asset] of [['full',full],['distant',distant]]){
      const original=originals.get(kind+'/'+detail);assert.deepEqual(asset.trunks,original.trunks);assert.ok(asset.radius<=original.radius+.15);assert.ok(Math.abs(asset.height-original.height)<.15);
      for(const role of ['wood','crown']){
@@ -106,8 +79,6 @@ test('Blender paving preserves geometry and separates asphalt, stone and road ma
  for(const [name,kind] of [['Road_CurvedAsphalt','asphalt'],['Capital_RadialPaving','stone']]){
   const mesh=new T.Mesh(geometry,base);mesh.name=name;scene.add(mesh);assert.equal(applyAuthoredPaving(mesh),true);assert.equal(mesh.material.userData.authoredPaving,kind);assert.equal(mesh.geometry,geometry);assert.deepEqual(geometry.attributes.position.array,source);
   const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};mesh.material.onBeforeCompile(shader,{});assert.match(shader.vertexShader,/instanceMatrix\*kitPosition/);assert.match(shader.fragmentShader,/kitHeightDerivative/);assert.match(shader.fragmentShader,/kitSurface/);
-  assert.equal((shader.fragmentShader.match(/kitSurface\(kitWorldPosition,kitWeights\)/g)??[]).length,1);assert.equal((shader.fragmentShader.match(/pow\(abs\(normalize\(kitWorldNormal\)\)/g)??[]).length,1);
-  assert.match(shader.fragmentShader,/roughness\*kitSample\.g/);assert.match(shader.fragmentShader,/kitHeightDerivative\(kitSample\.r,kitWeights\)/);assert.ok(shader.fragmentShader.indexOf('vec4 kitSample=')<shader.fragmentShader.indexOf('roughness*kitSample.g'));
  }
  const stripe=new T.Mesh(geometry,base);stripe.name='Latitude_Road_0_Centerline';assert.equal(applyAuthoredPaving(stripe),false);batchScenery(scene,{});assert.equal(new Set(scene.children.map(object=>object.material.userData.authoredPaving)).size,2);disposeScene(scene);
 });

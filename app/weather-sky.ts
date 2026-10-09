@@ -25,10 +25,12 @@ export function weatherAtmosphere(weather:WeatherSnapshot){
 export function createWeatherSky(scene:T.Scene,sun:T.DirectionalLight){
   const root=new T.Group();root.name='Motherboard_WeatherSky';scene.add(root);
   const atmosphereMaterial=new T.ShaderMaterial({
-    uniforms:{zenith:{value:new T.Color('#91c3cd')},horizon:{value:new T.Color('#e1e4d7')},nadir:{value:new T.Color('#34545b')}},
+    uniforms:{zenith:{value:new T.Color('#91c3cd')},horizon:{value:new T.Color('#e1e4d7')},nadir:{value:new T.Color('#34545b')},sunDirection:{value:new T.Vector3(0,1,0)},glow:{value:new T.Color(0,0,0)}},
     vertexShader:'varying vec3 skyDirection; void main(){skyDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader:`uniform vec3 zenith;uniform vec3 horizon;uniform vec3 nadir;varying vec3 skyDirection;
-      void main(){float height=normalize(skyDirection).y;vec3 sky=mix(horizon,zenith,smoothstep(-.03,.68,height));sky=mix(sky,nadir,1.0-smoothstep(-.65,-.08,height));gl_FragColor=vec4(sky,1.0);
+    // The glow shares the environment map's lobes so reflections and the visible sky agree.
+    fragmentShader:`uniform vec3 zenith;uniform vec3 horizon;uniform vec3 nadir;uniform vec3 sunDirection;uniform vec3 glow;varying vec3 skyDirection;
+      void main(){vec3 direction=normalize(skyDirection);float height=direction.y;vec3 sky=mix(horizon,zenith,smoothstep(-.03,.68,height));sky=mix(sky,nadir,1.0-smoothstep(-.65,-.08,height));
+      float toward=max(dot(direction,sunDirection),0.0);sky+=glow*(0.35*pow(toward,6.0)+pow(toward,48.0))*smoothstep(-.12,.05,height);gl_FragColor=vec4(sky,1.0);
       #include <colorspace_fragment>
       }`,
     side:T.BackSide,depthWrite:false,toneMapped:false,fog:false,
@@ -86,6 +88,7 @@ export function createWeatherSky(scene:T.Scene,sun:T.DirectionalLight){
     clouds.children.forEach((cloud,index)=>{cloud.visible=index<cloudCount;cloud.position.copy(bases[index]);if(!reduced)cloud.position.x+=Math.sin(clock*(.01+weather.wind*.001)+index)*9});
     atmosphereMaterial.uniforms.zenith.value.copy(color('zenith'));atmosphereMaterial.uniforms.horizon.value.copy(color('horizon'));atmosphereMaterial.uniforms.nadir.value.copy(color('nadir'));
     sun.intensity=now.sunIntensity;sun.color.copy(color('sunColor'));sun.position.set(now.sunX,now.sunY,now.sunZ);
+    atmosphereMaterial.uniforms.sunDirection.value.copy(sun.position).normalize();atmosphereMaterial.uniforms.glow.value.copy(sun.color).multiplyScalar(active?.22*T.MathUtils.clamp(now.sunIntensity/2.9,0,1.2)*(1-now.moonOpacity*.6):0);
     for(const {light,intensity} of lights)if(light instanceof T.HemisphereLight||light instanceof T.AmbientLight)light.intensity=now.ambient;else if(light instanceof T.DirectionalLight)light.intensity=intensity*now.directional;
     if(scene.fog instanceof T.FogExp2){scene.fog.density=now.fogDensity;scene.fog.color.copy(color('fogColor'))}
     if(scene.background instanceof T.Color)scene.background.copy(color('background'));

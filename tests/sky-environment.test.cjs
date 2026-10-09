@@ -14,6 +14,12 @@ function stubRenderer(){
   return {renderer,calls};
 }
 
+function referenceSignature(input){
+  const direction=input.sun.position.clone().sub(input.sun.target.position).normalize(),quantize=(value,steps)=>Math.round(value*steps);
+  const colors=[input.zenith,input.horizon,input.ground].flatMap(color=>[quantize(color.r,48),quantize(color.g,48),quantize(color.b,48)]);
+  return [quantize(direction.x,40),quantize(direction.y,40),quantize(direction.z,40),quantize(input.up.x,40),quantize(input.up.y,40),quantize(input.up.z,40),...colors,quantize(input.sun.color.r,32),quantize(input.sun.color.g,32),quantize(input.sun.color.b,32),quantize(input.sun.intensity,20)].join(',');
+}
+
 test('the sky environment signature quantizes slow sky changes and reacts to sun, orientation and palette',()=>{
   const input=lightingFixture(),base=skyEnvironmentSignature(input);
   input.zenith.r+=.004;assert.equal(skyEnvironmentSignature(input),base,'sub-step colour drift does not refresh');
@@ -54,6 +60,30 @@ test('refreshes reuse one prefiltered target, throttle during cross-fades and re
   assert.equal(environment.update(input,.4,.25),false);environment.invalidate();assert.equal(environment.update(input,.41,.25),true);assert.equal(environment.generations,3);
   assert.equal(renderer.xr.enabled,false);assert.equal(renderer.getRenderTarget(),null,'the previous render target is restored');
   environment.dispose();assert.equal(environment.texture,null);
+});
+
+test('numeric environment keys retain every refresh decision through fades, planet rotation and invalidation',()=>{
+  const {renderer}=stubRenderer(),environment=createSkyEnvironment(renderer,16),input=lightingFixture();let signature='',refreshed=-Infinity,dirty=true,generations=0;
+  for(let frame=0;frame<360;frame++){
+    const phase=frame/60,interval=frame<180?.25:.5;input.sun.position.set(-40+Math.sin(phase)*10,65,70+Math.cos(phase)*20);
+    input.sun.intensity=2.9-frame/150;input.up.set(Math.sin(phase)*.8,1,Math.cos(phase)*.3).normalize();input.zenith.setRGB(.3+Math.sin(phase)*.05,.55,.75);
+    input.horizon.setRGB(.6,.7+Math.sin(phase)*.04,.8);input.ground.setRGB(.2,.23,.25+Math.cos(phase)*.03);input.sun.color.setRGB(.9,.7+Math.cos(phase)*.05,.55);
+    if(frame===91||frame===241){environment.invalidate();dirty=true}
+    const next=referenceSignature(input),expected=dirty||next!==signature&&phase-refreshed>=interval;
+    assert.equal(skyEnvironmentSignature(input),next,'public diagnostic key stays identical');assert.equal(environment.update(input,phase,interval),expected,'refresh at frame '+frame);
+    if(expected){signature=next;refreshed=phase;dirty=false;generations++}
+  }
+  assert.equal(environment.generations,generations);environment.dispose();
+});
+
+test('unchanged sky updates do not allocate signature strings or arrays through join and flatMap',context=>{
+  const {renderer,calls}=stubRenderer(),environment=createSkyEnvironment(renderer,16),input=lightingFixture();environment.update(input,0,.25);const renders=calls.render;
+  let joins=0,flattenings=0;const originalJoin=Array.prototype.join,originalFlatMap=Array.prototype.flatMap;
+  context.after(()=>{Array.prototype.join=originalJoin;Array.prototype.flatMap=originalFlatMap});
+  Array.prototype.join=function(...args){if(this.length===19)joins++;return originalJoin.apply(this,args)};
+  Array.prototype.flatMap=function(...args){flattenings++;return originalFlatMap.apply(this,args)};
+  for(let frame=0;frame<120;frame++)assert.equal(environment.update(input,10+frame/60,.25),false);
+  assert.equal(joins,0);assert.equal(flattenings,0);assert.equal(calls.render,renders);environment.dispose();
 });
 
 test('the world sources its reflections from the live sky instead of a downloaded studio HDR',()=>{

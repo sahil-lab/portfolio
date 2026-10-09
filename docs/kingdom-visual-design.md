@@ -89,6 +89,22 @@ the final colour pipeline. It is not a Blender re-bake or a bevel remodel.
   shortest dimension (capped at .15) at identical triangle counts.
 - Depth-based AO is subtler (blend .72, scale 1.15) so contacts read without
   dark outlines.
+- Shadows are variance shadow maps (`VSMShadowMap`): a blurred penumbra that
+  widens the same way a softbox would, instead of PCF's stepped edge. The blur
+  radius scales with the map (`shadowSoftness` 5/2048) so softness is constant
+  in world units across tiers; Balanced keeps 2048 at 8 Hz with 8 blur samples,
+  High uses 3072 per frame with 12 samples (VSM holds three buffers per map, so
+  4096 would cost about 190 MB and was not used). Low still disables shadows.
+- The visible skies carry the same sun glow as the environment map (a broad
+  and a tight lobe around the key light, fading below the horizon) on both the
+  motherboard dome and the planet atmospheres, so what reflects in a window is
+  what you see when you look up. The glow follows the live sun colour and
+  strength, dimming to a faint moon glow at night.
+- The grade gains a mild global saturation (1.06) under the chroma-aware
+  vibrance and a 2% highlight warmth that leaves shadows neutral; results are
+  clamped to the display range. Workshop hero trims and forecourt paving are a
+  touch glossier (chalk .5 / clearcoat .2, paving .78) so the cream ribbons and
+  the ground catch the sky.
 - `scripts/check-kingdom-visuals.cjs` now records display tone statistics for
   every capture (mean/median/p5/p95 luma, HSV saturation and value). Workshop
   desktop-high day captures moved from mean .555 / p5 .128 / saturation .344
@@ -99,8 +115,68 @@ the final colour pipeline. It is not a Blender re-bake or a bevel remodel.
   Plaza, lantern quarter, Commons, Copper surface and orbit, first-person
   movement and night views pass with no errors. Reports:
   `outputs/playtest/grade-before-checks.json`,
-  `outputs/playtest/sky-env2-checks.json` and
-  `outputs/playtest/sky-env2-world-checks.json`.
+  `outputs/playtest/sky-env2-checks.json`,
+  `outputs/playtest/sky-env2-world-checks.json`, and after the soft-shadow and
+  sky-glow pass `outputs/playtest/vsm3-checks.json` and
+  `outputs/playtest/vsm3-world-checks.json` (desktop-high day mean .543 / p5
+  .193 / saturation .39; all views errors[]).
+
+## Rendering Efficiency Follow-Up, 9 October 2026
+
+This pass preserves the new VSM resolutions, blur samples, update rates, sky
+glow, grading, material finishes and all asset data. It changes runtime resource
+handling and cache work, not the artwork or visual quality settings.
+
+- Shader preparation reproduces and fixes the reported
+  `Cannot read properties of undefined (reading 'isReady')` error. The regression
+  uses the installed Three.js polling implementation with a material disposed
+  between checks. Preparation now captures and deduplicates actual compiled
+  programs, cancels on material disposal/context loss, cleans up its timers and
+  listeners, and rejects failures through its promise instead of throwing from
+  a detached timer. Parallel shader compilation and the existing startup and
+  teardown contract remain in place.
+- The VSM intermediate blur target keeps its original RG16F texture, sampling
+  and size but no longer allocates an unused depth renderbuffer. The native
+  driver requested one DEPTH_COMPONENT24 buffer before and none after. That
+  removes 12 MiB of nominal depth storage at 2048 and 27 MiB at 3072; actual GPU
+  allocation includes driver-dependent padding. The original depth texture and
+  shadow/blur color textures remain. Unchanged target configurations are reused.
+- Sky-environment refresh decisions use two reusable numeric keys instead of
+  constructing arrays and a joined string each frame. All decisions matched the
+  original algorithm across 360 fade, orientation and invalidation samples;
+  120 steady updates performed no signature joins or flat-map operations.
+- Unchanged viewport events no longer reset the drawing buffer or pixel ratio.
+  The initial mobile browser regression observed 16 size updates across eight
+  unchanged events; the corrected run observed zero. Real orientation or DPR
+  changes update the buffer once, retaining its exact requested dimensions.
+
+Validation used a frozen copy of the current working visual pass, including
+the user's existing local changes, with private build assets. All 109 focused
+tests, TypeScript, scoped runtime lint, `npm run build:vercel` and Vercel output
+verification passed. Nothing was committed or deployed by this follow-up.
+
+Real Chrome/Intel Arc WebGL comparisons were byte-identical in twelve frozen
+desktop/mobile, Balanced/High, day/night/moved-object cases using the actual
+presentation pipeline. The final full-app workshop check passed eleven quality,
+viewport, night and motion captures. A fourteen-view mainland/Copper surface
+and orbit tour passed before the resize-only follow-up. The final High-quality
+mobile lifecycle check passed six touch swipes, three orientations, camera
+modes, pause/resume, bounded website previews and one forced context recovery,
+retaining the same document, scene and canvas. Recovery still uses the existing
+Low-quality fallback; that policy was not introduced by this patch.
+
+Evidence is under `outputs/performance/oct9-render-efficiency/`: build logs and
+fingerprints, `rendering.json`, `world/`, and `lifecycle/high-mobile.json`.
+`pre-resize/` preserves the first lifecycle failure and earlier build evidence;
+`shadow-only/` preserves the earlier GPU experiment. The final resize adds no
+changes to the rendering operations exercised by the pixel comparison.
+
+GPU timings are mixed and variable, including slower samples; no consistent
+frame-rate improvement or multiplier is claimed. The established gains are
+reduced memory/allocation work and elimination of the reproduced readiness
+failure. Mobile checks are emulation, external website pages are controlled
+fixtures in the lifecycle test, and no hosted Vercel or physical-device
+certification is implied.
 
 ## Planted Miniature World Pass, 2 October 2026
 

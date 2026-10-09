@@ -27,9 +27,9 @@ export function createWorkshopNeighborhood(scene:T.Scene){
   Object.assign(finishes.plaster,{name:'Workshop_LimewashedPlaster',roughness:.92,clearcoat:0,bumpMap:stoneRelief,roughnessMap:stoneRelief,bumpScale:.04,envMapIntensity:.25});
   const rooms=createWindowInteriorAtlas();Object.assign(finishes.glass,{name:'Workshop_InteriorGlazing',roughness:.14,clearcoat:.6,clearcoatRoughness:.12,aoMap:rooms.occlusion,aoMapIntensity:.8,emissiveMap:rooms.emission,emissiveIntensity:.025});
   finishes.glass.userData.surface='glass';finishes.glass.userData.nightIllumination=.24;
-  finishes.paving.roughness=.87;finishes.paving.clearcoat=.04;
+  finishes.paving.roughness=.78;finishes.paving.clearcoat=.06;
   finishes.deck.roughness=.84;finishes.deck.clearcoat=.06;finishes.deck.bumpMap=stoneRelief;finishes.deck.roughnessMap=stoneRelief;finishes.deck.bumpScale=.012;
-  finishes.chalk.roughness=.62;finishes.chalk.clearcoat=.15;finishes.sage.roughness=.39;finishes.sage.clearcoat=.5;finishes.oxide.roughness=.58;finishes.oxide.clearcoat=.18;
+  finishes.chalk.roughness=.5;finishes.chalk.clearcoat=.2;finishes.sage.roughness=.39;finishes.sage.clearcoat=.5;finishes.oxide.roughness=.55;finishes.oxide.clearcoat=.2;
   const solids:Solid[]=[];
   function box(name:string,x:number,y:number,z:number,w:number,h:number,d:number,material:T.Material,solid=false){
     const object=new T.Mesh(craftedBox(w,h,d),material);object.name=name;object.position.set(x,y,z);object.castShadow=object.receiveShadow=true;root.add(object);

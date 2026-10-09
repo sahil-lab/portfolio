@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {mergeIndexedGeometries} from './static-batching';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {architectureMaterials} from './building-craft';
 import {createCuteResident} from './cute-resident';
@@ -15,10 +15,6 @@ import {createVisibleGeometry,type VisibleGeometryPart,type GeometryVisibility} 
 import {createPocketGarden} from './city-gardens';
 import {completeArchitectureAttributes} from './architecture-kit';
 import {clearArchitectureShells} from './architecture-shells';
-import {kingdomPalette} from './kingdom-art';
-import {createSpatialIndex} from './spatial-index';
-import {createAssetManager} from './asset-manager';
-import {createGroundCoverWindow} from './ground-cover';
 
 type Lot={address:string;x:number;z:number;scale:number;variant:number;yaw:number;width:number;depth:number;height:number};
 type Skin={geometry:T.BufferGeometry;material:T.Material};
@@ -27,32 +23,27 @@ function bakeModel(root:T.Object3D):Skin[]{
   root.updateMatrixWorld(true);const groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
   root.traverse(object=>{
     if(!(object instanceof T.Mesh)||Array.isArray(object.material))return;
-    const list=groups.get(object.material)??[],instance=new T.Matrix4();for(let index=0;index<(object instanceof T.InstancedMesh?object.count:1);index++){const matrix=object.matrixWorld.clone();if(object instanceof T.InstancedMesh){object.getMatrixAt(index,instance);matrix.multiply(instance)}const geometry=object.geometry.clone();geometry.applyMatrix4(matrix);list.push(geometry)}groups.set(object.material,list);originals.add(object.geometry);
+    const list=groups.get(object.material)??[],instance=new T.Matrix4();for(let index=0;index<(object instanceof T.InstancedMesh?object.count:1);index++){const matrix=object.matrixWorld.clone();if(object instanceof T.InstancedMesh){object.getMatrixAt(index,instance);matrix.multiply(instance)}const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.applyMatrix4(matrix);list.push(geometry)}groups.set(object.material,list);originals.add(object.geometry);
   });
-  const skins=[...groups].map(([material,geometries])=>{const geometry=mergeIndexedGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
+  const skins=[...groups].map(([material,geometries])=>{const geometry=mergeGeometries(geometries)!;geometries.forEach(part=>part.dispose());return {geometry,material}});
   originals.forEach(geometry=>geometry.dispose());return skins;
 }
 
 export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)=>Promise<void>,captureShells?:(shells:T.Group)=>void){
   const root=new T.Group();root.name='Motherboard_LivingCity';parent.add(root);
   const authored=createAuthoredDistricts(root);
-  const quarter=createCityLandmarks(root),colors=[kingdomPalette.coral,kingdomPalette.jade,kingdomPalette.blue,'#d8b553','#be7282','#7ca79c'],heights=[5.6,7.2,8.4,6.5,4.8,7.6];
-  const pearl=new T.MeshStandardMaterial({color:kingdomPalette.pearl,roughness:.57});
-  const lawn=new T.MeshStandardMaterial({color:'#69945a',roughness:1});lawn.userData.surface='natural';
-  const pavement=new T.MeshStandardMaterial({color:kingdomPalette.stone,roughness:.89}),asphalt=new T.MeshStandardMaterial({color:kingdomPalette.paving,roughness:.92}),inlay=new T.MeshStandardMaterial({color:kingdomPalette.brass,roughness:.68});
+  const quarter=createCityLandmarks(root),colors=['#f0a18d','#8bc9b0','#89badb','#eccb7c','#dca8ad','#b9d9d3'],heights=[5.6,7.2,8.4,6.5,4.8,7.6];
+  const pearl=new T.MeshStandardMaterial({color:'#f3f1e4',roughness:.57});
+  const lawn=new T.MeshStandardMaterial({color:'#a0c78a',roughness:1});lawn.userData.surface='natural';
+  const pavement=new T.MeshStandardMaterial({color:'#a3b3a7',roughness:.89}),asphalt=new T.MeshStandardMaterial({color:'#46595b',roughness:.92}),inlay=new T.MeshStandardMaterial({color:'#dec99e',roughness:.68});
   pavement.userData.cityPaving=asphalt.userData.cityPaving=true;
   const cube=new T.BoxGeometry(1,1,1),treeShapes={full:createCanopyAsset('tree','full'),distant:createCanopyAsset('tree','distant')},treeMaterials=createCanopyMaterials();
   const gardenSkins=bakeModel(createPocketGarden(10.5,8.5,5).root);
   const dummy=new T.Object3D(),lots:Lot[]=[],cells=new Map<string,Lot[]>(),neighborhoods:T.LOD[]=[],cameraBounds:T.Box3[]=[];
   const plantingBounds=new T.Box3(),transformedCrown=new T.Box3();
   const streetTrees:{x:number;z:number;height:number}[]=[],treeCells=new Map<string,typeof streetTrees>();
-  const meadowPlots:{minX:number;maxX:number;minZ:number;maxZ:number;height:number}[]=[];
   const architecture:{town:ReturnType<typeof createArchitectureNeighborhood>;x:number;z:number}[]=[];
-  const scheduler=createWorkScheduler(),detailLoads=createAssetManager({concurrency:1});
-  async function runDetailLoad(id:string,work:()=>Promise<void>,signal:AbortSignal){
-    signal.throwIfAborted();const lease=detailLoads.acquire('city/'+id,work,()=>{}),abort=()=>lease.release();signal.addEventListener('abort',abort,{once:true});
-    try{await lease.promise}finally{signal.removeEventListener('abort',abort);lease.release()}
-  }
+  const scheduler=createWorkScheduler();
   const sharedFinishes={materials:architectureMaterials('atelier'),paints:new Map<string,T.MeshStandardMaterial>()};
   const farRegions=new Map<string,{root:T.Group;blocks:{lod:T.LOD;far:T.Group;town:ReturnType<typeof createArchitectureNeighborhood>;state:GeometryVisibility}[];consolidated:boolean}>(),silhouettes:VisibleGeometryPart[]=[];
   const cellKey=(x:number,z:number)=>Math.floor((x+500)/100)+','+Math.floor((z+1171)/100);
@@ -93,7 +84,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
       lots.push(lot);localLots.push(lot);
       cameraBounds.push(new T.Box3(new T.Vector3(lot.x-lot.width/2,0,lot.z-lot.depth/2),new T.Vector3(lot.x+lot.width/2,lot.height,lot.z+lot.depth/2)));
     }
-    const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),105,sharedFinishes,{scheduler,prepare,runLoad:(work,signal)=>runDetailLoad(lod.uuid,work,signal)});
+    const town=createArchitectureNeighborhood(near,'atelier',localLots.map(lot=>({address:lot.address,position:new T.Vector3(lot.x-centerX,.12,lot.z-centerZ),rotation:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),lot.yaw),width:4.6,depth:4.2,height:heights[lot.variant],scale:lot.scale,accent:colors[lot.variant]})),105,sharedFinishes,{scheduler,prepare});
     architecture.push({town,x:centerX,z:centerZ});
     captureShells?.(town.shells);
     const regionKey=Math.floor(centerX/300)+','+Math.floor(centerZ/300);let region=farRegions.get(regionKey);
@@ -111,19 +102,13 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
       }
     }
     const trunks=trees.map(tree=>({x:centerX+tree.x,z:centerZ+tree.z,height:tree.sy*7}));streetTrees.push(...trunks);treeCells.set(cellKey(centerX,centerZ),trunks);
-    let lawnAreas=[{minX:-40.5,maxX:40.5,minZ:-40.5,maxZ:40.5,height:.02}];
-    const clearings=localLots.flatMap(lot=>{
-      const x=lot.x-centerX,z=lot.z-centerZ,forwardX=Math.sin(lot.yaw),forwardZ=Math.cos(lot.yaw),footprint={left:x-lot.width/2-1.1,right:x+lot.width/2+1.1,back:z-lot.depth/2-1.1,front:z+lot.depth/2+1.1};
-      return [footprint,Math.abs(forwardX)>.5?{left:forwardX>0?x: -42,right:forwardX>0?42:x,back:z-1.6,front:z+1.6}:{left:x-1.6,right:x+1.6,back:forwardZ>0?z:-42,front:forwardZ>0?42:z}];
-    });
-    for(const site of cityEverydaySites){const footprint=everydayFootprint(site.kind);clearings.push({left:site.x-centerX-footprint.width/2-2.2,right:site.x-centerX+footprint.width/2+2.2,back:site.z-centerZ-footprint.depth/2-2.2,front:site.z-centerZ+footprint.depth/2+2.2})}
-    for(const {left,right,back,front} of clearings){
+    let lawnAreas=[{minX:-6.5,maxX:6.5,minZ:-33,maxZ:33,height:.02},{minX:-33,maxX:33,minZ:-6.5,maxZ:6.5,height:.021}];
+    for(const site of cityEverydaySites){const footprint=everydayFootprint(site.kind),left=site.x-centerX-footprint.width/2-.05,right=site.x-centerX+footprint.width/2+.05,back=site.z-centerZ-footprint.depth/2-.05,front=site.z-centerZ+footprint.depth/2+.05;
       lawnAreas=lawnAreas.flatMap(area=>{
         const minX=Math.max(area.minX,left),maxX=Math.min(area.maxX,right),minZ=Math.max(area.minZ,back),maxZ=Math.min(area.maxZ,front);if(minX>=maxX||minZ>=maxZ)return [area];
         return [{...area,maxX:minX},{...area,minX:maxX},{...area,minX,maxX,maxZ:minZ},{...area,minX,maxX,minZ:maxZ}].filter(part=>part.maxX-part.minX>.01&&part.maxZ-part.minZ>.01);
       });
     }
-    for(const area of lawnAreas)meadowPlots.push({minX:area.minX+centerX,maxX:area.maxX+centerX,minZ:area.minZ+centerZ,maxZ:area.maxZ+centerZ,height:area.height+.04});
     const lawnPlacements=lawnAreas.map(area=>({x:(area.minX+area.maxX)/2,y:area.height,z:(area.minZ+area.maxZ)/2,sx:area.maxX-area.minX,sy:.06,sz:area.maxZ-area.minZ}));
     for(const group of [near,middle]){
       instances(group,'City_BlockWalk',cube,pavement,[{x:0,y:-.1,z:0,sx:85,sy:.18,sz:85}]);
@@ -146,26 +131,10 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
   clearArchitectureShells();
   const populationSkins=colors.slice(0,3).map((color,index)=>bakeModel(createCuteResident(color,index).root));
   const crowds=populationSkins.map((skins,index)=>skins.map(skin=>{const mesh=new T.InstancedMesh(skin.geometry,skin.material,24);mesh.name='City_StrollingResidents_'+index;mesh.count=0;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;mesh.castShadow=true;root.add(mesh);return mesh}));
-  const detailRadius=105*1.35,detailIndex=createSpatialIndex(architecture,block=>({minX:block.x+Math.min(...block.town.records.map(record=>record.position.x))-detailRadius,maxX:block.x+Math.max(...block.town.records.map(record=>record.position.x))+detailRadius,minZ:block.z+Math.min(...block.town.records.map(record=>record.position.z))-detailRadius,maxZ:block.z+Math.max(...block.town.records.map(record=>record.position.z))+detailRadius}),100);
-  const detailCandidates=new Set<typeof architecture[number]>(),activeDetails=new Set<typeof architecture[number]>(),detailQuery={minX:0,maxX:0,minZ:0,maxZ:0};
-  const meadowIndex=createSpatialIndex(meadowPlots,plot=>plot,32),meadowCandidates=new Set<typeof meadowPlots[number]>(),meadowQuery={minX:0,maxX:0,minZ:0,maxZ:0},vertical=new T.Vector3(0,1,0);
-  const meadow=createGroundCoverWindow({sample:(x,z,seed)=>{
-    meadowQuery.minX=meadowQuery.maxX=x;meadowQuery.minZ=meadowQuery.maxZ=z;meadowIndex.query(meadowQuery,meadowCandidates);
-    for(const plot of meadowCandidates){
-      if(x<plot.minX+.7||x>plot.maxX-.7||z<plot.minZ+.7||z>plot.maxZ-.7)continue;
-      if((treeCells.get(cellKey(x,z))??[]).some(tree=>Math.hypot(tree.x-x,tree.z-z)<.9))return null;
-      return {position:new T.Vector3(x,plot.height,z),rotation:new T.Quaternion().setFromAxisAngle(vertical,seed%6283/1000),scale:.8+(seed%23)/70,flower:seed%13===0};
-    }
-    return null;
-  }});meadow.root.name='City_LivingMeadow';root.add(meadow.root);
   let clock=0;const architectureObserver=new T.Vector3(),cameraPosition=new T.Vector3(),blockPosition=new T.Vector3();
   function update(dt:number,reduced:boolean,player:T.Group,active:boolean,camera?:T.Camera){
-    meadow.update(dt,reduced,player.position,active);
     banyanGroves.update(dt,reduced,player.position,active);treeMaterials.update(clock,reduced||!active);
-    detailQuery.minX=detailQuery.maxX=player.position.x;detailQuery.minZ=detailQuery.maxZ=player.position.z;
-    if(active)detailIndex.query(detailQuery,detailCandidates);else detailCandidates.clear();
-    for(const block of activeDetails)if(!detailCandidates.has(block)){block.town.update(architectureObserver.set(player.position.x-block.x,player.position.y,player.position.z-block.z),false);activeDetails.delete(block)}
-    for(const block of detailCandidates){block.town.update(architectureObserver.set(player.position.x-block.x,player.position.y,player.position.z-block.z),true);activeDetails.add(block)}
+    for(const {town,x,z} of architecture)town.update(architectureObserver.set(player.position.x-x,player.position.y,player.position.z-z),active);
     root.updateWorldMatrix(true,false);
     if(camera)camera.getWorldPosition(cameraPosition);else player.getWorldPosition(cameraPosition);
     for(const region of farRegions.values()){
@@ -194,5 +163,5 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     if(banyanGroves.blocked(blockPosition.set(x,y,z))||(treeCells.get(cellKey(x,z))??[]).some(tree=>y<tree.height&&y>-.2&&Math.hypot(x-tree.x,z-tree.z)<.65))return true;
     return (cells.get(cellKey(x,z))??[]).some(lot=>y<lot.height&&Math.abs(x-lot.x)<lot.width/2+.55&&Math.abs(z-lot.z)<lot.depth/2+.55);
   }
-  return {root,lots,neighborhoods,architecture,farRegions,roofscape,quarter,authored,streetTrees,pedestrians,banyanGroves,meadow,meadowPlots,update,blocked,streaming:()=>({loaded:architecture.filter(({town})=>town.detailed).length,loading:architecture.filter(({town})=>town.loading).length,pending:scheduler.pending,preparing:detailLoads.snapshot().active,queued:detailLoads.snapshot().queued,total:architecture.length}),dispose:()=>{scheduler.dispose();architecture.forEach(({town})=>town.dispose());detailLoads.dispose()},bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
+  return {root,lots,neighborhoods,architecture,farRegions,roofscape,quarter,authored,streetTrees,pedestrians,banyanGroves,update,blocked,streaming:()=>({loaded:architecture.filter(({town})=>town.detailed).length,loading:architecture.filter(({town})=>town.loading).length,pending:scheduler.pending,total:architecture.length}),dispose:()=>{scheduler.dispose();architecture.forEach(({town})=>town.dispose())},bounds:motherboardBounds,districtAt:nearestCityDistrict,height:authored.height,lowerLevelAt:authored.lowerLevelAt,prompt:authored.prompt,interact:authored.interact};
 }

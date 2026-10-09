@@ -43,9 +43,19 @@ export function skylightColor(target:T.Color,source:T.Color,radiance=skyEnvironm
 }
 /** Inputs rounded so slow sky cross-fades refresh the environment in small, infrequent steps. */
 export function skyEnvironmentSignature(input:SkyEnvironmentInput){
+  return writeSkyEnvironmentSignature(input,new Float64Array(19)).join(',');
+}
+
+function signatureColor(values:Float64Array,offset:number,color:T.Color,steps:number){
+  values[offset]=quantize(color.r,steps);values[offset+1]=quantize(color.g,steps);values[offset+2]=quantize(color.b,steps);
+}
+
+function writeSkyEnvironmentSignature(input:SkyEnvironmentInput,values:Float64Array){
   direction.copy(input.sun.position).sub(input.sun.target.position).normalize();
-  const colors=[input.zenith,input.horizon,input.ground].flatMap(color=>[quantize(color.r,48),quantize(color.g,48),quantize(color.b,48)]);
-  return [quantize(direction.x,40),quantize(direction.y,40),quantize(direction.z,40),quantize(input.up.x,40),quantize(input.up.y,40),quantize(input.up.z,40),...colors,quantize(input.sun.color.r,32),quantize(input.sun.color.g,32),quantize(input.sun.color.b,32),quantize(input.sun.intensity,20)].join(',');
+  values[0]=quantize(direction.x,40);values[1]=quantize(direction.y,40);values[2]=quantize(direction.z,40);
+  values[3]=quantize(input.up.x,40);values[4]=quantize(input.up.y,40);values[5]=quantize(input.up.z,40);
+  signatureColor(values,6,input.zenith,48);signatureColor(values,9,input.horizon,48);signatureColor(values,12,input.ground,48);signatureColor(values,15,input.sun.color,32);
+  values[18]=quantize(input.sun.intensity,20);return values;
 }
 
 export function createSkyEnvironment(renderer:T.WebGLRenderer,size=128){
@@ -56,15 +66,21 @@ export function createSkyEnvironment(renderer:T.WebGLRenderer,size=128){
   const cube=new T.WebGLCubeRenderTarget(size,{type:T.HalfFloatType,generateMipmaps:false,minFilter:T.LinearFilter,magFilter:T.LinearFilter,colorSpace:T.LinearSRGBColorSpace,depthBuffer:false});
   const capture=new T.CubeCamera(.1,100,cube);stage.add(capture);
   const generator=new T.PMREMGenerator(renderer);
-  let prefiltered:T.WebGLRenderTarget|null=null,signature='',refreshed=-Infinity,dirty=true,generations=0;
+  const signature=new Float64Array(19),nextSignature=new Float64Array(19);
+  let prefiltered:T.WebGLRenderTarget|null=null,refreshed=-Infinity,dirty=true,generations=0;
   return {
     get texture(){return prefiltered?.texture??null},
     get generations(){return generations},
     /** Forces the next update to re-render, e.g. after the WebGL context was restored. */
     invalidate(){dirty=true},
     update(input:SkyEnvironmentInput,now:number,interval:number){
-      const next=skyEnvironmentSignature(input);
-      if(!dirty&&(next===signature||now-refreshed<interval))return false;
+      if(!dirty&&now-refreshed<interval)return false;
+      writeSkyEnvironmentSignature(input,nextSignature);
+      if(!dirty){
+        let unchanged=true;
+        for(let index=0;index<signature.length;index++)if(signature[index]!==nextSignature[index]&&!(Number.isNaN(signature[index])&&Number.isNaN(nextSignature[index]))){unchanged=false;break}
+        if(unchanged)return false;
+      }
       skylightColor(uniforms.zenith.value,input.zenith);
       skylightColor(uniforms.horizon.value,input.horizon);
       uniforms.ground.value.copy(input.ground).multiplyScalar(skyEnvironmentRadiance.ground);
@@ -74,7 +90,7 @@ export function createSkyEnvironment(renderer:T.WebGLRenderer,size=128){
       uniforms.sunColor.value.copy(input.sun.color);uniforms.glow.value=skyEnvironmentRadiance.glow*strength;uniforms.highlight.value=skyEnvironmentRadiance.highlight*strength;
       capture.update(renderer,stage);
       prefiltered=generator.fromCubemap(cube.texture,prefiltered);
-      signature=next;refreshed=now;dirty=false;generations++;
+      signature.set(nextSignature);refreshed=now;dirty=false;generations++;
       return true;
     },
     dispose(){prefiltered?.dispose();prefiltered=null;cube.dispose();generator.dispose();material.dispose();dome.geometry.dispose()},

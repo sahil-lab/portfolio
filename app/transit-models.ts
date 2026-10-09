@@ -1,6 +1,5 @@
 import * as T from 'three';
 import {batchScenery} from './static-batching';
-import {cacheStaticTransforms} from './static-transforms';
 import {craftedBox,createCraftMaterials} from './crafted-surfaces';
 import {metroDimensions,type MetroRig} from './transit-motion';
 import {craftGeometry,type CraftPart} from './craft-kit';
@@ -10,7 +9,7 @@ export function createTransitModels(){
  glass.roughness=.18;glass.clearcoat=.9;rubber.roughness=.85;rubber.clearcoat=0;
  const mesh=(g:T.Object3D,geo:T.BufferGeometry,m:T.Material,x=0,y=0,z=0)=>{const material=m as T.MeshStandardMaterial;if(material.isMeshStandardMaterial&&!material.vertexColors){material.vertexColors=true;material.needsUpdate=true}if(geo.userData.authoredCraft){material.userData.authoredCraft=true;const parts:string[]=g.userData.craftParts??=[];if(!parts.includes(geo.userData.authoredCraft))parts.push(geo.userData.authoredCraft)}if(material.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new T.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;g.add(o);return o};
  const box=(g:T.Object3D,m:T.Material,x:number,y:number,z:number,w:number,h:number,d:number,part?:CraftPart)=>mesh(g,(part?craftGeometry(part,w,h,d):null)??craftedBox(w,h,d),m,x,y,z);
- function buildRover(color:string){
+ function rover(color:string){
   const g=new T.Group();g.name='Rover';const paint=surface(color,0,.07);paint.roughness=.35;paint.clearcoat=.5;paint.clearcoatRoughness=.24;paint.userData.surface='ceramic';
   box(g,navy,0,.4,0,2.1,.48,3.25);box(g,paint,0,.8,0,2.25,.68,3.5,'RoverBody');box(g,cream,0,1.08,.85,2.05,.23,1.42,'RoverBody');
   box(g,navy,0,1.15,-.25,1.7,.18,1.6);box(g,copper,0,.55,1.85,2.35,.23,.18);box(g,copper,0,.55,-1.8,2.35,.23,.18);
@@ -25,7 +24,7 @@ export function createTransitModels(){
     box(g,navy,side*.46,1.32,-.56,.66,.46,.54);box(g,cream,side*.46,1.31,-.275,.51,.27,.035);
   }
   const wheels:T.Mesh[]=[];for(const x of [-1.15,1.15])for(const z of [-1.1,1.1]){const tire=mesh(g,craftGeometry('Tyre',1.02,.34,1.02)??new T.CylinderGeometry(.51,.51,.34,20),rubber,x,.45,z);tire.rotation.z=Math.PI/2;wheels.push(tire);const hub=mesh(g,new T.CylinderGeometry(.27,.27,.37,16),copper,x,.45,z);hub.rotation.z=Math.PI/2}
-  batchScenery(g,{wheels});return {root:g,wheels,paint};
+  batchScenery(g,{wheels});return {root:g,wheels};
  }
  function train():MetroRig{
   const root=new T.Group();root.name='NeighborMetro';const carriages:MetroRig['carriages']=[],couplers:T.Mesh[]=[];
@@ -46,7 +45,7 @@ export function createTransitModels(){
   }
   return {root,carriages,couplers};
  }
- function buildRocket(color:string){
+ function rocket(color:string){
   const g=new T.Group();g.name='DiagnosticRocket';const paint=surface(color,0,.25);
   const profile=[[0,0],[.85,0],[1.2,.6],[1.2,3.1],[1.05,4.2],[.65,5.3],[0,6]].map(([x,y])=>new T.Vector2(x,y)),hull=craftGeometry('RocketHull',2.4,6,2.4);mesh(g,hull??new T.LatheGeometry(profile,40),cream,0,hull?3:0,0);
   mesh(g,new T.CylinderGeometry(1.22,1.22,.32,40),paint,0,1,0);mesh(g,new T.CylinderGeometry(1.08,1.08,.22,40),copper,0,4.12,0);
@@ -55,28 +54,7 @@ export function createTransitModels(){
     for(let rivet=0;rivet<12;rivet++){const angle=rivet/12*Math.PI*2;mesh(g,new T.SphereGeometry(.037,6,4),copper,Math.cos(angle)*.55,3.1+Math.sin(angle)*.55,1.34)}
   for(let i=0;i<3;i++){const a=i/3*Math.PI*2,fin=box(g,paint,Math.sin(a)*1.25,.75,Math.cos(a)*1.25,.25,1.8,1.45,'RocketFin');fin.rotation.y=a}
   const flame=mesh(g,new T.ConeGeometry(.65,2.5,16),surface('#eeb665',1.4),0,-1.1,0);flame.rotation.z=Math.PI;flame.name='Rocket_Exhaust';flame.visible=false;
-  batchScenery(g,{flame,rim});return {root:g,flame,paint};
- }
- function duplicate(template:T.Group,paint:T.MeshStandardMaterial,color:string,animated:T.Object3D[],independent:T.Material[]=[]){
-  const root=template.clone(),sources:T.Object3D[]=[],copies:T.Object3D[]=[],materials=new Map<T.Material,T.Material>();
-  const tinted=paint.clone();tinted.color.set(color);tinted.emissive.set(color);materials.set(paint,tinted);
-  for(const material of independent)materials.set(material,material.clone());
-  template.traverse(object=>sources.push(object));root.traverse(object=>copies.push(object));
-  for(const object of copies){
-   const mesh=object as T.Mesh;if(!mesh.isMesh)continue;
-   mesh.material=Array.isArray(mesh.material)?mesh.material.map(material=>materials.get(material)??material):materials.get(mesh.material)??mesh.material;
-   if(mesh.name==='SceneryBatch'||mesh.name==='SceneryInstances')cacheStaticTransforms(mesh);
-  }
-  return {root,parts:animated.map(object=>copies[sources.indexOf(object)])};
- }
- let roverTemplate:ReturnType<typeof buildRover>|undefined,rocketTemplate:ReturnType<typeof buildRocket>|undefined;
- function rover(color:string){
-  roverTemplate??=buildRover(color);const copy=duplicate(roverTemplate.root,roverTemplate.paint,color,roverTemplate.wheels);
-  return {root:copy.root,wheels:copy.parts as T.Mesh[]};
- }
- function rocket(color:string){
-  rocketTemplate??=buildRocket(color);const copy=duplicate(rocketTemplate.root,rocketTemplate.paint,color,[rocketTemplate.flame],[rocketTemplate.flame.material as T.Material]);
-  return {root:copy.root,flame:copy.parts[0] as T.Mesh};
+  batchScenery(g,{flame,rim});return {root:g,flame};
  }
  return {rover,train,rocket,surface,mesh,box,cream,copper,navy,glow};
 }

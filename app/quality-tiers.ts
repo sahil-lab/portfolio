@@ -5,12 +5,14 @@
  */
 export type QualityTier='high'|'balanced'|'low';
 export type QualityChoice=QualityTier|'auto';
-export type QualityProfile={label:string;pixelRatio:number;shadows:boolean;shadowMapSize:number;shadowRadius:number;shadowInterval:number;bloom:boolean};
+export type QualityProfile={label:string;pixelRatio:number;shadows:boolean;shadowMapSize:number;shadowRadius:number;shadowBlurSamples:number;shadowInterval:number;bloom:boolean};
 
+/** Variance shadow maps blur in texels, so the radius scales with the map to keep the same soft penumbra in world units. */
+export const shadowSoftness=5/2048;
 export const qualityTiers:Record<QualityTier,QualityProfile>={
-  high:{label:'High · detailed per-frame shadows',pixelRatio:2,shadows:true,shadowMapSize:4096,shadowRadius:6,shadowInterval:0,bloom:true},
-  balanced:{label:'Balanced · soft shadows',pixelRatio:1.25,shadows:true,shadowMapSize:2048,shadowRadius:3,shadowInterval:.125,bloom:true},
-  low:{label:'Low · lower pixel density, no shadows',pixelRatio:1,shadows:false,shadowMapSize:1024,shadowRadius:1.5,shadowInterval:Infinity,bloom:false},
+  high:{label:'High · detailed per-frame shadows',pixelRatio:2,shadows:true,shadowMapSize:3072,shadowRadius:3072*shadowSoftness,shadowBlurSamples:12,shadowInterval:0,bloom:true},
+  balanced:{label:'Balanced · soft shadows',pixelRatio:1.25,shadows:true,shadowMapSize:2048,shadowRadius:2048*shadowSoftness,shadowBlurSamples:8,shadowInterval:.125,bloom:true},
+  low:{label:'Low · lower pixel density, no shadows',pixelRatio:1,shadows:false,shadowMapSize:1024,shadowRadius:1024*shadowSoftness,shadowBlurSamples:6,shadowInterval:Infinity,bloom:false},
 };
 export const qualityChoices:QualityChoice[]=['auto','high','balanced','low'];
 export const tierOrder:QualityTier[]=['low','balanced','high'];

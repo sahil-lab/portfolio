@@ -14,6 +14,13 @@ export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,stren
 export const presentationPixelBudget=1600000;
 export function presentationPixelRatio(width:number,height:number,ratio:number){return Math.min(ratio,Math.sqrt(presentationPixelBudget/Math.max(1,width*height)))}
 
+const drawingSize=new T.Vector2();
+export function resizeRenderer(renderer:T.WebGLRenderer,width:number,height:number,ratio:number){
+  renderer.getSize(drawingSize);
+  if(drawingSize.x===width&&drawingSize.y===height&&renderer.getPixelRatio()===ratio)return false;
+  renderer.setDrawingBufferSize(width,height,ratio);renderer.domElement.style.width=width+'px';renderer.domElement.style.height=height+'px';return true;
+}
+
 export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera){
   let composer:EffectComposer|undefined,occlusion:GTAOPass|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined,antialias:ShaderPass|undefined;
   let width=1,height=1;

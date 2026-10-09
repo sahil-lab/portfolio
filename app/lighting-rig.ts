@@ -1,5 +1,13 @@
 import * as T from 'three';
 
+export function prepareVarianceShadowBlur(shadow:T.DirectionalLightShadow,maxTextureSize=Infinity){
+  const width=Math.min(shadow.mapSize.width,maxTextureSize),height=Math.min(shadow.mapSize.height,maxTextureSize),previous=shadow.mapPass;
+  if(previous&&previous.width===width&&previous.height===height&&!previous.depthBuffer&&previous.depthTexture===null)return previous;
+  previous?.dispose();
+  shadow.mapPass=new T.WebGLRenderTarget(width,height,{format:T.RGFormat,type:T.HalfFloatType,depthBuffer:false});
+  return shadow.mapPass;
+}
+
 /**
  * Moves a directional light's shadow frustum with an anchor in whole shadow-texel steps.
  * Without snapping, every frustum move re-rasterises static shadows on a shifted grid and

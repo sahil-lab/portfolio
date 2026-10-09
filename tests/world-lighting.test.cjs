@@ -54,3 +54,15 @@ test('steady lighting skips material writes while new materials and external cha
  response.update(.01,0,0);assert.equal(material.emissiveIntensity,.08);assert.equal(material.roughness,.9);added.dispose();assert.equal(response.count,1);response.dispose();
  const {disposeScene}=require('../app/scene-resources.ts');disposeScene(scene);
 });
+
+test('lighting discovery reuses the scene registry while streamed and replaced materials still register',context=>{
+ const scene=new T.Scene(),branch=new T.Group(),geometry=new T.BoxGeometry(),material=new T.MeshStandardMaterial();material.userData.surface='glass';const mesh=new T.Mesh(geometry,material);branch.add(mesh);scene.add(branch);
+ const traverse=context.mock.method(scene,'traverse'),response=createCityLightResponse(scene);response.update(1,1,0);const initial=traverse.mock.callCount();
+ try{
+  for(let frame=0;frame<120;frame++)response.update(1/60,1,0);
+  assert.equal(traverse.mock.callCount(),initial,'unchanged lighting rediscovered the entire scene');
+  const streamed=new T.Group(),added=new T.MeshStandardMaterial();streamed.add(new T.Mesh(geometry,added));branch.add(streamed);added.userData.surface='glass';response.update(1,1,0);assert.equal(response.count,2);assert.equal(added.emissiveIntensity,.42);
+  const replacement=new T.MeshStandardMaterial();replacement.userData.surface='glass';mesh.material=replacement;response.update(1,1,0);assert.equal(response.count,3);assert.equal(replacement.emissiveIntensity,.42);
+  branch.remove(streamed);added.dispose();response.update(1,1,0);assert.equal(response.count,2);material.dispose();assert.equal(response.count,1);
+ }finally{response.dispose();const {disposeScene}=require('../app/scene-resources.ts');disposeScene(scene)}
+});

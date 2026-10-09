@@ -42,22 +42,15 @@ function lettering(text:string,width:number,height:number){
   const canvas=document.createElement('canvas');canvas.width=width>=4?1024:512;canvas.height=Math.round(canvas.width*height/width);
   const context=canvas.getContext('2d')!;
   const maximumWidth=canvas.width*.92,maximumHeight=canvas.height*.88;
-  const words=text.toUpperCase().trim().split(/\s+/),maximumSize=Math.floor(Math.min(200,maximumHeight/1.12));
-  let lines:string[]=[],fontSize=maximumSize;
-  function fits(size:number){
-    fontSize=size;context.font=`900 ${size}px "Trebuchet MS", sans-serif`;lines=[];let line='';
-    for(const word of words){
+  let lines:string[]=[],fontSize=Math.floor(Math.min(200,maximumHeight/1.12));
+  for(;fontSize>=12;fontSize-=2){
+    context.font=`900 ${fontSize}px "Trebuchet MS", sans-serif`;lines=[];let line='';
+    for(const word of text.toUpperCase().trim().split(/\s+/)){
       const next=line?line+' '+word:word;
       if(line&&context.measureText(next).width>maximumWidth){lines.push(line);line=word}else line=next;
     }
     if(line)lines.push(line);
-    return lines.length*size*1.12<=maximumHeight&&lines.every(value=>context.measureText(value).width<=maximumWidth);
-  }
-  if(maximumSize>=12&&!fits(maximumSize)){
-    const smallest=Math.floor((maximumSize-12)/2);let low=1,high=smallest,chosen=-1;
-    while(low<=high){const index=Math.floor((low+high)/2);if(fits(maximumSize-index*2)){chosen=index;high=index-1}else low=index+1}
-    if(chosen>=0)fits(maximumSize-chosen*2);
-    else{fits(maximumSize-smallest*2);fontSize-=2}
+    if(lines.length*fontSize*1.12<=maximumHeight&&lines.every(value=>context.measureText(value).width<=maximumWidth))break;
   }
   context.textAlign='center';context.textBaseline='middle';
   lines.forEach((line,index)=>{

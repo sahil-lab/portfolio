@@ -12,6 +12,195 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Interaction Panel Recovery, 10 October 2026
+
+The user reported a blank screen after any interaction on the local preview at
+port 4356. The inspected live page retained its canvas, advancing render frames,
+finite camera values and 260 sampled colors, with no JavaScript errors or WebGL
+context loss. Ordinary E/menu interaction did not reproduce the full report.
+That observation does not invalidate the reported failure or establish its exact
+cause on the user's existing tab.
+
+A focused fault-injection test did reproduce one concrete interaction-triggered
+app failure: rejecting the first Friends panel JavaScript download replaced the
+entire application with the framework error page, removing the world canvas.
+Suspense handled loading but did not isolate the rejected lazy import.
+
+The five optional panels now use a shared, panel-local error boundary: Friends,
+radio, resume reader, machine controls and project-study controls. A failed panel
+offers Retry and Close while the world, player state and shared services remain
+mounted. Normal imports and loading indicators remain lazy; successful panel
+behavior, scene assets and graphics settings are unchanged. Ordinary rerenders
+and reopening a failed panel do not create an automatic retry loop.
+
+The first retry implementation preserved the world but exposed the browser's
+cached failed module import. Explicit Retry now uses a fresh query parameter for
+the expected same-origin panel chunk and validates the named component export.
+There is no page reload, cache-wide clearing or quality reduction. A permanently
+missing chunk or unavailable server may still leave the panel unavailable; the
+boundary keeps that failure from replacing the entire application.
+
+The final production regression passed nine checks each on Chrome desktop High
+(1440x960) and mobile Auto touch emulation (390x844): failed-load containment,
+dismissal, reopen, successful retry, resumed movement, normal resume/radio/study/
+machine workflows and return to the world. Each run intercepted exactly one
+failed download, retained one document/scene/canvas and ended with zero unhandled
+page errors and nonblank canvas samples (463 and 357 colors). Machine job
+submission and study reset were exercised, not just panel visibility.
+
+The existing mobile Auto lifecycle check also passed six native swipes, three
+orientations, camera-mode switches, pause/resume, bounded project previews and
+forced WebGL loss/restoration. Render scheduling remained eight active, zero
+paused and eight resumed frames. The existing low-quality graphics-recovery
+policy was not changed. TypeScript, new-module lint and the production build
+passed; the unrelated historical full-suite failures were not rerun or modified.
+
+The candidate was built in `outputs/performance-source/oct10-panel-recovery/`
+and served at `http://127.0.0.1:4357/`, leaving the existing 4356 build and its
+assets intact. Evidence is under `outputs/performance/oct10-panel-recovery/`,
+including `desktop-final/`, `mobile-final/`, `mobile-lifecycle/` and source
+fingerprints. The original failing control is preserved under
+`outputs/performance/oct10-panel-blank-before/`; the initial cached-retry failure
+is retained separately. This is a verified failure-containment fix, not a new
+frame-rate claim, physical-device certification, hosted deployment or proof that
+every possible blank-screen cause has been eliminated.
+
+## Documentation-Guided Optimization, 9 October 2026
+
+This follow-up uses the current working tree, including its existing local visual
+changes, as the control. It does not restore a historical visual configuration or
+change resolution, lighting, shadows, effects, asset detail, populations or game
+rules. The application uses imperative Three.js; React Three Fiber and Drei are
+reference material, not new dependencies or a proposed renderer rewrite.
+
+### Research And Applicability
+
+| Source | Relevant Finding | Decision For This Application |
+| --- | --- | --- |
+| [Three.js r185: many objects](https://raw.githubusercontent.com/mrdoob/three.js/r185/manual/en/optimize-lots-of-objects.html) | Separate meshes have submission and scene-graph overhead; merging can preserve their geometry. | Keep spatial and material boundaries; retain index buffers instead of expanding every triangle. Do not merge independently animated objects. |
+| [Three.js renderer](https://threejs.org/docs/pages/WebGLRenderer.html) | `compileAsync` reduces shader-compilation stalls; `initTexture` can move first-use texture upload work earlier. | Shader preparation already exists. Texture upload budgeting is a separate candidate, not something shader compilation alone guarantees. |
+| [Drei Instances](https://drei.docs.pmnd.rs/performances/instances) | Declarative instances reduce draws but add CPU overhead; native `InstancedMesh` is recommended for large populations. | Retain native instancing. Require exact geometry equality before sharing a primitive, including edited vertices, normals, UVs and colors. |
+| [R3F scaling](https://r3f.docs.pmnd.rs/advanced/scaling-performance) and [pitfalls](https://r3f.docs.pmnd.rs/advanced/pitfalls) | Reuse resources and temporary objects; avoid reactive per-frame state and unnecessary remounting. | Cache unchanged rigid camera bounds and refresh shared ancestors once per pass. Preserve existing imperative animation and pause/visibility handling. |
+| [Drei BVH](https://drei.docs.pmnd.rs/performances/bvh) | Hierarchical acceleration helps triangle raycasting. | Camera obstruction uses spatially indexed box intersections, not triangle raycasting. A BVH is not a blanket replacement or a proven frame-rate win here. |
+| [MDN WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) | Batch draws, avoid synchronous GPU queries, keep buffers stable and budget memory. | Consolidate trusted immutable texture clones only when source and sampling state agree. Keep arbitrary custom textures distinct. Measure memory and draws separately. |
+| [Three.js r185 disposal](https://raw.githubusercontent.com/mrdoob/three.js/r185/manual/en/how-to-dispose-of-objects.html) | GPU resources need explicit disposal; shared resources and `ImageBitmap` need application-level ownership. | Preserve resource ownership. Do not close images or dispose shared buffers merely because one object is hidden. |
+| [Chrome long animation frames](https://developer.chrome.com/docs/web-platform/long-animation-frames) | Frame duration and blocking duration describe different problems; long tasks alone miss cumulative frame work. | Compare fixed-quality frame-time distributions, not just average FPS or JavaScript operation counts. Cross-origin iframe attribution remains limited. |
+| [web.dev workers](https://web.dev/articles/off-main-thread) | Offloading can improve input responsiveness without reducing total work; transfers add overhead. | Prebuilt detail and transferable worker geometry are future candidates requiring cancellation, ownership and equivalent-output tests. |
+| [Discover Three.js](https://discoverthreejs.com/tips-and-tricks/) | Reuse objects, avoid unnecessary matrix work and test assumptions on target devices. | Apply the principles, not outdated `Geometry`, `outputEncoding` or WebGL 1 texture restrictions to this r185/WebGL 2 application. |
+
+[Drei AdaptiveDpr](https://drei.docs.pmnd.rs/performances/adaptive-dpr) explicitly
+trades visual quality for speed, and [BakeShadows](https://drei.docs.pmnd.rs/performances/bake-shadows)
+freezes dynamic shadows. Neither is adopted. Lower-resolution textures, new LOD
+cuts, lossy texture compression, effect removal and suspended visible animation
+also do not satisfy the unchanged-visuals requirement.
+
+### Verified Local Work Reductions
+
+- A rigid obstacle across an initial update and 120 unchanged frames now performs
+  one world-bounds rebuild instead of 121. Parent motion, geometry replacement,
+  position-buffer changes and edited local bounds invalidate the cache. Grouped
+  and deforming obstacles retain live calculations.
+- Thirty-two obstacles with one shared parent refresh that parent's transform
+  once per camera update instead of 32 times. Moving-door collision still applies
+  on the next frame, with the same camera easing and clipping behavior.
+- The existing immutable-texture fixture now produces three batches instead of
+  twelve. Different source images, UV transforms and channels remain separate.
+- Static merging retains indexed vertices. Existing tests compare the expanded
+  position, normal and UV arrays exactly; the added edited-primitive regression
+  also compares vertex colors and prevents replacing distinct geometry with the
+  first primitive. This changes storage and submission, not triangle content.
+
+These are focused work-count and equivalence results, not a 10,000x application
+speedup. Even eliminating one subsystem cannot remove the cost of all remaining
+simulation, draw submission, shader execution, memory transfer and compositing.
+Display refresh rates, browser scheduling, driver support, thermal throttling
+and third-party pages impose additional limits. No finite test can establish
+that there is no remaining code optimization or guarantee a device never discards
+the tab.
+
+The isolated batching control is
+`outputs/performance-source/oct9-docs-optimization-control/`. It includes the
+camera cache, so subsequent control/candidate rendering comparisons isolate the
+batching changes rather than attributing them to the camera. The control shares
+unchanged public assets; verification logs are under
+`outputs/performance/oct9-docs-optimization/`.
+
+### Production Measurements
+
+The same local Chrome/Intel Arc system rendered both production builds with
+Balanced quality, device scale factor 1 and unchanged effects. Each location used
+90 warm frames followed by three 90-frame windows; the table reports the median
+window's mean and p95 frame interval. Desktop ran control then candidate; mobile
+touch emulation ran candidate then control. Values below always mean the old
+batcher followed by the optimized batcher, regardless of execution order.
+
+| View | Mean Frame, Before / After | p95 Frame, Before / After |
+| --- | ---: | ---: |
+| Desktop plaza | 50.48 / 61.29 ms | 74.80 / 83.30 ms |
+| Desktop project gallery | 24.09 / 17.41 ms | 25.40 / 17.00 ms |
+| Desktop mainland return | 72.05 / 40.00 ms | 97.90 / 50.20 ms |
+| Desktop Citadel | 26.85 / 19.26 ms | 33.50 / 33.40 ms |
+| Mobile plaza | 22.22 / 23.15 ms | 33.40 / 33.40 ms |
+| Mobile project gallery | 16.67 / 16.67 ms | 16.80 / 16.90 ms |
+| Mobile mainland return | 22.96 / 22.96 ms | 33.50 / 33.40 ms |
+| Mobile Citadel | 17.04 / 16.67 ms | 16.90 / 16.80 ms |
+
+Frame-time results are mixed, not a universal speedup: the initial plaza sample
+regressed on both viewports, while mobile gallery and return were essentially
+unchanged. The large desktop return improvement is not a promise of equivalent
+gains on other devices or visits. Single draw/triangle snapshots vary with shadow
+cadence and animation phase and must not be interpreted as removed scene content.
+
+A second desktop pair reversed the execution order. With values still shown as
+before / after, plaza measured 149.44 / 144.07 ms, gallery 128.88 / 127.59 ms,
+return 150.92 / 144.81 ms and Citadel 119.63 / 115.92 ms. The initial plaza
+regression did not repeat, but both builds ran substantially slower in this
+session. This variability prevents a robust general frame-rate claim; neither
+the first run's larger gains nor the second run's roughly 1-4% improvements should
+be presented as guaranteed. The complete reverse-order report is
+`outputs/performance/oct9-docs-batching-reversed-desktop/metrics.json`.
+
+Unique geometry typed-array storage decreased identically on both viewports:
+
+| Location | Before | After | Saved |
+| --- | ---: | ---: | ---: |
+| Mainland plaza | 261.65 MiB | 213.47 MiB | 48.18 MiB |
+| Project gallery | 269.04 MiB | 220.86 MiB | 48.18 MiB |
+| Citadel | 314.59 MiB | 257.90 MiB | 56.69 MiB |
+
+Post-GC sampled JavaScript heap also decreased by roughly 48-57 MiB. These
+measurements overlap and must not be added together; neither is measured VRAM.
+Reports are `outputs/performance/oct9-docs-batching-desktop/metrics.json` and
+`outputs/performance/oct9-docs-batching-reversed-mobile/metrics.json`.
+
+### Validation And Remaining Limits
+
+Both production builds, TypeScript and scoped runtime lint passed. All 24
+camera/input/static-transform tests and all 11 static-batching tests passed. The
+full suite passed 689 of 700 tests. All eleven failures reproduced with identical
+errors in the untouched control: seven compressed-asset metadata tests, the
+missing city meadow field, city-template indexing and two existing tree triangle
+budgets. Their owning sources were verified unchanged; assertions and unrelated
+local edits were not rewritten to make this pass appear green.
+
+Eleven production desktop/mobile captures covered low, balanced and high
+graphics, local time, night and movement, with nonblank canvas, loaded assets and
+layout checks. The native Chrome touch run covered six swipes, three orientations,
+nine camera-mode changes, pause/resume, bounded project previews and forced WebGL
+loss/restoration. It retained one document, scene and canvas, with zero page
+errors; frame scheduling was eight active, zero paused and eight resumed renders.
+The existing low-quality context-recovery policy is unchanged by this pass.
+Representative control/candidate, night, planet and recovery captures were
+reviewed. This is not pixel-perfect certification of every possible world state.
+
+Visual evidence is in `outputs/playtest/oct9-docs-optimization-checks.json` and
+the corresponding captures; lifecycle evidence is in
+`outputs/performance/oct9-docs-optimization/lifecycle/balanced-mobile.json`.
+Public assets are unchanged and source hashes remained stable through tests,
+builds and browser checks. Project-page fixtures isolate the main app from
+third-party content; physical phones, real external scripts and the hosted
+deployment are not certified. No deployment or Git publication was performed.
+
 ## Statue Preview Safety, 9 October 2026
 
 The reported Vercel restart near the golden statue remains accepted but was not
