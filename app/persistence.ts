@@ -4,7 +4,7 @@ import {worldLightingModes,type WorldLightingMode} from './world-lighting';
 export type CameraMode='first-person'|'close'|'far';
 export type MovementMode='walk'|'skate';
 export type Settings={muted:boolean;volume:number;stableCamera:boolean;reducedMotion:boolean;projectPreviews:boolean;quality:QualityChoice;cameraMode:CameraMode;movementMode:MovementMode;worldLighting:WorldLightingMode};
-export const defaultSettings:Settings={muted:true,volume:.6,stableCamera:false,reducedMotion:false,projectPreviews:true,quality:'auto',cameraMode:'far',movementMode:'skate',worldLighting:'local'};
+export const defaultSettings:Settings={muted:true,volume:.6,stableCamera:false,reducedMotion:false,projectPreviews:false,quality:'auto',cameraMode:'far',movementMode:'skate',worldLighting:'local'};
 export type SaveData={version:1;settings:Settings;delivery:DeliverySnapshot|null};
 export const SAVE_KEY='living-computer-kingdom:v1';
 const validRecipients=['owl','chameleon','cloud','tortoises'];

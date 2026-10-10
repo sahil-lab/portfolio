@@ -96,7 +96,7 @@ The Vercel-output validator passed, and all 290 runtime source fingerprints matc
 
 ### Controlled Phone Comparison
 
-Live previews can also be changed in **System > Settings > Live project previews**. The checkbox is on by default, saves its choice on this browser, and applies without reloading the world. Turning it off unloads active project frames and prevents new ones from loading; turning it back on resumes the normal nearby-preview selection. The statue, boards and project links remain available. Older saves keep previews enabled; resetting local settings restores that default.
+Live previews can also be changed in **System > Settings > Live project previews**. The checkbox is off by default, saves its choice on this browser, and applies without reloading the world. Turning it off unloads active project frames and prevents new ones from loading; turning it on opts into the normal nearby-preview selection. The statue, boards and project links remain available. Fresh visits and older saves without a valid preview preference default to off; resetting local settings restores that default. Existing saved on/off choices are preserved, including a previously saved enabled value.
 
 The explicit `?preview-test=off` URL takes precedence over the saved preference. On that URL the checkbox is unchecked and disabled, without changing the saved choice. Remove the parameter to use the checkbox normally.
 
