@@ -9,6 +9,7 @@ import type {createPlanetLandscape,buildPlanetLandscape} from './planet-surface'
 import type {ForgeSnapshot} from './forge-feed';
 import {loadAuthoredTerrain,type AuthoredTerrain} from './authored-terrain';
 import {createAssetManager} from './asset-manager';
+import {diagnosticError,recordDiagnostic} from './client-diagnostics';
 
 type Landscape=ReturnType<typeof createPlanetLandscape>;
 type Builder=typeof buildPlanetLandscape;
@@ -22,10 +23,12 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
  function unload(){
+   if(value||pending)recordDiagnostic('planet_unloaded',{phase:surface.stop.id,ready:!!value});
    generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
  }
  async function load(priority=1):Promise<boolean>{
   if(disposed)return false;if(value){lastUse=now();return true}if(pending)return pending;
+  const started=performance.now();recordDiagnostic('planet_load_started',{phase:surface.stop.id});
   const token=++generation,staging=new T.Group(),controller=new AbortController();terrainController=controller;state='loading';lastUse=now();let terrain:AuthoredTerrain|null=null;
    const work=async()=>{
    try{
@@ -40,8 +43,8 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
     let world:T.Object3D=root;while(world.parent)world=world.parent;world.updateMatrix();
     landscape.root.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(world.matrix)});
     root.add(landscape.root);landscape.root.name='Planet_LoadedDetail_'+surface.stop.id;value=landscape;proxy.visible=false;lastUse=now();state='loaded';root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;
-    if(repositoryData)value.civilization?.setRepositories(repositoryData);if(realmState!==null)value.realm?.restore(realmState);return true;
-   }catch{if(!disposed&&token===generation)state='failed';return false}
+    if(repositoryData)value.civilization?.setRepositories(repositoryData);if(realmState!==null)value.realm?.restore(realmState);recordDiagnostic('planet_ready',{phase:surface.stop.id,durationMs:Math.round(performance.now()-started)});return true;
+     }catch(error){if(!disposed&&token===generation){state='failed';recordDiagnostic('planet_failed',{phase:surface.stop.id,durationMs:Math.round(performance.now()-started),...diagnosticError(error)})}return false}
   finally{if(terrain)disposeScene(terrain.root);disposeScene(staging);staging.clear();pending=null;if(terrainController===controller)terrainController=null}
    };
    pending=(options.runLoad?options.runLoad(work,priority,controller.signal):work()).catch(()=>{if(!disposed&&token===generation)state='failed';return false}).finally(()=>{pending=null;if(terrainController===controller)terrainController=null});return pending;

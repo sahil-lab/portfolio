@@ -61,7 +61,7 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
   return {
     quality,resize,prepare:shaders.prepare,finishPreparation:shaders.dispose,
     get pending(){return shaders.pending},
-    render:()=>{renderer.info.reset();if(composer){occlusion?.setGBuffer(composer.readBuffer.depthTexture!);composer.render()}else renderer.render(scene,camera)},
+    render:()=>{const target=renderer.getRenderTarget(),autoClear=renderer.autoClear,overrideMaterial=scene.overrideMaterial;try{renderer.info.reset();if(composer){occlusion?.setGBuffer(composer.readBuffer.depthTexture!);composer.render()}else renderer.render(scene,camera)}catch(error){renderer.setRenderTarget(target);renderer.autoClear=autoClear;scene.overrideMaterial=overrideMaterial;throw error}},
     dispose:()=>{release();renderer.info.autoReset=originalAutoReset},
   };
 }

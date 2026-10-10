@@ -3,6 +3,7 @@
 import {Component,lazy,Suspense,useRef,useState,type ComponentType,type ReactNode} from 'react';
 import {RefreshCw} from 'lucide-react';
 import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sheet';
+import {diagnosticError,recordDiagnostic} from './client-diagnostics';
 
 type PanelOptions={panelOpen?:boolean;onPanelClose:()=>void;loading?:ReactNode};
 type BoundaryProps={active:boolean;close:()=>void;retry:()=>void;children:ReactNode};
@@ -10,7 +11,7 @@ type BoundaryProps={active:boolean;close:()=>void;retry:()=>void;children:ReactN
 class PanelBoundary extends Component<BoundaryProps,{failed:boolean}>{
  state={failed:false};
  static getDerivedStateFromError(){return {failed:true}}
- componentDidCatch(error:Error){console.warn('Optional world panel failed',error)}
+ componentDidCatch(error:Error){recordDiagnostic('panel_failed',diagnosticError(error));console.warn('Optional world panel failed',error)}
  render(){
   if(!this.state.failed)return this.props.children;
    return <Sheet open={this.props.active} onOpenChange={open=>{if(!open)this.props.close()}}><SheetContent className="portfolio-sheet" data-panel-failure="true"><SheetTitle>Panel unavailable</SheetTitle><SheetDescription>This panel could not be opened. Please try again.</SheetDescription><button className="inline-flex items-center justify-center gap-2 justify-self-start" type="button" aria-label="Retry panel" onClick={this.props.retry}><RefreshCw size={18}/>Retry</button></SheetContent></Sheet>;
@@ -21,6 +22,7 @@ export function lazyWorldPanel<Props extends object>(load:()=>Promise<{default:C
  return function WorldPanel({panelOpen=true,onPanelClose,loading=null,...props}:Props&PanelOptions){
     const failedUrl=useRef<string|null>(null);
     async function loadPanel(version:number){
+      if(version>0)recordDiagnostic('panel_retry',{phase:moduleInfo.chunk,attempt:version});
      try{
         if(version>0&&failedUrl.current){
          const url=new URL(failedUrl.current);url.searchParams.set('panel-retry',String(version));

@@ -20,7 +20,8 @@ import {defaultSettings,loadSave,writeSave,type Settings} from './persistence';
 
 import { useEffect, useRef, useState } from 'react';
 import {lazyWorldPanel} from './lazy-world-panel';
-import {Users,Radio,Coffee,ChevronDown} from 'lucide-react';
+import {diagnosticError,downloadDiagnostics,observeAssetPreparation,recordDiagnostic} from './client-diagnostics';
+import {Users,Radio,Coffee,ChevronDown,FileDown} from 'lucide-react';
 import {Trees,Smile,ShoppingBag,ShoppingBasket,Clapperboard,HeartPulse,GraduationCap,CircleDot,Landmark,Binoculars,Sprout,Waves} from 'lucide-react';
 import {cityEverydaySites,signatureShops} from './everyday-config';
 import {FriendsClient} from './friends-client';
@@ -66,11 +67,11 @@ export default function Home(){
  useEffect(()=>{
   if(notifyEmbeddedPortfolio(window)){setReady(true);return}
   if(!host.current)return;const target=host.current;let cancelled=false,world:ReturnType<typeof createWorld>|null=null;
-    const frame=requestAnimationFrame(()=>{void Promise.all([import('./world'),import('./world-kit').then(module=>module.prepareWorldKit()),import('./architecture-kit').then(module=>module.prepareArchitectureKit()),import('./craft-kit').then(module=>module.prepareCraftKit()),import('./life-kit').then(module=>module.prepareLifeKit()),import('./architecture-shells').then(module=>module.prepareArchitectureShells())]).then(([{createWorld}])=>{
+    const frame=requestAnimationFrame(()=>{void Promise.all([import('./world'),import('./world-kit').then(module=>observeAssetPreparation('world-kit',module.prepareWorldKit())),import('./architecture-kit').then(module=>observeAssetPreparation('architecture-kit',module.prepareArchitectureKit())),import('./craft-kit').then(module=>observeAssetPreparation('craft-kit',module.prepareCraftKit())),import('./life-kit').then(module=>observeAssetPreparation('life-kit',module.prepareLifeKit())),import('./architecture-shells').then(module=>observeAssetPreparation('city-shells',module.prepareArchitectureShells()))]).then(([{createWorld}])=>{
    if(cancelled)return;const saved=loadSave();setSettings(saved.settings);if(saved.delivery)setDelivery(saved.delivery);
     world=createWorld(target,{onPlace:setPlace,onRadio:()=>{setCategory(null);setRadioVisited(true);setRadioOpen(true)},onFriends:view=>{setCategory(null);setFriendsView(view);setFriendsVisited(true);setFriendsOpen(true)},onFriendsActivity:setFriendsActivity,onVoiceEnabled:()=>setSettings(value=>({...value,muted:false})),onCommons:setInCommons,onCity:setCityName,onTransit:setTransit,onTransitOpen:()=>setPanel('transit'),onAngel:setAngel,onResume:(site,page)=>{setCategory(null);setReadingResume({site,page})},onProjectStudy:study=>{setProjectStudy(study);if(study)setCategory(null)},onMachine:setMachine,onMachineTick:()=>refreshMachine(n=>n+1),onReady:()=>setReady(true),onInteract:()=>setNotice('Find the System Information terminal beside the workshop, or mark a project entrance from Projects.'),onInfo:()=>setPanel('info'),onInside:setInside,onExhibit:setPanel,onPrompt:setPrompt,onRoute:setRoute,onNotice:setNotice,onDelivery:setDelivery,onEncounter:setEncounter,onSubtitle:setSubtitle,onPauseToggle:()=>setPaused(value=>!value),onPerformance:setPerformanceText},saved.settings,saved.delivery);game.current=world;
    const selected=projects.findIndex(project=>project.id===new URLSearchParams(location.search).get('project'));if(selected>=0)world.route(selected);
-  }).catch(()=>{if(!cancelled){setReady(true);setNotice('3D is unavailable on this device. Use the HTML project directory or readable résumé.')}})});
+  }).catch(error=>{if(!cancelled){recordDiagnostic('startup_failed',{phase:'world-startup',...diagnosticError(error)});setReady(true);setNotice('3D is unavailable on this device. Use the HTML project directory or readable résumé.')}})});
   return()=>{cancelled=true;cancelAnimationFrame(frame);world?.dispose();if(game.current===world)game.current=null};
  },[]);
  useEffect(()=>{game.current?.pause(panel!==null||machine!==null||readingResume!==null||friendsOpen||radioOpen);game.current?.setFriendsOverlay(friendsOpen)},[panel,machine,readingResume,friendsOpen,radioOpen,ready]);
@@ -78,6 +79,7 @@ export default function Home(){
  useEffect(()=>()=>friendsClient.dispose(),[friendsClient]);
  useEffect(()=>{if(!ready)return;let active=true;queueMicrotask(()=>{const query=new URLSearchParams(location.search);if(active&&(query.has('room')||query.has('friends'))){game.current?.goFriendsStation('lobby');setFriendsVisited(true);setFriendsOpen(true)}});return()=>{active=false}},[ready]);
  useEffect(()=>{game.current?.setPaused(paused)},[paused,ready]);
+ useEffect(()=>{if(ready)recordDiagnostic('ui_view',{phase:readingResume?'resume':friendsOpen?'friends':radioOpen?'radio':machine!==null?'machine':panel!==null?String(panel):category??'world',world:transit.current,destination:transit.destination,mode:transit.mode??'on-foot',cameraMode:settings.cameraMode,quality:settings.quality})},[ready,readingResume,friendsOpen,radioOpen,machine,panel,category,transit.current,transit.destination,transit.mode,settings.cameraMode,settings.quality]);
  useEffect(()=>{if(ready)game.current?.settings(settings)},[settings,ready]);
  useEffect(()=>{if(ready&&game.current)setSaveError(!writeSave(settings,delivery))},[settings,delivery,ready]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),9000);return()=>clearTimeout(timer)},[notice]);
@@ -148,6 +150,7 @@ export default function Home(){
  <button aria-label="Settings" title="Comfort and settings" onClick={()=>openPanel('settings')}><SlidersHorizontal size={18}/><span>Settings</span></button>
  <button title={settings.muted?'Enable sound':'Mute sound'} aria-label={settings.muted?'Enable sound':'Mute sound'} onClick={()=>{setSettings(value=>({...value,muted:!value.muted}));game.current?.sound(settings.muted)}}>{settings.muted?<VolumeX size={17}/>:<Volume2 size={17}/>}<span>{settings.muted?'Enable sound':'Mute sound'}</span></button>
  <button aria-label={paused?'Resume':'Pause'} title={paused?'Resume exploration':'Pause exploration'} aria-pressed={paused} onClick={()=>setPaused(value=>!value)}>{paused?<Play size={18}/>:<Pause size={18}/>}<span>{paused?'Resume':'Pause'}</span></button>
+ <button type="button" onClick={downloadDiagnostics}><FileDown size={18}/>Download diagnostics</button>
  {paused&&<><button onClick={()=>setPaused(false)}><Play size={16}/>Resume exploration</button><button onClick={()=>{game.current?.home();setPaused(false);setCategory(null)}}><Cpu size={16}/>Return to workshop</button></>}
  </div>
  </HudCategory>

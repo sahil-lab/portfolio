@@ -78,7 +78,7 @@ test('the self-hosted studio environment is bounded 1K HDR data rather than an L
 });
 test('postprocessing antialiasing follows output conversion, pixel budgets and quality lifetimes',()=>{
  const {EffectComposer}=require('three/addons/postprocessing/EffectComposer.js'),passes=[],original=EffectComposer.prototype.addPass,originalRender=EffectComposer.prototype.render;
- const renderer={info:{autoReset:true,reset(){}},getPixelRatio:()=>2,getSize:target=>target.set(390,844)};
+ const renderer={info:{autoReset:true,reset(){}},getPixelRatio:()=>2,getSize:target=>target.set(390,844),getRenderTarget:()=>null};
  let presentation,composer;
  EffectComposer.prototype.addPass=function(pass){composer=this;passes.push(pass);return original.call(this,pass)};
  EffectComposer.prototype.render=function(){this.swapBuffers()};
@@ -95,4 +95,11 @@ test('postprocessing antialiasing follows output conversion, pixel budgets and q
   const ratio=presentationPixelRatio(844,390,2);assert.equal(passes.at(-1).uniforms.resolution.value.x,1/(844*ratio));assert.equal(passes.at(-1).uniforms.resolution.value.y,1/(390*ratio));
  }finally{presentation?.dispose();EffectComposer.prototype.addPass=original;EffectComposer.prototype.render=originalRender}
  assert.equal(renderer.info.autoReset,true);
+});
+
+test('postprocessing failure restores the screen target and render state before direct recovery',()=>{
+ const {EffectComposer}=require('three/addons/postprocessing/EffectComposer.js'),original=EffectComposer.prototype.render,scene=new T.Scene(),fault=new Error('injected render failure'),temporaryMaterial=new T.MeshBasicMaterial();let target=null,drawnTo='not-rendered';
+ const renderer={info:{autoReset:true,reset(){}},autoClear:true,getPixelRatio:()=>1,getSize:value=>value.set(390,844),getRenderTarget:()=>target,setRenderTarget(value){target=value},render(){drawnTo=target}},presentation=createKingdomPresentation(renderer,scene,new T.PerspectiveCamera());
+ EffectComposer.prototype.render=function(){renderer.setRenderTarget(this.readBuffer);renderer.autoClear=false;scene.overrideMaterial=temporaryMaterial;throw fault};
+ try{presentation.quality('high');assert.throws(()=>presentation.render(),error=>error===fault);assert.equal(target===null,true,'failed composer retained an offscreen framebuffer');assert.equal(renderer.autoClear,true);assert.equal(scene.overrideMaterial===null,true);presentation.quality('low');presentation.render();assert.equal(drawnTo===null,true,'direct recovery did not draw to the screen')}finally{EffectComposer.prototype.render=original;presentation.dispose();temporaryMaterial.dispose()}
 });

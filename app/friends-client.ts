@@ -1,4 +1,5 @@
 import type {ClientAction,RoomSnapshot} from '../lib/friends-protocol';
+import {recordDiagnostic} from './client-diagnostics';
 
 export type FriendsState={status:'idle'|'connecting'|'connected'|'reconnecting'|'error';room:RoomSnapshot|null;id:string;error:string;iceServers:RTCIceServer[]};
 export const emptyFriendsState:FriendsState={status:'idle',room:null,id:'',error:'',iceServers:[]};
@@ -18,7 +19,7 @@ export class FriendsClient{
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}};
  onSignal(listener:(from:string,signal:unknown)=>void){this.signals.add(listener);return()=>{this.signals.delete(listener)}}
  serverNow(){return Date.now()+this.offset}
- private publish(update:Partial<FriendsState>){this.state={...this.state,...update};for(const listener of this.listeners)listener()}
+ private publish(update:Partial<FriendsState>){if(update.status&&update.status!==this.state.status)recordDiagnostic('service_state',{phase:'multiplayer',action:update.status,attempt:this.attempts});if(update.error&&update.error!==this.state.error)recordDiagnostic('service_failed',{phase:'multiplayer',reason:update.status??this.state.status,attempt:this.attempts});this.state={...this.state,...update};for(const listener of this.listeners)listener()}
  private key(code:string,name:string){return `kingdom.friends.identity:${code}:${name.toLowerCase()}`}
  join(type:'create'|'join',name:string,code=''){
   this.leave();this.stopped=false;this.attempts=0;
@@ -61,8 +62,9 @@ export class FriendsClient{
     }catch{this.publish({error:'An unreadable server message was ignored.'})}
    };
    socket.onerror=()=>{if(this.socket===socket)this.publish({error:'Cannot reach the multiplayer server.'})};
-   socket.onclose=()=>{
+    socket.onclose=event=>{
     if(this.socket!==socket||this.stopped)return;
+     recordDiagnostic('service_state',{phase:'multiplayer',action:'socket-closed',status:event.code});
     if(++this.attempts>5){this.publish({status:'error',error:'Connection lost. Rejoin the room to reconnect.'});return}
     this.publish({status:'reconnecting',error:'Connection lost. Reconnecting...'});
     this.retry=setTimeout(()=>this.connect(),Math.min(5000,500*2**this.attempts));

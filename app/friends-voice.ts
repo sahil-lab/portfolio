@@ -1,4 +1,5 @@
 import type {FriendsClient} from './friends-client';
+import {recordDiagnostic} from './client-diagnostics';
 
 type Peer={connection:RTCPeerConnection;audio:HTMLAudioElement;pending:RTCIceCandidateInit[]};
 export type VoiceState={enabled:boolean;busy:boolean;error:string;peers:number;volume:number};
@@ -18,7 +19,7 @@ export class FriendsVoice{
  }
  getState=()=>this.state;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}};
- private publish(update:Partial<VoiceState>){this.state={...this.state,...update};for(const listener of this.listeners)listener()}
+ private publish(update:Partial<VoiceState>){if(update.error&&update.error!==this.state.error)recordDiagnostic('service_failed',{phase:'voice',message:update.error});if(update.enabled!==undefined&&update.enabled!==this.state.enabled)recordDiagnostic('service_state',{phase:'voice',action:update.enabled?'enabled':'disabled'});this.state={...this.state,...update};for(const listener of this.listeners)listener()}
  async start(){
   if(this.stream||this.state.busy)return;
   if(!navigator.mediaDevices?.getUserMedia||!globalThis.RTCPeerConnection){this.publish({error:'Voice requires HTTPS or localhost and microphone support.'});return}
@@ -37,6 +38,7 @@ export class FriendsVoice{
   connection.onicecandidate=event=>{if(event.candidate)this.client.send({type:'signal',to:id,signal:{candidate:event.candidate.toJSON()}})};
   connection.ontrack=event=>{audio.srcObject=event.streams[0]??new MediaStream([event.track]);void audio.play().catch(()=>this.publish({error:'Audio playback is blocked. Enable audio to continue.'}))};
   connection.onconnectionstatechange=()=>{
+    recordDiagnostic('service_state',{phase:'voice',action:connection.connectionState});
    this.publish({peers:Array.from(this.peers.values()).filter(value=>value.connection.connectionState==='connected').length});
    if(connection.connectionState==='failed')this.publish({error:'Voice could not connect. This network may need a TURN relay.'});
   };

@@ -1,4 +1,5 @@
 import {radioUrl,type RadioStation} from './radio-data';
+import {recordDiagnostic} from './client-diagnostics';
 
 export type RadioPlayback={status:'idle'|'loading'|'playing'|'paused'|'error';station:RadioStation|null;error:string;volume:number};
 type HlsSession={destroy:()=>void};
@@ -17,7 +18,7 @@ export class RadioPlayer{
  constructor(private dependencies:Dependencies={}){}
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}};
  snapshot=()=>this.state;
- private publish(value:Partial<RadioPlayback>){this.state={...this.state,...value};for(const listener of this.listeners)listener()}
+ private publish(value:Partial<RadioPlayback>){if(value.status&&value.status!==this.state.status)recordDiagnostic('service_state',{phase:'radio',action:value.status});if(value.error&&value.error!==this.state.error)recordDiagnostic('service_failed',{phase:'radio',message:value.error});this.state={...this.state,...value};for(const listener of this.listeners)listener()}
  private release(){this.sequence++;this.controller?.abort();this.controller=null;this.clearSource?.();this.clearSource=null;this.media=null}
  setVolume(value:number){if(!Number.isFinite(value))return;const volume=Math.max(0,Math.min(1,value));if(this.media)this.media.volume=volume*this.masterVolume;this.publish({volume})}
  setMasterVolume(value:number){this.masterVolume=Number.isFinite(value)?Math.max(0,Math.min(1,value)):0;if(this.media)this.media.volume=this.state.volume*this.masterVolume}

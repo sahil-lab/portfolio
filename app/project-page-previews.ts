@@ -2,6 +2,7 @@ import * as T from 'three';
 import {CSS3DObject,CSS3DRenderer} from 'three/addons/renderers/CSS3DRenderer.js';
 import {projectBulletinSize,type createProjectBulletins} from './project-bulletins';
 import {portfolioEmbedMessage} from './embed-policy';
+import {recordDiagnostic} from './client-diagnostics';
 
 export function createProjectPreviewBudget(idleMs=2500,settleMs=900,loadIntervalMs=1200){
   const residents=new Map<number,number>(),pending=new Map<number,number>();let lastLoad=-Infinity;
@@ -37,10 +38,10 @@ export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:
     iframe.title=entry.project.name+' website';iframe.dataset.projectBulletin=entry.project.id;iframe.referrerPolicy='no-referrer';iframe.tabIndex=-1;
     iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups');Object.assign(iframe.style,{width:'100%',height:'100%',border:'0',pointerEvents:'none',opacity:'0',background:'transparent'});
     const object=new CSS3DObject(element);element.style.pointerEvents='none';object.visible=false;pages.add(object);let timer:ReturnType<typeof setTimeout>|undefined,started=false;
-    const stop=()=>{if(!started)return;started=false;clearTimeout(timer);iframe.style.opacity='0';iframe.removeAttribute('src');iframe.remove();entry.group.userData.previewState='fallback'};
-    const fallback=()=>{if(!disposed)stop()};
-    iframe.onerror=fallback;iframe.onload=()=>{if(disposed||!started)return;clearTimeout(timer);iframe.style.opacity='1';entry.group.userData.previewState='frame-loaded'};
-    return {entry,iframe,object,get allowed(){return allowed},block(){allowed=false;stop();object.visible=false;entry.group.userData.previewState='fallback'},start(){if(started||disposed||!allowed)return;started=true;entry.group.userData.previewState='loading';element.appendChild(iframe);iframe.src=entry.project.url;timer=setTimeout(fallback,18000)},stop,dispose(){clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.removeAttribute('src');iframe.remove();element.remove()}};
+    const stop=()=>{if(!started)return;started=false;recordDiagnostic('preview_state',{resource:entry.project.url,action:'unloaded'});clearTimeout(timer);iframe.style.opacity='0';iframe.removeAttribute('src');iframe.remove();entry.group.userData.previewState='fallback'};
+    const fallback=()=>{if(!disposed){recordDiagnostic('resource_failed',{phase:'project-preview',resource:entry.project.url,reason:'element-error-or-timeout'});stop()}};
+    iframe.onerror=fallback;iframe.onload=()=>{if(disposed||!started)return;recordDiagnostic('preview_state',{resource:entry.project.url,action:'frame-loaded',uncertain:true});clearTimeout(timer);iframe.style.opacity='1';entry.group.userData.previewState='frame-loaded'};
+    return {entry,iframe,object,get allowed(){return allowed},block(){recordDiagnostic('preview_state',{resource:entry.project.url,action:'blocked'});allowed=false;stop();object.visible=false;entry.group.userData.previewState='fallback'},start(){if(started||disposed||!allowed)return;started=true;recordDiagnostic('preview_state',{resource:entry.project.url,action:'loading'});entry.group.userData.previewState='loading';element.appendChild(iframe);iframe.src=entry.project.url;timer=setTimeout(fallback,18000)},stop,dispose(){clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.removeAttribute('src');iframe.remove();element.remove()}};
   });
   const embeddedPage=(event:MessageEvent)=>{
     if(disposed||event.data?.type!==portfolioEmbedMessage)return;

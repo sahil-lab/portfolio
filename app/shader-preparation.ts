@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {diagnosticError,recordDiagnostic} from './client-diagnostics';
 
 type Compiler=Pick<T.WebGLRenderer,'compile'|'properties'|'domElement'|'getRenderTarget'|'setRenderTarget'>;
 type ShaderProgram={isReady():boolean};
@@ -45,7 +46,7 @@ export function createShaderPreparation(renderer:Compiler,scene:T.Scene,camera:T
     try{renderer.setRenderTarget(target());materials=renderer.compile(source,camera,scene)}finally{renderer.setRenderTarget(previous)}
     await waitForPrograms(materials);
    });
-   const settled=job.finally(()=>{pending--});chain=settled.catch(()=>{});return settled;
+  const settled=job.catch(error=>{if(!(error instanceof Error&&error.name==='AbortError'))recordDiagnostic('shader_error',{phase:'preparation',scene:root.uuid,...diagnosticError(error)});throw error}).finally(()=>{pending--});chain=settled.catch(()=>{});return settled;
   },
   get pending(){return pending},
    dispose(this:void){disposed=true;return chain},

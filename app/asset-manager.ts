@@ -1,3 +1,5 @@
+import {diagnosticError,recordDiagnostic} from './client-diagnostics';
+
 export function createAssetManager(options:{concurrency?:number;paused?:boolean}={}){
  type Entry={id:string;references:number;priority:number;load:(signal:AbortSignal)=>Promise<unknown>;dispose:(value:unknown)=>void;controller:AbortController;promise:Promise<unknown>;resolve:(value:unknown)=>void;reject:(error:unknown)=>void;value?:unknown;loaded:boolean;state:'queued'|'loading'|'loaded'};
  const entries=new Map<string,Entry>(),queue:Entry[]=[];let active=0,paused=options.paused??false,disposed=false;
@@ -10,7 +12,7 @@ export function createAssetManager(options:{concurrency?:number;paused?:boolean}
    Promise.resolve().then(()=>entry.load(entry.controller.signal)).then(value=>{
     if(!entry.references||disposed||entry.controller.signal.aborted){entry.dispose(value);entry.reject(new DOMException('Asset released','AbortError'));return}
     entry.value=value;entry.loaded=true;entry.state='loaded';entry.resolve(value);
-    },error=>{if(entries.get(entry.id)===entry)entries.delete(entry.id);entry.reject(error)}).finally(()=>{active--;pump()});
+    },error=>{if(!(error instanceof Error&&error.name==='AbortError'))recordDiagnostic('asset_failed',{phase:'managed-asset',resource:entry.id,active,queued:queue.length,...diagnosticError(error)});if(entries.get(entry.id)===entry)entries.delete(entry.id);entry.reject(error)}).finally(()=>{active--;pump()});
   }
  }
  return {
