@@ -104,6 +104,12 @@ test('camera and movement preferences survive saves and default safely for older
  for(const cameraMode of ['first-person','close','far'])for(const movementMode of ['walk','skate']){const restored=saved({...defaultSettings,cameraMode,movementMode});assert.equal(restored.cameraMode,cameraMode);assert.equal(restored.movementMode,movementMode)}
  assert.equal(saved({cameraMode:'invalid'}).cameraMode,'far');assert.equal(saved({movementMode:'invalid'}).movementMode,'skate');
 });
+test('live project preview preferences survive saves and preserve older defaults',()=>{
+ const saved=value=>parseSave(JSON.stringify({version:1,settings:{projectPreviews:value}})).settings;
+ assert.equal(defaultSettings.projectPreviews,true);assert.equal(parseSave(null).settings.projectPreviews,true);
+ for(const value of [true,false])assert.equal(saved(value).projectPreviews,value);
+ for(const value of [undefined,null,'false',0])assert.equal(saved(value).projectPreviews,true);
+});
 test('vehicle camera can climb through the open atrium without an invisible ceiling',()=>{
  const {createAweWorld}=require('../app/awe-world.ts'),{disposeScene}=require('../app/scene-resources.ts');
  const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1,.1,1000);

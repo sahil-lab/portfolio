@@ -96,9 +96,15 @@ The Vercel-output validator passed, and all 290 runtime source fingerprints matc
 
 ### Controlled Phone Comparison
 
+Live previews can also be changed in **System > Settings > Live project previews**. The checkbox is on by default, saves its choice on this browser, and applies without reloading the world. Turning it off unloads active project frames and prevents new ones from loading; turning it back on resumes the normal nearby-preview selection. The statue, boards and project links remain available. Older saves keep previews enabled; resetting local settings restores that default.
+
+The explicit `?preview-test=off` URL takes precedence over the saved preference. On that URL the checkbox is unchecked and disabled, without changing the saved choice. Remove the parameter to use the checkbox normally.
+
+The settings addition passed 59 focused controls, preview and diagnostics tests, TypeScript, scoped lint, Vercel compilation and output validation. Its browser checks passed at desktop 1440 x 960/High and touch 390 x 844/Auto: 16 checks each, including the actual checkbox, no new preview requests while disabled, saved-off startup after a deliberate reload, re-enabling without replacing the current world, unchanged project URLs and URL-override precedence. Screenshots and canvas checks used controlled cross-origin project content; they do not establish that physical-device crashes are fixed. Evidence is under `outputs/performance/oct11-preview-settings/`. The first mobile harness attempt assumed child DPR equaled the parent's emulated DPR; it now records the actual positive child DPR while retaining the exact viewport/canvas and context-health checks.
+
 After this follow-up is deployed, compare the same route on the same phone and browser:
 
-1. Open the ordinary site URL, visit the statue and rotate through the five project boards.
+1. Open the ordinary site URL, ensure **Live project previews** is checked, visit the statue and rotate through the five project boards.
 2. Open the same URL with `?preview-test=off` (or append `&preview-test=off` if there is already a query). Repeat the route. The complete world, statue, boards and project links remain; only automatic live iframe loading is disabled for this explicit control. Logs report `previewMode: off`.
 3. Open each project directly in its own tab, then compare against its live preview inside the world. Close the extra test tabs before repeating to avoid adding unrelated memory pressure.
 4. Export both sessions promptly. If only the live-preview run restarts, investigate combined resource pressure and iframe lifecycle. If the control also restarts, investigate the mainland/renderer or navigation independently. A passing single run is not sufficient to prove a memory leak fixed.
