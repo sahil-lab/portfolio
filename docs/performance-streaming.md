@@ -12,6 +12,102 @@ Chrome's reported deployed-page failure was not reproduced locally. Resource
 pressure was measured and reduced, but these results do not establish the cause
 of that failure or certify the deployed Vercel site.
 
+## Roaming Resource Cleanup, 10 October 2026
+
+The user reported restarts after roaming between planets and requested that
+unnecessary memory be released. The current world was not passing the existing
+constrained-device budget or resource-release callback to the planet streamer,
+and was not invoking the existing hidden-GPU cleanup or inactive-world flushes.
+The published control reproduced the missing cleanup at its first planet: its
+memory-tour assertion failed because no hidden-mainland GPU release had run.
+It did not reproduce an actual page reload, so memory pressure remains a plausible
+cause of the reported restart rather than a confirmed browser crash diagnosis.
+
+The world now connects those existing resource controls:
+
+- Coarse-pointer and low-memory/low-core devices use a target of one detailed
+  planet and a three-second inactive retirement window. Other devices retain the
+  existing two-planet/fifteen-second cache. Active, observed and in-transit worlds
+  remain protected; these protections can temporarily exceed the cache target.
+- Entering the existing fully hidden mainland state releases its unshared GPU
+  geometry and texture allocations once per visit. This applies on desktop too.
+  CPU geometry, scene objects, materials and resources shared with visible
+  objects remain intact and re-upload when needed on return.
+- Unloading a planet clears retained renderer draw lists. Hiding the document or
+  losing the graphics context flushes inactive planets, unloads project previews
+  and pauses queued model downloads. The current world, travel destination,
+  observed world and active character/shared-activity worlds are protected.
+- Visible, render-ready recovery resumes queued assets and the existing render
+  loop. There is no new page reload, navigation trap, forced application GC,
+  resolution change or removal of scene content.
+
+### Travel Verification
+
+The exact candidate production build was tested in local Chrome on Intel Arc,
+using controlled project-page fixtures. Each circuit visited the statue, walked
+on planets 1, 2 and 7, and returned to the mainland. Retained-heap samples were
+taken only after inactive planets, previews and city-detail loading had settled.
+Garbage collection was requested by the test for those measurements, not by the
+application.
+
+| Check | Mobile Touch Emulation, Balanced | Desktop, High |
+| --- | ---: | ---: |
+| Viewport | 390x844 | 1440x960 |
+| Tour duration | 196.49 s | 196.19 s |
+| Circuits / planet visits | 7 / 21 | 3 / 9 |
+| Detailed planets during sampled normal visits | 1 | At most 2 |
+| Retained heap on settled returns | 337.79-340.44 MiB | 341.63-342.69 MiB |
+| First hidden-GPU release: allocated geometries | 988 to 223 | 2052 to 484 |
+| First hidden-GPU release: allocated textures | 116 to 41 | 196 to 52 |
+| Unexpected document or scene resets | 0 | 0 |
+
+The geometry/texture figures are actual renderer allocation counts, not VRAM
+bytes. The helper also reports attempted releases of resources that may never
+have been uploaded; those larger helper counts are not GPU savings.
+
+Both runs passed a controlled visibility-change check: two resident planets
+became one, the current planet and player position stayed unchanged, and asset
+pause/resume each ran once. An initial version of that test did not protect its
+extra planet during loading and failed to establish two residents; the corrected
+fixture protects it only while loading, removes protection before cleanup, and
+keeps the original assertions. The initial evidence is retained separately.
+
+Both runs also passed camera modes, pause/resume, preview lifetime and forced
+WebGL context restoration on the same scene/canvas. Mobile additionally passed
+six native swipes across three orientations. Active/paused/resumed render counts
+were 8/0/8. The existing low-quality context-recovery policy was not changed.
+Planet, mainland-return and recovery screenshots were nonblank and reviewed.
+All 33 focused resource/travel tests, TypeScript, scoped world lint and the
+production build passed. The full suite and Vercel packaging were not rerun for
+this local follow-up.
+
+### Roaming Cleanup Limits
+
+Stable post-GC retention does not imply low transient memory. Peak sampled heap
+across the full workflow was 896.87 MiB on mobile emulation (during the later
+graphics-recovery phase) and 1058.41 MiB on desktop (during a planet visit with two
+resident worlds). These are JavaScript heap samples, not total process memory,
+not measured VRAM and not evidence of a remaining leak by themselves. Temporary
+allocation peaks and the substantial baseline world still need to be considered
+on constrained physical devices.
+
+No explicit automatic reload call was found in the searched application code.
+Browser/OS tab termination, device-specific GPU failures, external pages and
+network conditions are outside a guarantee that an app can never reload. This
+pass fixes a confirmed retention gap and verifies repeated local travel; it does
+not certify the user's physical device or establish the exact cause of every
+reported restart. No new reload-recovery checkpoint behavior was added.
+
+Evidence: `outputs/performance/oct10-roaming-retention/summary.json`,
+`mobile-verified/balanced-mobile.json`, `desktop-verified/high-desktop.json`, their
+logs and captures under that directory. `before/` records the published control;
+`mobile/` retains the initial visibility-fixture failure. Runtime fingerprints are
+in `built-source.json`; `verified-browser-source.json` records the later
+harness-only readiness/fixture corrections. The private build is under
+`outputs/performance-source/oct10-roaming-retention/` and the candidate preview is
+`http://127.0.0.1:4361/`. These are local verification results; hosted deployment
+and physical-device behavior have not been certified.
+
 ## Interaction Panel Recovery, 10 October 2026
 
 The user reported a blank screen after any interaction on the local preview at

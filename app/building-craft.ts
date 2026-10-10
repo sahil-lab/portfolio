@@ -10,6 +10,7 @@ export function architectureMaterials(style:ArchitectureStyle,accent?:string){
  const palette=architectureProfiles[style],finish=(color:string,roughness=.74,metalness=.06):T.MeshStandardMaterial=>new T.MeshPhysicalMaterial({color,roughness,metalness});
  const materials={wall:finish(accent??palette.wall),stone:finish(palette.stone),rail:finish('#293f46',.58,.15),metal:finish(palette.metal,.4,.55),wood:finish(palette.wood,.87),glass:finish(palette.glass,.22,.22),leaf:finish(palette.leaf,.96)};
  applyArchitectureSurface(materials.wall,'ceramic');applyArchitectureSurface(materials.stone,'stone');applyArchitectureSurface(materials.metal,'brushed');applyArchitectureSurface(materials.wood,'timber');
+ Object.assign(materials.wall,{roughness:.68,clearcoat:.06,clearcoatRoughness:.5});Object.assign(materials.stone,{roughness:.6,clearcoat:.22,clearcoatRoughness:.35});Object.assign(materials.rail,{roughness:.42,metalness:.4});materials.metal.roughness=.36;Object.assign(materials.wood,{roughness:.74,clearcoat:.06});
  const interior=createWindowInteriorAtlas();materials.glass.aoMap=interior.occlusion;materials.glass.aoMapIntensity=.75;materials.glass.emissiveMap=interior.emission;
  materials.leaf.userData.surface=materials.wood.userData.surface='natural';materials.wall.userData.surface=materials.stone.userData.surface='ceramic';materials.glass.userData.surface='glass';return materials;
 }

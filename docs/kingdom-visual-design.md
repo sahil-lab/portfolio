@@ -29,6 +29,123 @@ lots and participate in collision checks. The small-screen Commons arrival has a
 tested sight line past the radio to the kettle storefront. The open atrium no
 longer imposes the previous solid ceiling on orbital camera movement.
 
+## Optimized Diorama Finish, 10 October 2026
+
+The supplied reference calls for richer midtones, rounded edge highlights,
+distinct paint/trim/metal response and subtle contact depth. Its screenshots have
+different framing and browser chrome, so the quoted luminance/saturation values
+are directional guides, not directly comparable measurements or a percentage
+match target.
+
+The shared finish applies to the mainland and streamed planets without new
+lights, postprocessing passes, larger render targets, extra texture downloads or
+a LUT lookup. The existing memory-cleanup, input and panel-recovery work remains
+in place. The only change to the world controller in this visual pass is exposure.
+
+- Fitted premium blocks preserve their Blender-authored normals. The previous
+  fitter recomputed them, discarding the authored edge shading. A real-asset test
+  verifies identical normals, dimensions, vertex count and triangle count after
+  fitting. Legacy fallback normals retain their existing path.
+- Medium trims now use the existing bevel treatment down to 0.14 units of
+  thickness instead of 0.22. Tiny rails/traces and very large foundations remain
+  simple. The 108-triangle primitive cap is unchanged.
+- Generic facade window surrounds use two-segment bevels with bounded width and
+  the original 0.12-unit depth. Their openings remain clear. A 64-entry LRU cache
+  avoids rebuilding repeated shape profiles while returning independently owned
+  geometry. Indexed facade batching avoids expanding every box into separate
+  triangle vertices; per-building draw-group and triangle budgets still pass.
+  A follow-up indexes the cached bevel profiles by exact Float32 attribute bits,
+  retaining normal and UV seams. The tested chamfer, arch and square profiles
+  use 15360, 26448 and 7232 bytes instead of 18432, 29952 and 9216 bytes. Their
+  expanded positions, normals and UVs remain byte-identical. This is a 12-22%
+  profile-storage saving, not the same percentage of the entire scene.
+- The workshop's custom window surrounds already had two-segment bevels and are
+  retained. Existing native body, machine and shop profiles are not subdivided
+  indiscriminately.
+- Authored vertex-AO materials no longer fall into the vegetation finish bucket
+  solely because they use vertex colors. Their distinct environment responses
+  survive finishing; explicitly natural materials keep the natural response.
+- Shared ceramic paint is rougher with a lighter clearcoat. Building walls use
+  roughness 0.68, trim 0.60 with stronger clearcoat, rails 0.42, metal 0.36 and
+  timber 0.74. Existing glazing, roughness/normal maps, color identities and
+  independent animated materials remain in use.
+- Exposure is 0.95 instead of 1.08, approximately 12% lower. The existing Neutral
+  tone curve keeps its highlight roll-off; saturation is 1.08, vibrance 0.34 and
+  the faint warm black floor is slightly lower. The grade stays inside the
+  existing tone-mapping hook, without another full-screen pass.
+- GTAO blend increases from 0.72 to 0.78 with the same depth source, radius,
+  resolution budget and sample count. VSM softness increases from 5/2048 to
+  6/2048 with unchanged map sizes, blur samples and update cadence.
+
+### Initial Visual Evidence
+
+Matched production workshop captures passed on desktop and mobile across low,
+balanced, high, local time, night and movement. Desktop High sampled mean
+luminance moved from 0.543 to 0.506 and saturation from 0.391 to 0.421; mobile
+local-time mean moved from 0.529 to 0.491 and saturation from 0.435 to 0.468.
+Desktop High sampled draws were 2186 for both builds; triangles increased from
+1538911 to 1559311, about 1.3%. These frame counters include shadow passes and
+are not a whole-application FPS measurement.
+
+The 46-view architecture tour also passed mainland locations, all nine planets
+at surface and orbital distances, first-person movement and night, with no page
+errors, blank canvases or horizontal overflow. Representative workshop, planet
+and night captures were reviewed. The full suite passed 692 of 703 tests; the
+same eleven previously documented baseline failures remain. TypeScript, scoped
+runtime lint and the production build passed. The generated city shell and hero
+assets passed source verification. The city cache checksum differs from the
+frozen control; the original GLBs and generated hero packages are unchanged.
+The cache difference is confined to 235 lookup keys containing the existing
+source palette; its 33333152-byte vertex payload is identical. The compressed
+file changes from 3624067 to 3624097 bytes. This corrects stale lookup keys, not
+the city geometry.
+
+### Initial Performance Cost
+
+The first full visual candidate added 6.8-13.0 MiB of geometry storage at the
+sampled locations. Fixed-Balanced paired timings were slower, including after
+reversing the execution order on mobile. These results are retained rather than
+presented as a performance win:
+
+| Location | Desktop Mean, Before / After | Mobile Mean, Before / After |
+| --- | ---: | ---: |
+| Plaza | 152.03 / 160.36 ms | 54.44 / 89.25 ms |
+| Project gallery | 133.51 / 135.74 ms | 41.67 / 70.74 ms |
+| Mainland return | 156.29 / 188.70 ms | 49.63 / 71.85 ms |
+| Citadel | 118.76 / 146.29 ms | 45.00 / 48.52 ms |
+
+Absolute frame times on this machine vary substantially between sessions. This
+first pair does not isolate the cause of every timing difference. It prompted
+the byte-exact profile-indexing follow-up above; no visual feature was removed
+to improve the figures. The initial candidate's mobile memory/lifecycle run
+passed two circuits in 182.81 seconds with inactive-world cleanup, touch input
+and context restoration intact. That run predates the indexing follow-up.
+
+The initial timing and cache-difference records are under
+`outputs/performance/oct10-diorama-finish/initial-performance.json`, with full
+paired reports under `outputs/performance/oct10-diorama-runtime-desktop/` and
+`outputs/performance/oct10-diorama-runtime-reversed-mobile/`. The follow-up passed
+all 18 focused architecture tests plus TypeScript, scoped lint and a new build;
+the earlier 703-test run was not rerun after this lossless indexing-only change.
+The follow-up's long browser benchmark was stopped before producing final results
+when publication was requested. Its final FPS and repeat-soak results remain
+unverified; the completed initial comparisons above do not demonstrate a speedup.
+
+Blender's addon could not be reached for either status or scene inspection. This
+pass therefore does not claim a fresh Blender bevel remodel, bake or native-file
+export. It reuses the existing authored profiles and adds runtime facade geometry
+within explicit budgets. An exact offline-render match and physical-phone frame
+rates are not certified.
+
+The control is the memory-cleanup build at port 4361 with privately frozen public
+assets. The compact candidate is `http://127.0.0.1:4363/`, built from
+`outputs/performance-source/oct10-diorama-compact/`; the first candidate remains
+archived under `outputs/performance-source/oct10-diorama-finish/`. Source fingerprints, logs and
+comparison metadata are under `outputs/performance/oct10-diorama-finish/`;
+captures use the `oct10-diorama-before`, `oct10-diorama-after` and
+`oct10-diorama-worlds` prefixes under `outputs/playtest/`. These are local
+verification results; deployment status is not certified by these checks.
+
 ## Presentation and accessibility
 
 - Space Grotesk and Fraunces are served locally from `public/assets/fonts`, with

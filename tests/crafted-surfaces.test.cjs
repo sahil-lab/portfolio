@@ -12,11 +12,12 @@ test('stone, timber and brushed metal use distinct deterministic height and roug
 });
 
 test('crafted edges preserve architecture and collision dimensions',()=>{
-  for(const dimensions of [[4,3,2],[.1,4,2],[110,2,264]]){
+  for(const dimensions of [[4,3,2],[8,.18,1.2],[.1,4,2],[110,2,264]]){
     const geometry=craftedBox(...dimensions);geometry.computeBoundingBox();
     assert.ok((geometry.index?.count??geometry.attributes.position.count)/3<=108,'Repeated edge geometry must remain within the primitive budget');
     const size=geometry.boundingBox.getSize(new T.Vector3()).toArray();
     size.forEach((value,index)=>assert.ok(Math.abs(value-dimensions[index])<.00001));
+    if(Math.min(...dimensions)>=.14&&Math.max(...dimensions)<=100)assert.ok(Array.from(geometry.attributes.normal.array).some(value=>Math.abs(value)>.01&&Math.abs(value)<.99),'body and medium trim edges must retain bevel shading');
     assert.ok(Array.from(geometry.attributes.normal.array).every(Number.isFinite));geometry.dispose();
   }
 });

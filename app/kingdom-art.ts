@@ -36,7 +36,7 @@ export function finishKingdomMaterials(scene:T.Object3D){
       if(finished.has(material)||!(material instanceof T.MeshStandardMaterial))continue;
       finished.add(material);
       material.dithering=true;
-      const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.vertexColors||material.userData.surface==='natural',ceramic=material.userData.surface==='ceramic';
+      const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.userData.surface==='natural'||material.vertexColors&&!material.userData.authoredArchitecture&&!material.userData.authoredCraft,ceramic=material.userData.surface==='ceramic';
       if(!polished&&!natural&&!ceramic&&!material.map){
         // Floors keep authored satin trims distinct from matte walls; ceilings stop surfaces going chalky.
         material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.3:.46,material.metalness>.35?.5:.82);

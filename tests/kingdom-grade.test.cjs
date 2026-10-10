@@ -46,3 +46,10 @@ test('the world renderer adopts the shared grade through the custom tone mapping
   assert.match(source,/renderer\.toneMapping=installKingdomToneMapping\(\)/);
   assert.doesNotMatch(source,/renderer\.toneMapping=T\.NeutralToneMapping/);
 });
+
+test('authored vertex shading retains distinct paint, trim and metal responses instead of becoming foliage',()=>{
+ const {finishKingdomMaterials}=require('../app/kingdom-art.ts'),{disposeScene}=require('../app/scene-resources.ts'),scene=new T.Scene(),geometry=new T.BoxGeometry();geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(.85),3));
+ const paint=new T.MeshPhysicalMaterial({color:'#d4a329',vertexColors:true,roughness:.8,metalness:.02,clearcoat:.05,envMapIntensity:.55}),trim=new T.MeshPhysicalMaterial({color:'#edf1ee',vertexColors:true,roughness:.48,metalness:.06,clearcoat:.22,envMapIntensity:.85}),metal=new T.MeshPhysicalMaterial({color:'#287e7e',vertexColors:true,roughness:.34,metalness:.7,envMapIntensity:.88}),leaf=new T.MeshStandardMaterial({vertexColors:true,roughness:.95,envMapIntensity:1});
+ for(const material of [paint,trim,metal])material.userData.authoredArchitecture=true;leaf.userData.surface='natural';for(const material of [paint,trim,metal,leaf])scene.add(new T.Mesh(geometry,material));
+ finishKingdomMaterials(scene);assert.equal(metal.envMapIntensity,.88);assert.equal(trim.envMapIntensity,.85);assert.equal(paint.envMapIntensity,.55);assert.equal(leaf.envMapIntensity,.5);assert.ok(paint.roughness>trim.roughness&&trim.roughness>metal.roughness);assert.equal(trim.clearcoat,.22);assert.equal(paint.color.getHexString(),'d4a329');disposeScene(scene);
+});

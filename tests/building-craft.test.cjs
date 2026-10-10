@@ -2,6 +2,23 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{createCraftedBuilding,architectureMaterials,bakeArchitecture}=require('../app/building-craft.ts'),{architectureProfiles}=require('../app/architecture-profiles.ts'),{disposeScene}=require('../app/scene-resources.ts');
 function signature(root){const hash=crypto.createHash('sha256');root.updateMatrixWorld(true);root.traverse(object=>{if(!object.isMesh)return;hash.update(JSON.stringify(object.matrixWorld.elements));const positions=object.geometry.attributes.position;hash.update(Buffer.from(positions.array.buffer,positions.array.byteOffset,positions.array.byteLength))});return hash.digest('hex')}
+test('facade indexing is byte-exact across positions, normals and UV seams',()=>{
+ const {indexFacadeGeometry}=require('../app/facade-craft.ts'),shape=new T.Shape();shape.moveTo(-1,-1);shape.lineTo(1,-1);shape.lineTo(1,1);shape.lineTo(-1,1);shape.closePath();
+ const source=new T.ExtrudeGeometry(shape,{depth:.12,bevelEnabled:true,bevelSegments:2,bevelSize:.012,bevelThickness:.012}),indexed=indexFacadeGeometry(new T.BufferGeometry().copy(source)),expanded=indexed.toNonIndexed();
+ assert.ok(indexed.index);assert.ok(indexed.attributes.position.count<source.attributes.position.count*.8);assert.equal(indexed.index.count,source.attributes.position.count);assert.deepEqual(indexed.groups,source.groups);
+ for(const [name,attribute] of Object.entries(source.attributes)){const actual=expanded.attributes[name];assert.equal(actual.itemSize,attribute.itemSize);assert.equal(actual.normalized,attribute.normalized);assert.ok(Buffer.from(actual.array.buffer,actual.array.byteOffset,actual.array.byteLength).equals(Buffer.from(attribute.array.buffer,attribute.array.byteOffset,attribute.array.byteLength)),name+' changed')}
+ for(const geometry of [source,indexed,expanded])geometry.dispose();
+});
+test('window frames cache two-segment bevels while preserving openings, depth and independent ownership',context=>{
+ const {facadeWindowFrame}=require('../app/facade-craft.ts'),extract=context.mock.method(T.Shape.prototype,'extractPoints');
+ for(const profile of ['chamfer','arch','square']){
+  const first=facadeWindowFrame(1.321,2.013,profile),calls=extract.mock.callCount(),second=facadeWindowFrame(1.321,2.013,profile);assert.equal(extract.mock.callCount(),calls,'repeated frames repeated shape construction');assert.ok(first.index);const stored=Object.values(first.attributes).reduce((total,attribute)=>total+attribute.array.byteLength,first.index.array.byteLength),expanded=Object.values(first.attributes).reduce((total,attribute)=>total+first.index.count*attribute.itemSize*attribute.array.BYTES_PER_ELEMENT,0);assert.ok(stored<expanded,'indexing must reduce total profile storage');assert.notEqual(first.attributes.position.array.buffer,second.attributes.position.array.buffer);assert.deepEqual(first.attributes.normal.array,second.attributes.normal.array);
+  const bounds=first.boundingBox;assert.ok(Math.abs(bounds.min.z)<1e-6&&Math.abs(bounds.max.z-.12)<1e-6);assert.ok(bounds.min.x>=-1.321/2-.001&&bounds.max.x<=1.321/2+.001);assert.ok(bounds.min.y>=-2.013/2-.001&&bounds.max.y<=2.013/2+.001);assert.ok((first.index?.count??first.attributes.position.count)/3<=600);
+  const normals=first.attributes.normal;assert.ok(Array.from({length:normals.count},(_,index)=>Math.abs(normals.getZ(index))).some(value=>value>.05&&value<.95),'bevel edge normals are missing');
+  const mesh=new T.Mesh(first,new T.MeshStandardMaterial({side:T.DoubleSide}));assert.equal(new T.Raycaster(new T.Vector3(0,0,1),new T.Vector3(0,0,-1)).intersectObject(mesh).length,0,'frame sealed the window opening');first.attributes.position.setX(0,99);assert.notEqual(second.attributes.position.getX(0),99);disposeScene(mesh);second.dispose();
+ }
+ for(let index=0;index<65;index++)facadeWindowFrame(1.6+index*.001,2.1,'square').dispose();const before=extract.mock.callCount();facadeWindowFrame(1.321,2.013,'chamfer').dispose();assert.ok(extract.mock.callCount()>before,'frame cache did not retire old profiles');
+});
 test('individual buildings have nonrepeating massing and details even without material differences',()=>{
  for(const style of Object.keys(architectureProfiles)){
   const signatures=new Set(),silhouettes=new Set();
@@ -22,7 +39,8 @@ test('each planet style is detailed on all four faces and stays inside its place
 });
 test('material batching preserves unique building shape in seven or fewer draw groups',()=>{
  for(const style of Object.keys(architectureProfiles)){
-  const building=createCraftedBuilding({style,address:'bake',materials:architectureMaterials(style)}),before=new T.Box3().setFromObject(building.root),skins=bakeArchitecture(building.root),baked=new T.Group();
+  const building=createCraftedBuilding({style,address:'bake',materials:architectureMaterials(style)}),detail=building.root.getObjectByName('Atelier_FacadeCraft'),trim=detail.children.find(mesh=>mesh.material===building.materials.stone);assert.ok(trim.geometry.index);assert.ok(trim.geometry.attributes.position.count<trim.geometry.index.count,'facade batching duplicated indexed trim vertices');
+  const before=new T.Box3().setFromObject(building.root),skins=bakeArchitecture(building.root),baked=new T.Group();
   skins.forEach(skin=>baked.add(new T.Mesh(skin.geometry,skin.material)));const after=new T.Box3().setFromObject(baked);assert.ok(before.min.distanceTo(after.min)<1e-5&&before.max.distanceTo(after.max)<1e-5);assert.ok(skins.length<=7);disposeScene(baked);
  }
 });

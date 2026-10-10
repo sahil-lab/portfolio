@@ -10,7 +10,7 @@ import type {Settings} from './persistence';
 import {createShaderPreparation} from './shader-preparation';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
-export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.72};
+export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.78};
 export const presentationPixelBudget=1600000;
 export function presentationPixelRatio(width:number,height:number,ratio:number){return Math.min(ratio,Math.sqrt(presentationPixelBudget/Math.max(1,width*height)))}
 

@@ -42,7 +42,7 @@ export function authoredBlock(width:number,height:number,depth:number,radius=0){
  const geometry=source.clone(),positions=geometry.attributes.position,dimensions=[width,height,depth],corner=Math.min(radius,Math.min(width,height,depth)*.45);
  const stretch=(value:number,size:number)=>radius>0?Math.sign(value)*(Math.abs(value)>.88?size/2-corner+(Math.abs(value)-.88)/.12*corner:Math.abs(value)/.88*(size/2-corner)):value*size/2;
  for(let index=0;index<positions.count;index++)positions.setXYZ(index,stretch(positions.getX(index),dimensions[0]),stretch(positions.getY(index),dimensions[1]),stretch(positions.getZ(index),dimensions[2]));
- Object.assign(geometry,{parameters,type:'BlenderBlockGeometry'});finishGeometry(geometry);blockTemplates.set(key,geometry);
+ Object.assign(geometry,{parameters,type:'BlenderBlockGeometry'});finishGeometry(geometry,!!source.userData.premiumPart);blockTemplates.set(key,geometry);
  if(blockTemplates.size>128){const oldest=blockTemplates.keys().next().value!;blockTemplates.get(oldest)!.dispose();blockTemplates.delete(oldest)}
  return Object.assign(geometry.clone(),{parameters:{...parameters},type:'BlenderBlockGeometry'});
 }

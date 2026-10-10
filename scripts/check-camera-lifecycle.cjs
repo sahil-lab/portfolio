@@ -237,6 +237,7 @@ async function main(){
   if(options.memory){
    await page.evaluate(()=>Promise.allSettled([__cameraLifecycleWorld.goldMonument.ready,__cameraLifecycleWorld.dog.ready,__cameraLifecycleWorld.angel.ready]));
    const client=await page.context().newCDPSession(page),started=Date.now(),returned=[];let cycles=0;
+    await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});
    const frames=count=>page.evaluate(count=>new Promise(resolve=>{let remaining=count;function next(){if(--remaining>0)requestAnimationFrame(next);else resolve()}requestAnimationFrame(next)}),count);
   const pixels=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const sample=document.createElement('canvas');sample.width=96;sample.height=64;const context=sample.getContext('2d');context.drawImage(document.querySelector('.world canvas'),0,0,96,64);const data=context.getImageData(0,0,96,64).data,colors=new Set();for(let offset=0;offset<data.length;offset+=4)colors.add([data[offset]>>4,data[offset+1]>>4,data[offset+2]>>4].join(','));resolve(colors.size)})));
    const stable=state=>{assert.equal(state.document,original.document);assert.equal(state.scene,original.scene);assert.equal(state.insertions,1);assert.equal(state.lost,0);assert.ok(state.streaming.loading<=1)};
@@ -249,15 +250,24 @@ async function main(){
       assert.equal(await page.evaluate(destination=>__cameraLifecycleWorld.goSharedPlanet(destination),destination),true);await page.waitForFunction(destination=>__cameraLifecycleWorld.transport.streaming.ready(destination),destination,{timeout:180000});
       for(const key of ['w','d','s','a']){await page.keyboard.down(key);try{await frames(45)}finally{await page.keyboard.up(key)}}
       assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.transport.journey.current),destination,'planet roaming reset the destination');
-      const state=await snapshot('memory-planet-'+destination+'-'+cycles);stable(state);assert.ok(state.streaming.resident<=2);assert.ok(await pixels()>20,'planet canvas is blank after GPU cleanup');
-      if(options.mobile){assert.ok(state.homeGpuRelease);assert.ok(state.homeGpuRelease.after.geometries<state.homeGpuRelease.before.geometries,'hidden mainland GPU allocations were not released')}
+      const state=await snapshot('memory-planet-'+destination+'-'+cycles);stable(state);assert.ok(state.streaming.resident<=(options.mobile?1:2),'inactive planets exceeded the device cache budget');assert.ok(await pixels()>20,'planet canvas is blank after GPU cleanup');
+      assert.ok(state.homeGpuRelease);assert.ok(state.homeGpuRelease.after.geometries<state.homeGpuRelease.before.geometries,'hidden mainland GPU allocations were not released');assert.ok(state.homeGpuRelease.after.textures<state.homeGpuRelease.before.textures,'hidden mainland GPU textures were not released');
       if(!cycles&&destination===7)await page.screenshot({path:path.join(output,'memory-planet.png')});
      }
-     assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza')),true);await page.waitForFunction(()=>__cameraLifecycleWorld.transport.streaming.snapshot().resident===0&&__cameraLifecycleWorld.projectPages.frames.every(frame=>!frame.iframe.isConnected),null,{timeout:30000});
+    assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza')),true);await page.waitForFunction(()=>{const world=__cameraLifecycleWorld,city=world.city.streaming();return world.transport.streaming.snapshot().resident===0&&city.loading===0&&city.pending===0&&world.projectPages.frames.every(frame=>!frame.iframe.isConnected)},null,{timeout:90000});
     await client.send('HeapProfiler.collectGarbage');const state=await snapshot('memory-return-'+cycles);stable(state);assert.ok(await pixels()>20,'mainland canvas did not recover its GPU resources');await page.screenshot({path:path.join(output,'memory-return.png')});returned.push(state.heap);if(cycles>0)assert.ok(state.heap<returned[0]+48*1024*1024,'retained heap grew by more than 48 MiB across completed travel cycles');cycles++;
     }while(cycles<2||Date.now()-started<180000);
     events.push({event:'memory-tour',durationMs:Date.now()-started,cycles,returnedHeap:returned,projectFixtures:!!options.performance});
     console.log('MEMORY_TOUR_OK '+JSON.stringify(events.at(-1)));
+    assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goSharedPlanet(1)),true);await page.waitForFunction(()=>__cameraLifecycleWorld.transport.streaming.ready(1),null,{timeout:180000});
+    const visibility=await page.evaluate(async()=>{
+      const world=__cameraLifecycleWorld,extra=world.transport.landscapes[2];extra.root.userData.observed=true;try{if(!await world.transport.streaming.load(2))throw Error('Visibility fixture planet failed to load')}finally{extra.root.userData.observed=false}const before=world.transport.streaming.snapshot(),position=world.player.position.toArray(),hidden=Object.getOwnPropertyDescriptor(document,'hidden'),start=world.assets.start,pause=world.assets.pause;let starts=0,pauses=0;
+     world.assets.start=function(){starts++;return start.call(this)};world.assets.pause=function(){pauses++;return pause.call(this)};
+     try{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));const after=world.transport.streaming.snapshot(),kept=world.transport.streaming.ready(1),released=!world.transport.streaming.ready(2);if(hidden)Object.defineProperty(document,'hidden',hidden);else delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));return {before:before.resident,after:after.resident,kept,released,position,samePosition:JSON.stringify(position)===JSON.stringify(world.player.position.toArray()),starts,pauses}}
+     finally{if(hidden)Object.defineProperty(document,'hidden',hidden);else delete document.hidden;world.assets.start=start;world.assets.pause=pause;document.dispatchEvent(new Event('visibilitychange'))}
+    });
+    assert.equal(visibility.before,2);assert.equal(visibility.after,1);assert.equal(visibility.kept,true);assert.equal(visibility.released,true);assert.equal(visibility.samePosition,true);assert.equal(visibility.starts,1);assert.equal(visibility.pauses,1);stable(await snapshot('memory-visibility-resumed'));assert.ok(await pixels()>20);events.push({event:'memory-visibility-cleanup',...visibility});console.log('MEMORY_VISIBILITY_OK '+JSON.stringify(visibility));
+    assert.equal(await page.evaluate(()=>__cameraLifecycleWorld.goCapital('plaza')),true);await page.waitForFunction(()=>__cameraLifecycleWorld.transport.streaming.snapshot().resident===0,null,{timeout:30000});
    }finally{await client.detach()}
   }
   if(options.touch){

@@ -3,7 +3,7 @@ import * as T from 'three';
 export type PremiumSurface='ceramic'|'stone'|'timber'|'brushed';
 type SurfaceMaps={color:T.Texture;roughness:T.Texture;normal:T.Texture};
 const surfaces:Record<PremiumSurface,{roughness:number;metalness:number;clearcoat:number;clearcoatRoughness:number;normalStrength:number}>={
- ceramic:{roughness:.55,metalness:.02,clearcoat:.14,clearcoatRoughness:.4,normalStrength:.55},
+ ceramic:{roughness:.62,metalness:.02,clearcoat:.08,clearcoatRoughness:.45,normalStrength:.55},
  stone:{roughness:.76,metalness:.02,clearcoat:.04,clearcoatRoughness:.6,normalStrength:.65},
  timber:{roughness:.58,metalness:.01,clearcoat:.12,clearcoatRoughness:.4,normalStrength:.45},
  brushed:{roughness:.4,metalness:.45,clearcoat:.04,clearcoatRoughness:.4,normalStrength:.4},

@@ -9,7 +9,7 @@ import * as T from 'three';
  * while leaving saturated paint mostly alone, `warmth` leans only the highlights slightly toward
  * the sun, and `midtone` > 1 opens lower midtones (1 keeps the Neutral curve's midtones).
  */
-export const kingdomGrade={lift:[.0034,.0031,.0027] as [number,number,number],saturation:1.06,vibrance:.3,warmth:.02,midtone:1};
+export const kingdomGrade={lift:[.0024,.0022,.002] as [number,number,number],saturation:1.08,vibrance:.34,warmth:.02,midtone:1};
 export type KingdomGrade=typeof kingdomGrade;
 
 const hook='vec3 CustomToneMapping( vec3 color ) { return color; }';
