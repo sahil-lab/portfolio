@@ -12,11 +12,13 @@ export function createShaderPreparation(renderer:Compiler,scene:T.Scene,camera:T
    function finish(error?:unknown){
     if(settled)return;settled=true;
     if(timer!==undefined)clearTimeout(timer);
-    for(const material of materials)material.removeEventListener('dispose',cancel);
-    renderer.domElement.removeEventListener('webglcontextlost',cancel);
+    for(const material of materials)material.removeEventListener('dispose',cancelMaterial);
+    renderer.domElement.removeEventListener('webglcontextlost',cancelContext);
     programs.clear();if(error===undefined)resolve();else reject(error);
    }
-   function cancel(){finish(new DOMException('Shader preparation invalidated','AbortError'))}
+  function cancel(reason:string){finish(new DOMException('Shader preparation cancelled: '+reason,'AbortError'))}
+  function cancelMaterial(){cancel('material-disposed')}
+  function cancelContext(){cancel('context-lost')}
    function check(){
     if(settled)return;
     try{
@@ -27,10 +29,10 @@ export function createShaderPreparation(renderer:Compiler,scene:T.Scene,camera:T
    try{
     for(const material of materials){
      const {currentProgram:program}=renderer.properties.get(material) as {currentProgram?:ShaderProgram};
-     if(!program){cancel();return}
-     programs.add(program);material.addEventListener('dispose',cancel);
+    if(!program){cancel('missing-program');return}
+    programs.add(program);material.addEventListener('dispose',cancelMaterial);
     }
-    renderer.domElement.addEventListener('webglcontextlost',cancel);check();
+    renderer.domElement.addEventListener('webglcontextlost',cancelContext);check();
    }catch(error){finish(error)}
   });
  }
@@ -46,7 +48,7 @@ export function createShaderPreparation(renderer:Compiler,scene:T.Scene,camera:T
     try{renderer.setRenderTarget(target());materials=renderer.compile(source,camera,scene)}finally{renderer.setRenderTarget(previous)}
     await waitForPrograms(materials);
    });
-  const settled=job.catch(error=>{if(!(error instanceof Error&&error.name==='AbortError'))recordDiagnostic('shader_error',{phase:'preparation',scene:root.uuid,...diagnosticError(error)});throw error}).finally(()=>{pending--});chain=settled.catch(()=>{});return settled;
+  const settled=job.catch(error=>{recordDiagnostic(error instanceof Error&&error.name==='AbortError'?'shader_cancelled':'shader_error',{phase:'preparation',scene:root.uuid,...diagnosticError(error)});throw error}).finally(()=>{pending--});chain=settled.catch(()=>{});return settled;
   },
   get pending(){return pending},
    dispose(this:void){disposed=true;return chain},

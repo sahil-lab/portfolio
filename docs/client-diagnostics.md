@@ -33,7 +33,9 @@ Deploy the diagnostics changes before expecting these records. No additional dat
 vercel logs --project portfolio --environment production --no-branch --since 1h --query KINGDOM_CLIENT --json --limit 1000 | Out-File -Encoding utf8 outputs/client-diagnostics.jsonl
 ```
 
-For live reproduction, use `vercel logs --project portfolio --follow --json --query KINGDOM_CLIENT`. CLI live following lasts up to five minutes. Older CLI versions may not have historical/query options; check `vercel logs --help`. Narrow the time range or increase the result limit when an export is truncated. No CLI authentication tokens should be pasted into a chat or source file.
+Vercel CLI 63.1.2 rejects `--query` with `--follow`. For live reproduction, use `vercel logs --project portfolio --follow --json` and filter the parsed JSON locally for `KINGDOM_CLIENT`. Historical `--query` remains supported. Live following lasts up to five minutes and can exit with code 1 when that limit expires; that is not an application crash. Check `vercel logs --help` for the installed version. Narrow the time range or increase the result limit when an export is truncated. No CLI authentication tokens should be pasted into a chat or source file.
+
+Historical JSONL groups events inside `logs[]` as well as the request's top-level `message`. Parse both and deduplicate by `(sessionId, pageId, seq)`; reading only `message` misses much of a batch. On this Windows machine, Node 24 needed `--use-system-ca` for Vercel certificate verification. The process-local setting uses Windows trust without disabling TLS validation; never use `NODE_TLS_REJECT_UNAUTHORIZED=0` as a workaround.
 
 As documented on the research date, Vercel retention is Hobby **1 hour**, Pro **1 day**, Enterprise **3 days**, or **30 days** with Observability Plus on eligible plans. Export promptly. Current log-output limits are 256 lines/request, 256 KB/line, and 1 MB/request; our 20-event/48,000-byte batches are below these. Plan capabilities can change; check the linked Vercel documentation. Long-term collection requires a separately configured drain or storage destination and is not included here.
 
@@ -62,12 +64,46 @@ Collection starts when the root client component mounts. A failure that prevents
 
 ## Bounds And Privacy
 
-- Maximum 120 events/minute per page, with ordinary events limited to 100 to reserve failure capacity; identical events within one second are suppressed. Dropped counts are carried forward. Very large storms still lose events by design.
+- Maximum 120 events/minute per page, with ordinary events limited to 100 to reserve capacity for failures, impending preview loads and navigation checkpoints; identical events within one second are suppressed. Dropped counts are carried forward. Very large storms still lose events by design.
 - At most 120 in-memory history entries and 60 queued events. Saved history plus queue is capped at 180,000 encoded bytes, trimming older history and then pending events when necessary. Events are capped at 6,000 bytes; stacks at 1,800 characters.
 - Batches contain at most 20 events and 48,000 bytes. Flush checks run every 10 seconds; critical events request earlier delivery with a five-second minimum spacing. Delivery failures back off from 20 seconds to five minutes. Only one normal request is in flight, with an eight-second timeout.
 - Hidden/pagehide events try a bounded beacon. The shared browser beacon queue is finite, so accepted enqueueing is not an acknowledgement of ingestion. Normal delivery does not consume the keepalive quota; the recorder never retries by reloading the page.
 - The endpoint revalidates and sanitizes reports, bounds streamed request bytes, rejects browser cross-site origins and non-JSON bodies, and applies per-process limits of 60 requests/peer/minute and 600 total/minute with a bounded peer map. These limits are **not distributed authentication**. Non-browser clients can forge headers and session IDs. Use Vercel Firewall/rate limits for stronger abuse and cost protection.
 - No passwords, cookies, authorization headers, room codes/identities, chat text, microphone data, guest terminal commands or guest state bytes are intentionally collected. URL credentials/query/fragment are removed, common secrets/emails are redacted, and fields are allowlisted. Browser/OS family and version replace the full user agent in our payload. Arbitrary error text and URL pathnames can still contain sensitive content; inspect exports before sharing and avoid putting secrets in paths or error messages. Vercel independently retains its ordinary request metadata, including IP/UA according to its policies.
+
+## Preview Restart Follow-Up
+
+The production Chrome-on-iOS capture showed an old preview unloaded at 17:23:49.314 UTC, Codepad starting at 17:23:49.323, and a new page at 17:23:51.870 on 10 October 2026. That 2.547-second correlation and the incomplete-session marker make the shared preview lifecycle a strong suspect. They do not identify an out-of-memory kill. The navigation type was `back_forward`, and no immediate JavaScript exception or main-canvas context-loss event was captured.
+
+[WebKit bug 218168](https://bugs.webkit.org/show_bug.cgi?id=218168) describes repeated WebGL iframe-to-blank loads growing memory and eventually restarting a page on iOS 14. Its engineer response references [back-buffer ownership fix 217212](https://bugs.webkit.org/show_bug.cgi?id=217212), landed in 2020. This is useful precedent, not proof that the same defect exists in the reported iOS 18.7/26.6.1 environments. There is no page-JavaScript API that forces iOS to reclaim all GPU memory or reports the OS's exact termination reason.
+
+The follow-up keeps every project and normal automatic preview, while changing the lifecycle ordering: set `src` before attaching the iframe; clear handlers and detach before removing `src`; ignore callbacks belonging to an earlier load generation. This avoids an unnecessary attached `about:blank` navigation and stale completion reports. It is a focused mitigation, not a guarantee of immediate memory reclamation.
+
+Additional diagnostics now include:
+
+- A synchronous local checkpoint before a live preview is attached, followed by a bounded/throttled send attempt. An offline or killed process can still prevent network delivery.
+- Active preview IDs and count, total starts/stops, pending selection count, last preview URL, load generation, elapsed load time and time since the most recent unload.
+- Internal iframe size and projected CSS size at lifecycle events; device DPR is recorded separately from the main renderer's DPR. The internal viewport is still 1440 x 496. Actual child canvas counts/pixels are collected only when same-origin access is available; cross-origin values remain null with `childObservable: false`. No DOM text, guest commands or chat content is read.
+- Passive top-document `navigate` events where supported, plus `popstate`, `hashchange`, link-click context and history length. These do not intercept or prevent navigation. Browser-native gestures and hard process termination may provide no event.
+- Exact prior checkpoint/event timestamps, sequence, uptime, resource/action and active preview IDs on `previous_session_incomplete`. Previously clipped `previousSeenAt` values of `1000000000000` are invalid historical timing evidence; use the outer `at`/`receivedAt` fields for old records.
+- `shader_cancelled` separately from `shader_error`, with `missing-program`, `material-disposed` or `context-lost` in the cancellation message. A cancellation is not evidence that the browser ran out of memory.
+
+### Follow-Up Verification
+
+The follow-up was verified locally using an isolated Vercel build. Desktop High quality at 1440 x 960 and touch Auto quality at 390 x 844 each passed 12 preview-diagnostics checks, including all five board loads and the preview-off control. Desktop captured nine diagnostic batches and mobile seven. These runs used controlled cross-origin pages, not the full external project applications, and do not certify physical iPhone stability.
+
+The Vercel-output validator passed, and all 290 runtime source fingerprints matched the tested build at the 11 October publication preparation. Screenshots showed the world and boards retained with normal and control behavior. Local evidence is under `outputs/performance/oct10-preview-checkpoints/`, including `desktop-verified/`, `mobile-verified/`, `built-source.json` and `vercel-output.log`. Ignored build snapshots, raw logs and screenshots are not part of the Git publication; the implementation, reproducible checks and this report are included.
+
+### Controlled Phone Comparison
+
+After this follow-up is deployed, compare the same route on the same phone and browser:
+
+1. Open the ordinary site URL, visit the statue and rotate through the five project boards.
+2. Open the same URL with `?preview-test=off` (or append `&preview-test=off` if there is already a query). Repeat the route. The complete world, statue, boards and project links remain; only automatic live iframe loading is disabled for this explicit control. Logs report `previewMode: off`.
+3. Open each project directly in its own tab, then compare against its live preview inside the world. Close the extra test tabs before repeating to avoid adding unrelated memory pressure.
+4. Export both sessions promptly. If only the live-preview run restarts, investigate combined resource pressure and iframe lifecycle. If the control also restarts, investigate the mainland/renderer or navigation independently. A passing single run is not sufficient to prove a memory leak fixed.
+
+For an OS-level cause, inspect the iPhone's Analytics Data around the recorded UTC time (Settings > Privacy & Security > Analytics & Improvements > Analytics Data), if available. A matching JetsamEvent/WebContent crash report can distinguish a memory termination from other failures. Preserve timestamp, affected process, `reason`, `rpages` and `pageSize`; redact device identifiers and unrelated process details before sharing. Alternatively use Safari Web Inspector on a Mac with the phone connected to record memory and navigation. Vercel cannot retrieve these device-only reports.
 
 ## Confirmed Rendering Fault
 

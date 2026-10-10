@@ -140,29 +140,33 @@ test('project preview residency is bounded and leaving the gallery unloads runni
  assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
  assert.deepEqual(budget.update([],3010,1,false),{load:[],unload:[4],visible:[]});assert.equal(budget.residents.size,0);
 });
-for(const placement of ['top-level','embedded','self','redirected'])test('project preview frame safety and ownership: '+placement,()=>{
- const previous=global.document;
+for(const placement of ['top-level','embedded','self','redirected','control'])test('project preview frame safety and ownership: '+placement,context=>{
+ const previous=global.document,mutations=[],checkpoints=[],diagnostics=require('../app/client-diagnostics.ts');context.mock.method(diagnostics,'checkpointDiagnostic',(type,data)=>checkpoints.push({type,data}));
  class Element{
   constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document;this.contentWindow={}}
   setAttribute(name,value){this[name]=value}
-  removeAttribute(name){delete this[name]}
+  set src(value){mutations.push({action:'src',connected:!!this.parentNode});this.source=value}
+  get src(){return this.source}
+  get isConnected(){return !!this.parentNode}
+  getBoundingClientRect(){return {width:360,height:124}}
+  removeAttribute(name){if(name==='src'){mutations.push({action:'clear',connected:!!this.parentNode});delete this.source}else delete this[name]}
   appendChild(child){child.remove();this.children.push(child);child.parentNode=this;return child}
   removeChild(child){this.children=this.children.filter(value=>value!==child);child.parentNode=null;return child}
   remove(){this.parentNode?.removeChild(this)}
  }
- const browser=Object.assign(new EventTarget(),{Element,location:{href:'https://portfolio.test/'}});browser.self=browser;browser.top=placement==='embedded'?{}:browser;
+ const browser=Object.assign(new EventTarget(),{Element,location:{href:'https://portfolio.test/'+(placement==='control'?'?preview-test=off':'')}});browser.self=browser;browser.top=placement==='embedded'?{}:browser;
  global.document={createElement:()=>new Element(),addEventListener(){},removeEventListener(){},hidden:false,defaultView:browser};
  let previews;
  try{
   const {createProjectPagePreviews}=require('../app/project-page-previews.ts'),entry={project:{name:'Fixture',id:'fixture',url:placement==='self'?'https://portfolio.test/?project=fixture':'https://example.test/'},group:new T.Group()};
   previews=createProjectPagePreviews(new Element(),new T.Scene(),new T.PerspectiveCamera(),new T.Group(),{entries:[entry],root:new T.Group()});const frame=previews.frames[0];
-  if(placement==='embedded'||placement==='self'){frame.start();assert.equal(frame.iframe.parentNode===null,true,'unsafe nested website was attached');assert.equal(frame.iframe.src,undefined);assert.equal(entry.group.userData.previewState,'fallback');assert.equal(previews.stats.loaded,0);return}
+  if(placement==='embedded'||placement==='self'||placement==='control'){frame.start();assert.equal(frame.iframe.parentNode===null,true,'unsafe or controlled website was attached');assert.equal(frame.iframe.src,undefined);assert.equal(entry.group.userData.previewState,'fallback');assert.equal(previews.stats.loaded,0);if(placement==='control'){assert.equal(previews.diagnostics().previewMode,'off');assert.equal(checkpoints[0].data.action,'control-disabled')}return}
   if(placement==='redirected'){
    const {portfolioEmbedMessage}=require('../app/embed-policy.ts'),send=source=>{const event=new Event('message');Object.assign(event,{source,data:{type:portfolioEmbedMessage}});browser.dispatchEvent(event)};
    frame.start();send({});assert.ok(frame.iframe.parentNode,'an unrelated window disabled a preview');send(frame.iframe.contentWindow);assert.equal(frame.iframe.parentNode,null);assert.equal(frame.allowed,false);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.equal(frame.iframe.parentNode,null);return;
   }
-  assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);
-  frame.start();assert.ok(frame.iframe.parentNode);frame.iframe.onerror();assert.equal(frame.iframe.parentNode,null);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.ok(frame.iframe.parentNode);
+  assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);const oldLoad=frame.iframe.onload,oldError=frame.iframe.onerror;assert.equal(checkpoints[0].data.action,'loading');assert.equal(checkpoints[0].data.connected,false);assert.equal(checkpoints[0].data.previewWidth,1440);assert.equal(checkpoints[0].data.childObservable,false);assert.equal(checkpoints[0].data.childCanvasCount,null);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);assert.equal(frame.iframe.onload,null);assert.equal(frame.iframe.onerror,null);
+  frame.start();assert.ok(frame.iframe.parentNode);oldLoad();oldError();assert.equal(entry.group.userData.previewState,'loading','an old visit affected the current frame');frame.iframe.onerror();assert.equal(frame.iframe.parentNode,null);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.ok(frame.iframe.parentNode);assert.equal(previews.diagnostics().previewActive,1);assert.equal(previews.diagnostics().previewStarts,3);assert.equal(previews.diagnostics().previewStops,2);assert.equal(checkpoints.at(-1).data.previewGeneration,3);assert.equal(mutations.some(change=>change.connected),false,'src navigation occurred while attached');
  }finally{previews?.dispose();global.document=previous}
 });
 

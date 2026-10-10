@@ -2,7 +2,7 @@ import * as T from 'three';
 import {CSS3DObject,CSS3DRenderer} from 'three/addons/renderers/CSS3DRenderer.js';
 import {projectBulletinSize,type createProjectBulletins} from './project-bulletins';
 import {portfolioEmbedMessage} from './embed-policy';
-import {recordDiagnostic} from './client-diagnostics';
+import {checkpointDiagnostic,recordDiagnostic} from './client-diagnostics';
 
 export function createProjectPreviewBudget(idleMs=2500,settleMs=900,loadIntervalMs=1200){
   const residents=new Map<number,number>(),pending=new Map<number,number>();let lastLoad=-Infinity;
@@ -26,27 +26,35 @@ export function createProjectPreviewBudget(idleMs=2500,settleMs=900,loadInterval
 
 export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:T.Camera,player:T.Group,gallery:ReturnType<typeof createProjectBulletins>){
   const browser=host.ownerDocument.defaultView,current=browser?.location?.href?new URL(browser.location.href):null,embedded=!!browser&&browser.self!==browser.top;
+  const previewMode=current?.searchParams.get('preview-test')==='off'?'off':'normal';
   const renderer=new CSS3DRenderer(),pages=new T.Scene(),budget=createProjectPreviewBudget(),stats={loaded:0,visible:0,boundsScans:0,cssRenders:0,starts:0,stops:0,pending:0};let disposed=false,checkedAt=-Infinity,selectedAt=-Infinity,dirty=true;
+  let lastUnload=-Infinity,lastResource:string|null=null;
   renderer.domElement.className='project-page-previews';renderer.domElement.setAttribute('aria-hidden','true');
   Object.assign(renderer.domElement.style,{position:'absolute',inset:'0',pointerEvents:'none',overflow:'hidden'});host.appendChild(renderer.domElement);
   const blockers:{bounds:T.Box3;owner:T.Object3D}[]=[],ray=new T.Ray(),target=new T.Vector3(),normal=new T.Vector3(),direction=new T.Vector3(),hit=new T.Vector3(),scale=new T.Vector3(),offset=new T.Vector3(0,-.45,0),frustum=new T.Frustum(),projection=new T.Matrix4(),lastCamera=new T.Matrix4(),lastProjection=new T.Matrix4(),screenSphere=new T.Sphere();let candidates:number[]=[];
   const frames=gallery.entries.map(entry=>{
-    const destination=new URL(entry.project.url);let allowed=!embedded&&(!current||destination.origin!==current.origin||destination.pathname.replace(/\/+$/,'')!==current.pathname.replace(/\/+$/,''));
+    const destination=new URL(entry.project.url);let allowed=previewMode==='normal'&&!embedded&&(!current||destination.origin!==current.origin||destination.pathname.replace(/\/+$/,'')!==current.pathname.replace(/\/+$/,''));
     if(!allowed)entry.group.userData.previewState='fallback';
     const element=document.createElement('div'),iframe=document.createElement('iframe');
     Object.assign(element.style,{width:'1440px',height:'496px',overflow:'hidden',pointerEvents:'none',background:'transparent'});
     iframe.title=entry.project.name+' website';iframe.dataset.projectBulletin=entry.project.id;iframe.referrerPolicy='no-referrer';iframe.tabIndex=-1;
     iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups');Object.assign(iframe.style,{width:'100%',height:'100%',border:'0',pointerEvents:'none',opacity:'0',background:'transparent'});
-    const object=new CSS3DObject(element);element.style.pointerEvents='none';object.visible=false;pages.add(object);let timer:ReturnType<typeof setTimeout>|undefined,started=false;
-    const stop=()=>{if(!started)return;started=false;recordDiagnostic('preview_state',{resource:entry.project.url,action:'unloaded'});clearTimeout(timer);iframe.style.opacity='0';iframe.removeAttribute('src');iframe.remove();entry.group.userData.previewState='fallback'};
-    const fallback=()=>{if(!disposed){recordDiagnostic('resource_failed',{phase:'project-preview',resource:entry.project.url,reason:'element-error-or-timeout'});stop()}};
-    iframe.onerror=fallback;iframe.onload=()=>{if(disposed||!started)return;recordDiagnostic('preview_state',{resource:entry.project.url,action:'frame-loaded',uncertain:true});clearTimeout(timer);iframe.style.opacity='1';entry.group.userData.previewState='frame-loaded'};
-    return {entry,iframe,object,get allowed(){return allowed},block(){recordDiagnostic('preview_state',{resource:entry.project.url,action:'blocked'});allowed=false;stop();object.visible=false;entry.group.userData.previewState='fallback'},start(){if(started||disposed||!allowed)return;started=true;recordDiagnostic('preview_state',{resource:entry.project.url,action:'loading'});entry.group.userData.previewState='loading';element.appendChild(iframe);iframe.src=entry.project.url;timer=setTimeout(fallback,18000)},stop,dispose(){clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.removeAttribute('src');iframe.remove();element.remove()}};
+    const object=new CSS3DObject(element);element.style.pointerEvents='none';object.visible=false;pages.add(object);let timer:ReturnType<typeof setTimeout>|undefined,started=false,generation=0,startedAt=0;
+    const details=()=>{const bounds=element.getBoundingClientRect?.();let childCanvasCount:number|null=null,childCanvasPixels:number|null=null,childObservable=false;try{const child=iframe.contentDocument;if(child&&new URL(child.URL).origin===current?.origin){childObservable=true;const canvases=Array.from(child.querySelectorAll('canvas'));childCanvasCount=canvases.length;childCanvasPixels=canvases.slice(0,32).reduce((sum,canvas)=>sum+canvas.width*canvas.height,0)}}catch{}return {...diagnostics(),resource:entry.project.url,phase:entry.project.id,previewGeneration:generation,previewWidth:1440,previewHeight:496,previewDisplayWidth:bounds?.width??0,previewDisplayHeight:bounds?.height??0,connected:iframe.isConnected,childObservable,childCanvasCount,childCanvasPixels,durationMs:Math.round(performance.now()-startedAt)}};
+    const stop=(reason='not-selected')=>{if(!started)return;started=false;stats.stops++;clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.style.opacity='0';iframe.remove();iframe.removeAttribute('src');lastUnload=performance.now();entry.group.userData.previewState='fallback';recordDiagnostic('preview_state',{...details(),action:'unloaded',reason})};
+    return {entry,iframe,object,get allowed(){return allowed},get active(){return started},block(){recordDiagnostic('preview_state',{...details(),action:'blocked',reason:'nested-portfolio'});allowed=false;stop('nested-portfolio');object.visible=false;entry.group.userData.previewState='fallback'},start(){
+      if(started||disposed||!allowed)return;started=true;stats.starts++;generation++;startedAt=performance.now();lastResource=entry.project.url;const token=generation;
+      const fallback=(reason:string)=>{if(disposed||!started||token!==generation)return;recordDiagnostic('resource_failed',{...details(),action:'failed',reason});stop(reason)};
+      iframe.onerror=()=>fallback('element-error');iframe.onload=()=>{if(disposed||!started||token!==generation)return;clearTimeout(timer);iframe.style.opacity='1';entry.group.userData.previewState='frame-loaded';recordDiagnostic('preview_state',{...details(),action:'frame-loaded',uncertain:true})};
+      entry.group.userData.previewState='loading';checkpointDiagnostic('preview_state',{...details(),action:'loading',sinceUnloadMs:Number.isFinite(lastUnload)?Math.round(startedAt-lastUnload):null});iframe.src=entry.project.url;element.appendChild(iframe);timer=setTimeout(()=>fallback('load-timeout'),18000);
+    },stop,dispose(){stop('disposed');clearTimeout(timer);iframe.onload=iframe.onerror=null;iframe.remove();iframe.removeAttribute('src');element.remove()}};
   });
+  function diagnostics(){return {previewMode,previewActive:frames.filter(frame=>frame.active).length,previewPending:budget.pending.size,previewStarts:stats.starts,previewStops:stats.stops,previewIds:frames.filter(frame=>frame.active).map(frame=>frame.entry.project.id).join(','),previewLastResource:lastResource}}
+  if(previewMode==='off')checkpointDiagnostic('preview_state',{...diagnostics(),action:'control-disabled',reason:'preview-test'});
   const embeddedPage=(event:MessageEvent)=>{
     if(disposed||event.data?.type!==portfolioEmbedMessage)return;
     const index=frames.findIndex(frame=>frame.iframe.contentWindow!==null&&frame.iframe.contentWindow===event.source);if(index<0)return;
-    frames[index].block();if(budget.residents.delete(index))stats.stops++;budget.pending.delete(index);stats.loaded=budget.residents.size;stats.pending=budget.pending.size;stats.visible=frames.filter(frame=>frame.object.visible).length;renderer.domElement.style.display=stats.visible?'':'none';dirty=true;
+    frames[index].block();budget.residents.delete(index);budget.pending.delete(index);stats.loaded=budget.residents.size;stats.pending=budget.pending.size;stats.visible=frames.filter(frame=>frame.object.visible).length;renderer.domElement.style.display=stats.visible?'':'none';dirty=true;
   };browser?.addEventListener('message',embeddedPage);
   function visible(object:T.Object3D){for(let current:T.Object3D|null=object;current;current=current.parent)if(!current.visible)return false;return true}
   function render(active=true,limit=2){
@@ -79,12 +87,12 @@ export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:
       }
       candidates.sort((first,second)=>{const score=(index:number)=>frames[index].entry.approach.distanceToSquared(player.position)/(budget.residents.has(index)?1.2:1);return score(first)-score(second)});dirty=true;
     }
-    const decision=budget.update(nearby?candidates:[],now,limit,nearby);for(const index of decision.unload){frames[index].stop();stats.stops++}for(const index of decision.load){frames[index].start();stats.starts++}stats.pending=budget.pending.size;
+    const decision=budget.update(nearby?candidates:[],now,limit,nearby);for(const index of decision.unload)frames[index].stop(nearby?'selection-changed':'inactive');for(const index of decision.load)frames[index].start();stats.pending=budget.pending.size;
     for(const [index,frame] of frames.entries()){const shown=decision.visible.includes(index);if(frame.object.visible!==shown)dirty=true;frame.object.visible=shown}
     stats.loaded=budget.residents.size;stats.visible=decision.visible.length;renderer.domElement.style.display=stats.visible?'':'none';
     if(!nearby){selectedAt=-Infinity;return}
     if(stats.visible&&(dirty||!lastCamera.equals(camera.matrixWorld)||!lastProjection.equals((camera as T.PerspectiveCamera).projectionMatrix))){renderer.render(pages,camera);stats.cssRenders++;lastCamera.copy(camera.matrixWorld);lastProjection.copy((camera as T.PerspectiveCamera).projectionMatrix);dirty=false}
   }
-  const hidden=()=>{if(document.hidden){for(const index of budget.update([],performance.now(),0,false).unload){frames[index].stop();stats.stops++}stats.loaded=stats.visible=stats.pending=0;renderer.domElement.style.display='none';selectedAt=-Infinity}};document.addEventListener('visibilitychange',hidden);
-  return {frames,stats,render,resize:(width:number,height:number)=>{renderer.setSize(Math.max(1,width),Math.max(1,height));dirty=true;selectedAt=-Infinity},dispose(){if(disposed)return;disposed=true;browser?.removeEventListener('message',embeddedPage);document.removeEventListener('visibilitychange',hidden);for(const frame of frames)frame.dispose();pages.clear();renderer.domElement.remove()}};
+  const hidden=()=>{if(document.hidden){for(const index of budget.update([],performance.now(),0,false).unload)frames[index].stop('page-hidden');stats.loaded=stats.visible=stats.pending=0;renderer.domElement.style.display='none';selectedAt=-Infinity}};document.addEventListener('visibilitychange',hidden);
+  return {frames,stats,diagnostics,render,resize:(width:number,height:number)=>{renderer.setSize(Math.max(1,width),Math.max(1,height));dirty=true;selectedAt=-Infinity},dispose(){if(disposed)return;disposed=true;browser?.removeEventListener('message',embeddedPage);document.removeEventListener('visibilitychange',hidden);for(const frame of frames)frame.dispose();pages.clear();renderer.domElement.remove()}};
 }

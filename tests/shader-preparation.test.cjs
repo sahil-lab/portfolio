@@ -51,7 +51,7 @@ test('disposing a material during native shader polling cancels without an unhan
  states.set(material,{currentProgram:{isReady:()=>false}});material.addEventListener('dispose',()=>states.delete(material));
  const renderer={properties,domElement:new EventTarget(),getRenderTarget:()=>null,setRenderTarget(){},compile:()=>new Set([material]),compileAsync:nativeCompileAsync(properties)};
  const preparation=createShaderPreparation(renderer,new T.Scene(),new T.PerspectiveCamera(),()=>null),root=new T.Mesh(new T.BoxGeometry(),material);
- const job=preparation.prepare(root),cancelled=assert.rejects(job,{name:'AbortError'});await Promise.resolve();material.dispose();
+ const job=preparation.prepare(root),cancelled=assert.rejects(job,{name:'AbortError',message:'Shader preparation cancelled: material-disposed'});await Promise.resolve();material.dispose();
  assert.doesNotThrow(()=>context.mock.timers.tick(10));await cancelled;assert.equal(preparation.pending,0);
 });
 
@@ -69,7 +69,7 @@ test('readiness polling checks shared programs once and removes completed progra
 test('context loss cancels pending polls and a restored renderer can prepare again',async context=>{
  context.mock.timers.enable({apis:['setTimeout']});let ready=false,checks=0;
  const renderer=compiler(()=>{},()=>{checks++;return ready}),preparation=createShaderPreparation(renderer,new T.Scene(),new T.PerspectiveCamera(),()=>null);
- const job=preparation.prepare(new T.Group()),cancelled=assert.rejects(job,{name:'AbortError'});await Promise.resolve();renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+ const job=preparation.prepare(new T.Group()),cancelled=assert.rejects(job,{name:'AbortError',message:'Shader preparation cancelled: context-lost'});await Promise.resolve();renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
  await cancelled;context.mock.timers.tick(100);assert.equal(checks,1);assert.equal(preparation.pending,0);ready=true;await preparation.prepare(new T.Group());assert.equal(checks,2);
 });
 
@@ -78,4 +78,8 @@ test('a readiness exception rejects its job without an unhandled timer or a pois
  const renderer=compiler(()=>{},()=>{if(fail)throw Error('readiness failed');return ready}),preparation=createShaderPreparation(renderer,new T.Scene(),new T.PerspectiveCamera(),()=>null);
  const job=preparation.prepare(new T.Group()),rejected=assert.rejects(job,/readiness failed/);await Promise.resolve();fail=true;
  assert.doesNotThrow(()=>context.mock.timers.tick(10));await rejected;fail=false;ready=true;await preparation.prepare(new T.Group());assert.equal(preparation.pending,0);
+});
+
+test('missing shader programs are identifiable cancellations rather than compile failures',async context=>{
+ const diagnostics=require('../app/client-diagnostics.ts'),events=[];context.mock.method(diagnostics,'recordDiagnostic',(type,data)=>events.push({type,data}));const renderer=compiler(()=>{});renderer.properties.get=()=>({});const preparation=createShaderPreparation(renderer,new T.Scene(),new T.PerspectiveCamera(),()=>null);await assert.rejects(preparation.prepare(new T.Group()),{name:'AbortError',message:'Shader preparation cancelled: missing-program'});assert.equal(events.length,1);assert.equal(events[0].type,'shader_cancelled');assert.equal(preparation.pending,0);
 });

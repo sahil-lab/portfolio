@@ -1,15 +1,16 @@
-export const diagnosticTypes=['app_started','app_stopped','page_hidden','page_visible','pagehide','pageshow','page_reloaded','previous_session_incomplete','online','offline','window_error','unhandled_rejection','resource_failed','fetch_failed','fetch_slow','shader_error','shader_warning','console_error','console_warning','panel_failed','panel_retry','scene_initialized','scene_ready','scene_disposed','startup_failed','frame_error','webgl_context_lost','webgl_context_restored','world_changed','ui_view','asset_started','asset_ready','asset_failed','asset_cancelled','planet_load_started','planet_ready','planet_failed','planet_unloaded','memory_released','performance_sample','frame_stall','heartbeat','service_state','service_failed','preview_state'] as const;
+export const diagnosticTypes=['app_started','app_stopped','page_hidden','page_visible','pagehide','pageshow','page_reloaded','previous_session_incomplete','navigation_event','online','offline','window_error','unhandled_rejection','resource_failed','fetch_failed','fetch_slow','shader_error','shader_warning','shader_cancelled','console_error','console_warning','panel_failed','panel_retry','scene_initialized','scene_ready','scene_disposed','startup_failed','frame_error','webgl_context_lost','webgl_context_restored','world_changed','ui_view','asset_started','asset_ready','asset_failed','asset_cancelled','planet_load_started','planet_ready','planet_failed','planet_unloaded','memory_released','performance_sample','frame_stall','heartbeat','service_state','service_failed','preview_state'] as const;
 export type DiagnosticType=typeof diagnosticTypes[number];
 export type DiagnosticData=Record<string,string|number|boolean|null>;
 export type DiagnosticEvent={type:DiagnosticType;sessionId:string;pageId:string;seq:number;at:number;uptime:number;data:DiagnosticData};
 export const diagnosticLimits={batchBytes:48000,batchEvents:20,eventBytes:6000,history:120,queue:60};
 const types=new Set<string>(diagnosticTypes);
-const strings=new Set('message stack resource phase action mode quality cameraMode reason errorName build browser os navigation previousPageId previousType scene visibility gpu renderTarget'.split(' '));
-const numbers=new Set('world destination x y z cameraX cameraY cameraZ near far yaw pitch zoom width height dpr cores deviceMemory durationMs fps p95 draws triangles geometries textures programs heapUsed heapLimit resident queued active loading loaded bytes status attempt dropped count savedAt previousSeenAt line column rendererFrames lagMs failures maxTextureSize maxCubemapSize maxTextures maxVertexTextures maxAttributes maxSamples'.split(' '));
-const booleans=new Set('ready paused hidden contextLost online persisted wasDiscarded inApp uncertain reducedMotion stableCamera finiteCamera'.split(' '));
+const strings=new Set('message stack resource phase action mode quality cameraMode reason errorName build browser os navigation previousPageId previousType previousResource previousAction previousPreviews previewIds previewLastResource previewMode scene visibility gpu renderTarget'.split(' '));
+const numbers=new Set('world destination x y z cameraX cameraY cameraZ near far yaw pitch zoom width height dpr deviceDpr cores deviceMemory durationMs fps p95 draws triangles geometries textures programs heapUsed heapLimit resident queued active loading loaded bytes status attempt dropped count savedAt previousSeenAt previousEventAt previousSeq previousUptime line column rendererFrames lagMs failures maxTextureSize maxCubemapSize maxTextures maxVertexTextures maxAttributes maxSamples historyLength previewActive previewPending previewStarts previewStops previewGeneration previewWidth previewHeight previewDisplayWidth previewDisplayHeight sinceUnloadMs childCanvasCount childCanvasPixels'.split(' '));
+const booleans=new Set('ready paused hidden contextLost online persisted wasDiscarded inApp uncertain reducedMotion stableCamera finiteCamera userInitiated sameDocument connected childObservable'.split(' '));
 const identifier=/^[a-zA-Z0-9-]{8,64}$/;
 
 export function diagnosticUrl(raw:string){
+ if(raw==='[inline-resource]'||raw==='[invalid-resource]')return raw;
  try{const url=new URL(raw,'https://kingdom.invalid');if(!['http:','https:'].includes(url.protocol))return '[inline-resource]';return (url.hostname==='kingdom.invalid'?'':url.origin)+url.pathname.replace(/[a-zA-Z0-9_-]{80,}/g,'[redacted]')}
  catch{return '[invalid-resource]'}
 }
@@ -20,8 +21,8 @@ export function diagnosticText(value:string,limit=360){
 export function sanitizeDiagnosticData(input:unknown):DiagnosticData{
  const result:DiagnosticData={};if(!input||typeof input!=='object'||Array.isArray(input))return result;
  for(const [key,value] of Object.entries(input).slice(0,64)){
-  if(strings.has(key)&&typeof value==='string')result[key]=key==='resource'?diagnosticUrl(value).slice(0,240):diagnosticText(value,key==='stack'?1800:key==='message'?360:160);
-  else if(numbers.has(key)&&typeof value==='number'&&Number.isFinite(value))result[key]=Math.max(-1e12,Math.min(1e12,value));
+  if(strings.has(key)&&typeof value==='string')result[key]=key==='resource'||key==='previousResource'||key==='previewLastResource'?diagnosticUrl(value).slice(0,240):diagnosticText(value,key==='stack'?1800:key==='message'?360:160);
+  else if(numbers.has(key)&&typeof value==='number'&&Number.isFinite(value)){const limit=key==='previousSeenAt'||key==='previousEventAt'||key==='savedAt'?Number.MAX_SAFE_INTEGER:1e12;result[key]=Math.max(-limit,Math.min(limit,value))}
   else if(booleans.has(key)&&typeof value==='boolean')result[key]=value;
   else if(value===null&&(numbers.has(key)||strings.has(key)))result[key]=null;
  }
