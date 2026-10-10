@@ -27,6 +27,7 @@
     "@shadcn/react": "0.3.0",
     "@types/setimmediate": "1.0.4",
     "@types/three": "^0.185.4",
+    "@vercel/analytics": "^1.4.1",
     "cannon-es": "0.20.0",
     "chess.js": "1.4.0",
     "class-variance-authority": "0.7.1",
