@@ -1,0 +1,51 @@
+.blr-page{min-height:100vh;background:#0f2622;color:#e4ecd9;padding:28px max(18px,calc((100vw - 1240px)/2)) 48px;font-family:Arial,Helvetica,sans-serif}
+.blr-page a{color:#d5eaa8;text-decoration:underline;text-underline-offset:4px}
+.blr-breadcrumbs{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:22px}
+.blr-breadcrumbs a{display:inline-flex;align-items:center;min-height:44px}
+.blr-header h1{font:400 clamp(30px,4.2vw,46px) Georgia,serif;letter-spacing:-1px;margin:0 0 10px;color:#f1f0da}
+.blr-header p{max-width:780px;font-size:16px;line-height:1.6;margin:0 0 24px;color:#bfd0bb}
+.blr-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.blr-stage{min-width:0}
+.blr-host{position:relative;width:100%;aspect-ratio:4/3;min-height:320px;max-height:78vh;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 42%,#15314a,#0b1626 70%);border:1px solid #b9cbb33b}
+.blr-host canvas{display:block;width:100%;height:100%;touch-action:none}
+.blr-poster{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0d1b2a}
+.blr-host[data-stage="loading"] .blr-poster{opacity:.75}
+.blr-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.blr-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 12px/1.2 'Space Grotesk','Trebuchet MS',sans-serif;letter-spacing:.3px;color:#f6efdd;text-shadow:0 1px 2px #000c,0 0 8px #0009;padding:2px 6px}
+.blr-label-landmark{font-size:13px;color:#ffe9b0}
+.blr-label-place{text-transform:uppercase;letter-spacing:1.4px;font-size:10px;color:#cfe0d6}
+.blr-label-place.blr-rank-0{font-size:13px;letter-spacing:3px;color:#ffffff}
+.blr-label-place.blr-rank-2{font-size:11px}
+.blr-stage-note{display:block;font-size:14px;color:#a9bfae;margin:12px 2px 0;min-height:1.4em}
+.blr-panel{display:grid;gap:18px;padding:18px;background:#15362f;border:1px solid #b9c59b42;border-radius:14px}
+.blr-panel h2{font:22px Georgia,serif;margin:0 0 10px;color:#e8efd3}
+.blr-panel ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.blr-panel button{min-height:44px;padding:8px 14px;border:1px solid #9cad7e;border-radius:8px;background:#1b3630;color:#e1ecc8;font-size:14px}
+.blr-panel button:hover:not(:disabled){background:#294d43}
+.blr-panel button[aria-pressed="true"]{background:#cee3aa;color:#152f2b;border-color:#cee3aa}
+.blr-panel button:disabled{opacity:.45;cursor:default}
+.blr-search{display:block}
+.blr-search label,.blr-select,.blr-range,.blr-toggle{display:block;font-size:14px;color:#cbd8bd;margin-top:10px}
+.blr-search div{display:flex;gap:8px;margin-top:8px}
+.blr-search input,.blr-select select{min-height:44px;padding:8px 12px;background:#102b29;border:1px solid #96b080;border-radius:8px;color:#edf2df;font:inherit;width:100%}
+.blr-search input{flex:1;min-width:0}
+.blr-select select{display:block;margin-top:6px}
+.blr-range input{display:block;width:100%;margin-top:8px;accent-color:#cee3aa}
+.blr-toggle input{width:20px;height:20px;vertical-align:middle;margin-right:8px;accent-color:#cee3aa}
+.blr-details dl{margin:0;font-size:15px;line-height:1.55}
+.blr-details dt{font-weight:bold;color:#cde0b0;margin-top:10px}
+.blr-details dd{margin:2px 0 0}
+.blr-details p{margin:0;font-size:15px;line-height:1.55;color:#b9cdb8}
+.blr-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.blr-buttons button{min-width:44px}
+.blr-status,.blr-message{display:block;font:12px/1.5 monospace;letter-spacing:.4px;color:#9fb8a8;margin:12px 0 0}
+.blr-message{color:#f1d9a0}
+.blr-credits{font-size:13px;line-height:1.55;color:#a9bfae;border-top:1px solid #71886c;padding-top:14px}
+.blr-credits p{margin:0 0 8px}
+@media(max-width:900px){.blr-layout{grid-template-columns:1fr}.blr-host{aspect-ratio:1;max-height:70vh}}
+@media(prefers-reduced-motion:reduce){.blr-host *{transition:none!important}}
+.blr-overlay{position:fixed;inset:0;z-index:70;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:auto;background:#0f2622;color:#e4ecd9}
+.blr-overlay-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px max(18px,calc((100vw - 1240px)/2));background:#0b1d1acc;backdrop-filter:blur(10px);border-bottom:1px solid #b9cbb33b;font:12px monospace;letter-spacing:1.6px;color:#c7d8b7}
+.blr-overlay-bar button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid #9cad7e;border-radius:8px;background:#1b3630;color:#e1ecc8;font:14px Arial,Helvetica,sans-serif}
+.blr-overlay-bar button:hover{background:#294d43}
+.blr-page-embedded{min-height:auto;padding-top:18px}

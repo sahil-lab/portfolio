@@ -17,6 +17,7 @@ import {createPlanetStreamer} from './planet-streaming';
 import {motherboardBounds} from './world-config';
 import {realmDesign} from './realm-layout';
 import {craftedBox} from './crafted-surfaces';
+import {createBengaluruSatellite} from './bengaluru-satellite';
 
 export {emptyTransit,type TransitStatus} from './transit-state';
 import type {TransitStatus} from './transit-state';
@@ -36,6 +37,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  memoryConstrained?:boolean;releaseMemory?:()=>void;
 }){
  const root=new T.Group();root.name='OrbitalTransit';scene.add(root);const fixed=new T.Group();root.add(fixed);
+ const bengaluru=createBengaluruSatellite(root);
  const stations=transitStops.map(stop=>{
   const station=new T.Group(),fixed=new T.Group(),actors=new T.Group();station.name='TransitStation_'+stop.id;fixed.name='TransitStationFixed_'+stop.id;actors.name='TransitStationActors_'+stop.id;
   station.add(fixed,actors);root.add(station);return {root:station,fixed,actors};
@@ -241,7 +243,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   cars[journey.current].root.position.set(stop.x-10,stop.y,stop.z+3);cars[journey.current].root.rotation.set(0,0,0);updateStationDetails();publish(true);return true;
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();clearJourneyRails();rockets.forEach((rocket,index)=>parkRocket(rocket,index));metro.root.visible=true;placeMetro(metro,pathFor(0,1),0);resetSurfaceFrame(player);updateStationDetails();publish(true)}
- return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,streaming,journey,neighborhood,civilizationLink,dispose:()=>{streaming.dispose();clearJourneyRails()},
+ return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,streaming,journey,neighborhood,civilizationLink,bengaluru,dispose:()=>{streaming.dispose();clearJourneyRails();bengaluru.dispose()},
   arriveShared:(destination:number)=>{if(!Number.isInteger(destination)||!transitStops[destination])return false;home();journey.current=journey.destination=destination;arrive('metro');return true},
   groundBlocked:(position:T.Vector3,padding:number,stop:number)=>{
    if(landscapes[stop]?.blocked(position,padding))return true;

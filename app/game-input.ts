@@ -44,7 +44,7 @@ export function bindMovementJoystick(element:HTMLFieldSetElement,knob:HTMLElemen
 export function bindGameInput(canvas:HTMLCanvasElement,events:{interact:()=>void;pause:()=>void;look:(x:number,y:number)=>void;zoom:(n:number)=>void;select:(x:number,y:number)=>void;touchSelect?:(x:number,y:number)=>void;flight?:()=>boolean;gesture:()=>void}){
   let enabled=true,moved=false,contextLost=false,disposed=false;let origin={x:0,y:0};
   const state=new InputState(pointers=>{moved=true;for(const pointerId of pointers)releaseCapture(canvas,pointerId);canvas.dispatchEvent(new Event(gameInputResetEvent,{bubbles:true}))});
-  const editable=(t:EventTarget|null)=>t instanceof HTMLElement&&!!t.closest('input,select,textarea,[role="dialog"]');
+  const editable=(t:EventTarget|null)=>t instanceof HTMLElement&&!!t.closest('input,select,textarea,dialog,[role="dialog"]');
   const keydown=(e:KeyboardEvent)=>{if(editable(e.target))return;if(e.code==='KeyP'||e.code==='Escape'){e.preventDefault();if(!e.repeat)events.pause();return}if(!enabled||contextLost)return;if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','e','shift'].includes(e.key.toLowerCase())||events.flight?.()&&[' ','q','control'].includes(e.key.toLowerCase()))e.preventDefault();state.keys.add(e.key.toLowerCase());events.gesture();if(e.key.toLowerCase()==='e'&&!e.repeat)events.interact()};
   const keyup=(e:KeyboardEvent)=>state.keys.delete(e.key.toLowerCase());
   const down=(e:PointerEvent)=>{if(!enabled||contextLost)return;e.preventDefault();events.gesture();try{canvas.setPointerCapture(e.pointerId)}catch{return}state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});origin={x:e.clientX,y:e.clientY};moved=false};

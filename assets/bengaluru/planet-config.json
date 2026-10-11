@@ -1,0 +1,27 @@
+{
+  "name": "Bengaluru civic core",
+  "origin": {"lon": 77.5907, "lat": 12.9794, "label": "Vidhana Soudha"},
+  "bbox": {"south": 12.964, "west": 77.578, "north": 12.99, "east": 77.608},
+  "capAngleDeg": 110,
+  "tileSizeM": 500,
+  "storeyHeightM": 3,
+  "densifyM": 40,
+  "landmarkHeightBoost": 1.2,
+  "landmarks": [
+    {"label": "Vidhana Soudha", "id": "relation/5284317"},
+    {"label": "Vikasa Soudha", "id": "relation/3366845"},
+    {"label": "Karnataka High Court", "id": "relation/446900"},
+    {"label": "Cubbon Park", "id": "way/22895320"},
+    {"label": "M. Chinnaswamy Stadium", "id": "way/28126916"},
+    {"label": "Sree Kanteerava Indoor Stadium", "id": "way/38757928"},
+    {"label": "Bangalore GPO", "id": "way/52058543"},
+    {"label": "State Central Library", "id": "way/52032473"},
+    {"label": "Government Museum", "id": "way/52032467"},
+    {"label": "Visvesvaraya Museum", "id": "way/327551780"},
+    {"label": "Freedom Park", "id": "way/36884560"},
+    {"label": "Raj Bhavan Gardens", "id": "way/38871256"}
+  ],
+  "lod1": {"simplifyToleranceM": 1.5, "minBuildingAreaM2": 25},
+  "snapshot": "assets/bengaluru/snapshots/civic-core-2026-10-10.json.gz",
+  "overpass": {"endpoint": "https://overpass-api.de/api/interpreter", "timeoutS": 180}
+}

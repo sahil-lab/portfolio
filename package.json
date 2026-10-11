@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "vinext dev",
     "build:city-shells": "node scripts/build-city-shells.cjs",
+    "build:bengaluru": "node scripts/build-bengaluru-planet.cjs",
+    "check:bengaluru": "node scripts/build-bengaluru-planet.cjs --check",
+    "test:bengaluru": "node --test tests/bengaluru-planet.test.cjs",
     "prebuild": "npm run build:city-shells",
     "build": "vinext build",
     "prebuild:vercel": "node scripts/build-city-shells.cjs --prepare-friends",
