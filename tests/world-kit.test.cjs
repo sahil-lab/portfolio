@@ -93,7 +93,7 @@ test('pavement stays matte under texture variation while wet-weather roughness r
 
 function checkPlanetPlanting(){
  const {transitStops}=require('../app/transit-config'),{createPlanetSurface,planetPoint,planetGeography}=require('../app/planet-geography'),{createPlanetInfrastructure}=require('../app/planet-infrastructure'),{createPlanetPublicSpaces}=require('../app/planet-public-spaces'),{createPlanetCanopy}=require('../app/planet-canopy');
- for(const stop of transitStops.slice(1)){
+ for(const stop of transitStops.slice(1).filter(stop=>!stop.city)){
   const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),infrastructure=createPlanetInfrastructure(scene,surface),spaces=createPlanetPublicSpaces(scene,surface,infrastructure),outposts=Array.from({length:5},(_,index)=>({position:planetPoint(surface,index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(index*Math.PI*2/5),-.1,Math.sin(index*Math.PI*2/5)))})),trees=createPlanetCanopy(scene,surface,infrastructure,spaces.places,outposts);
   assert.equal(trees.banyans.length,2);assert.ok(trees.records.length>=100);for(const record of trees.records){const land=planetGeography(surface,record.direction);assert.equal(land.water,false);assert.ok(land.road>=record.canopyRadius+3.8);assert.ok(land.river>=record.canopyRadius+3)}for(const place of spaces.places)assert.equal(trees.blocked(place.approach),false);
   assert.ok(trees.gardens.every(garden=>garden.root.userData.authoredKit));assert.ok(trees.gardens[0].root.getObjectByName('Garden_RoundedShrubs').geometry.userData.authoredKit);disposeScene(scene);

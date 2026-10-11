@@ -16,7 +16,7 @@ test('planet meadows follow both hemispheres, preserve terrain clearances and ke
  }
 });
 test('every satellite has reference-style trees and banyans while keeping roads, public spaces and outposts clear',()=>{
- for(const stop of transitStops.slice(1)){
+ for(const stop of transitStops.slice(1).filter(stop=>!stop.city)){
   const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),infrastructure=createPlanetInfrastructure(scene,surface),spaces=createPlanetPublicSpaces(scene,surface,infrastructure),outposts=Array.from({length:5},(_,index)=>({position:planetPoint(surface,index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(index*Math.PI*2/5),-.1,Math.sin(index*Math.PI*2/5)))})),trees=createPlanetCanopy(scene,surface,infrastructure,spaces.places,outposts);
   assert.ok(trees.records.length>=35,stop.id+' has '+trees.records.length+' trees');assert.equal(trees.banyans.length,2,stop.id+' needs a banyan in each hemisphere');assert.ok(trees.records.some(record=>record.direction.y>.3));assert.ok(trees.records.some(record=>record.direction.y<-.6));
   for(const record of trees.records){const land=planetGeography(surface,record.direction);assert.equal(land.water,false);assert.ok(land.road>=record.canopyRadius+3.8);assert.ok(land.river>=record.canopyRadius+3);assert.ok(new T.Vector3(0,1,0).applyQuaternion(record.rotation).dot(planetUp(surface,record.position))>.999);assert.ok(outposts.every(outpost=>outpost.position.distanceTo(record.position)>record.canopyRadius+5.9));assert.ok(spaces.places.every(place=>place.position.distanceTo(record.position)>place.radius+record.canopyRadius+1.9));assert.equal(trees.blocked(record.position),true)}

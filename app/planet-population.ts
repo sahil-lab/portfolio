@@ -6,6 +6,7 @@ import type {ResidentOccupation} from './cute-resident';
 import {createDialogueDeck} from './resident-dialogue';
 import {createSpeechBubble} from './speech-bubble';
 import {cityBlock} from './city-architecture';
+import {cityPlanetFor} from './bengaluru-city-config';
 
 type Resident={name:string;position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;phase:number;speed:number;town:PlanetTown|null;latitude:number;occupation:ResidentOccupation;moving:boolean;dialogue:ReturnType<typeof createDialogueDeck>};
 type Traffic={position:T.Vector3;up:T.Vector3;rotation:T.Quaternion;phase:number;latitude:number;speed:number};
@@ -21,9 +22,11 @@ export function createPlanetPopulation(parent:T.Object3D,surface:PlanetSurface,t
   ];
   const names=['Ari','Mira','Jules','Lin','Remy','Ivo','Nia','Ada','Theo','Eden','Rin','Sam'];
   const residents:Resident[]=[],traffic:Traffic[]=[];
+  // Travellers and shuttles follow latitude rings, which would cut through a mapped city's blocks.
+  const openGlobe=!cityPlanetFor(surface.stop);
   for(const [townIndex,town] of towns.entries())for(let index=0;index<8;index++)residents.push({name:names[(townIndex*5+index)%names.length]+' of '+town.name,position:new T.Vector3(),up:new T.Vector3(),rotation:new T.Quaternion(),phase:index*Math.PI/4,speed:(.55+(index%3)*.1)/19,town,latitude:0,occupation:occupations[index%4],moving:false,dialogue:createDialogueDeck(surface.stop.theme)});
-  for(let index=0;index<18;index++)residents.push({name:names[index%names.length]+' the traveller',position:new T.Vector3(),up:new T.Vector3(),rotation:new T.Quaternion(),phase:index*Math.PI/9,speed:.85/surface.radius,town:null,latitude:0,occupation:occupations[index%4],moving:false,dialogue:createDialogueDeck(surface.stop.theme)});
-  for(const latitude of [.46,0,-.48])for(const phase of [.6,Math.PI+.6])traffic.push({position:new T.Vector3(),up:new T.Vector3(),rotation:new T.Quaternion(),phase,latitude:Math.asin(latitude),speed:3.8/(surface.radius*Math.cos(Math.asin(latitude)))});
+  for(let index=0;index<(openGlobe?18:0);index++)residents.push({name:names[index%names.length]+' the traveller',position:new T.Vector3(),up:new T.Vector3(),rotation:new T.Quaternion(),phase:index*Math.PI/9,speed:.85/surface.radius,town:null,latitude:0,occupation:occupations[index%4],moving:false,dialogue:createDialogueDeck(surface.stop.theme)});
+  for(const latitude of openGlobe?[.46,0,-.48]:[])for(const phase of [.6,Math.PI+.6])traffic.push({position:new T.Vector3(),up:new T.Vector3(),rotation:new T.Quaternion(),phase,latitude:Math.asin(latitude),speed:3.8/(surface.radius*Math.cos(Math.asin(latitude)))});
   const white=new T.MeshPhysicalMaterial({color:'#ffffff',roughness:.6,metalness:.025,clearcoat:.16,clearcoatRoughness:.5}),dark=new T.MeshStandardMaterial({color:'#303f49',roughness:.48}),light=new T.MeshStandardMaterial({color:'#f0e7d7',roughness:.62});
   const body=new T.InstancedMesh(new RoundedBoxGeometry(1,1,1,1,.17),white,residents.length),head=new T.InstancedMesh(new T.SphereGeometry(1,10,8),white,residents.length);
   const face=new T.InstancedMesh(new T.SphereGeometry(1,8,6),dark,residents.length),eyes=new T.InstancedMesh(new T.SphereGeometry(1,6,4),light,residents.length*2),feet=new T.InstancedMesh(new T.SphereGeometry(.5,8,4),dark,residents.length*2);

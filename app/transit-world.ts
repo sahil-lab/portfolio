@@ -17,7 +17,6 @@ import {createPlanetStreamer} from './planet-streaming';
 import {motherboardBounds} from './world-config';
 import {realmDesign} from './realm-layout';
 import {craftedBox} from './crafted-surfaces';
-import {createBengaluruSatellite} from './bengaluru-satellite';
 
 export {emptyTransit,type TransitStatus} from './transit-state';
 import type {TransitStatus} from './transit-state';
@@ -37,7 +36,6 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  memoryConstrained?:boolean;releaseMemory?:()=>void;
 }){
  const root=new T.Group();root.name='OrbitalTransit';scene.add(root);const fixed=new T.Group();root.add(fixed);
- const bengaluru=createBengaluruSatellite(root);
  const stations=transitStops.map(stop=>{
   const station=new T.Group(),fixed=new T.Group(),actors=new T.Group();station.name='TransitStation_'+stop.id;fixed.name='TransitStationFixed_'+stop.id;actors.name='TransitStationActors_'+stop.id;
   station.add(fixed,actors);root.add(station);return {root:station,fixed,actors};
@@ -201,6 +199,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   const demonstration=landscapes[journey.current]?.realm?.interact(player.position);if(demonstration){callbacks.sound();callbacks.notice(demonstration);return true}
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost){station();callbacks.notice(outpost.name+' \u00b7 Returned to the landing station.');return true}
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark){callbacks.notice(landmark.name+' / '+landmark.description);return true}
+  const cityLandmark=landscapes[journey.current]?.city?.nearest(player.position);if(cityLandmark){callbacks.sound();callbacks.notice(cityLandmark.name+' / '+cityLandmark.description);return true}
   const conversation=landscapes[journey.current]?.population?.interact(player.position);if(conversation){callbacks.notice(conversation);return true}
   if(neighborhood.interact())return true;
   const s=current();if(journey.current&&closeTo(s.x+resonatorOffset.x,s.y,s.z+resonatorOffset.z,4)){const orb=planetSignals[journey.current-1],m=orb.material as T.MeshStandardMaterial;m.emissiveIntensity=m.emissiveIntensity>.5?.3:1.1;callbacks.sound();callbacks.notice(s.name+' resonator '+(m.emissiveIntensity>.5?'awake. Light travels around the satellite.':'resting.'));return true}return false;
@@ -233,6 +232,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   const publicPlace=landscapes[journey.current]?.publicSpaces?.prompt(player.position);if(publicPlace)return publicPlace;
   const outpost=landscapes[journey.current]?.nearest(player.position);if(outpost)return 'E \u00b7 '+outpost.name+' / return to station';
   const landmark=landscapes[journey.current]?.civilization?.nearest(player.position);if(landmark)return 'E \u00b7 '+landmark.name;
+  const cityLandmark=landscapes[journey.current]?.city?.nearest(player.position);if(cityLandmark)return 'E \u00b7 '+cityLandmark.name;
   const conversation=landscapes[journey.current]?.population?.prompt(player.position);if(conversation)return conversation;
   const neighbour=neighborhood.prompt();if(neighbour)return neighbour;
   const stop=current();if(journey.current&&closeTo(stop.x+resonatorOffset.x,stop.y,stop.z+resonatorOffset.z,4))return 'E \u00b7 Wake the satellite resonator';
@@ -243,7 +243,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   cars[journey.current].root.position.set(stop.x-10,stop.y,stop.z+3);cars[journey.current].root.rotation.set(0,0,0);updateStationDetails();publish(true);return true;
  }
  function home(){carIndex=null;speed=0;flightRocket=null;activePath=null;journey.reset();clearJourneyRails();rockets.forEach((rocket,index)=>parkRocket(rocket,index));metro.root.visible=true;placeMetro(metro,pathFor(0,1),0);resetSurfaceFrame(player);updateStationDetails();publish(true)}
- return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,streaming,journey,neighborhood,civilizationLink,bengaluru,dispose:()=>{streaming.dispose();clearJourneyRails();bengaluru.dispose()},
+ return {update,interact,prompt,start,height,blocked,bounds,home,station,stepSurface,surfaces,landscapes,streaming,journey,neighborhood,civilizationLink,dispose:()=>{streaming.dispose();clearJourneyRails()},
   arriveShared:(destination:number)=>{if(!Number.isInteger(destination)||!transitStops[destination])return false;home();journey.current=journey.destination=destination;arrive('metro');return true},
   groundBlocked:(position:T.Vector3,padding:number,stop:number)=>{
    if(landscapes[stop]?.blocked(position,padding))return true;

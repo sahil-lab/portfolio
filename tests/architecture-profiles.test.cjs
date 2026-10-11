@@ -3,7 +3,7 @@ require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const {architectureProfiles,planetArchitectureFor,architectureRecipe}=require('../app/architecture-profiles.ts');
 const {transitStops}=require('../app/transit-config.ts');
 test('all existing planets use different roof systems and architectural families',()=>{
- const styles=transitStops.map(planetArchitectureFor);assert.equal(new Set(styles).size,transitStops.length);assert.equal(new Set(styles.map(style=>architectureProfiles[style].roof)).size,styles.length);
+ const styles=transitStops.filter(stop=>!stop.city).map(planetArchitectureFor);assert.equal(new Set(styles).size,styles.length);assert.equal(new Set(styles.map(style=>architectureProfiles[style].roof)).size,styles.length);
 });
 test('every building address has a deterministic geometric recipe, not a repeated color variant',()=>{
  for(const style of Object.keys(architectureProfiles)){

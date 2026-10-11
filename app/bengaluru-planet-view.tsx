@@ -13,7 +13,7 @@ const fallbackImage=planetAssetBase+planetManifest.fallback;
 const qualityLabels:Record<PlanetQualityChoice,string>={auto:'Auto (measured)',high:'High',medium:'Medium',low:'Low'};
 const classLabels:Record<string,string>={building:'Building',road:'Road',rail:'Railway',water:'Water',park:'Green space',poi:'Place of interest',place:'Neighbourhood'};
 
-export function BengaluruPlanetView({embedded=false}:{embedded?:boolean}={}){
+export function BengaluruPlanetView(){
  const host=useRef<HTMLDivElement>(null),handle=useRef<PlanetHandle|null>(null);
  const [status,setStatus]=useState<PlanetStatus|null>(null),[selection,setSelection]=useState<PlanetSelection|null>(null),[stage,setStage]=useState<'loading'|'ready'|'fallback'>('loading'),[message,setMessage]=useState<string|null>(null),[query,setQuery]=useState(''),[quality,setQuality]=useState<PlanetQualityChoice>('auto'),[morph,setMorph]=useState(1),[autoRotate,setAutoRotate]=useState(false);
  const named=useMemo(()=>{
@@ -41,9 +41,9 @@ export function BengaluruPlanetView({embedded=false}:{embedded?:boolean}={}){
   if(match)focus(match.id);else setMessage(`No mapped place matches “${query}”.`);
  };
  const feature=selection?.feature,heightText=feature?describeHeight(feature):null;
- return <main className={embedded?'blr-page blr-page-embedded':'blr-page'}>
+ return <main className="blr-page">
   <header className="blr-header">
-   {!embedded&&<nav className="blr-breadcrumbs" aria-label="Site"><a href="/">← Enter the kingdom</a><a href="/projects">Project directory</a><a href="/resume">System Information</a></nav>}
+   <nav className="blr-breadcrumbs" aria-label="Site"><a href="/">← Enter the kingdom</a><a href="/projects">Project directory</a><a href="/resume">System Information</a></nav>
    <h1>Bengaluru, as a planet</h1>
    <p>{planetManifest.counts.building} building footprints, {planetManifest.counts.road} roads, {planetManifest.counts.park} green spaces and {planetManifest.counts.water} water bodies from OpenStreetMap, kept at their mapped positions and bent onto a {Math.round(planetManifest.projection.planetRadiusM/100)/10} km-radius world. Civic core around {planetManifest.origin.label}; the far side is deliberately non-geographic.</p>
   </header>

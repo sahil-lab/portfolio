@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {planetArchitectureFor,type ArchitectureStyle} from './architecture-profiles';
 import type {TransitStop} from './transit-config';
+import {cityPlanetFor} from './bengaluru-city-config';
 
 type Biome={name:string;land:string;grove:string;rock:string;crest:string;bank:string;water:string;road:string;line:string;leaf:string;tip:string;sky:string;ground:string;sun:string;fill:number;environment:number;marking:'dashes'|'stitches'|'paired';snow:boolean};
 const profiles:Record<ArchitectureStyle,Biome>={
@@ -18,12 +19,16 @@ const profiles:Record<ArchitectureStyle,Biome>={
 export const planetBiome=(stop:TransitStop)=>profiles[planetArchitectureFor(stop)];
 export function createPlanetColorizer(stop:TransitStop){
  const biome=planetBiome(stop),land=new T.Color(biome.land),grove=new T.Color(biome.grove),rock=new T.Color(biome.rock),crest=new T.Color(biome.crest),bank=new T.Color(biome.bank);
+ const city=cityPlanetFor(stop),cityGround=city?new T.Color(city.ground):null;
  return (direction:T.Vector3,geography:{height:number;road:number;river:number},target=new T.Color())=>{
   const patch=.5+(Math.sin(direction.x*4+direction.z*3)+Math.cos(direction.y*5-direction.x*2))*.25;
   target.copy(land).lerp(grove,T.MathUtils.smoothstep(patch,.22,.8)*.78);
   target.lerp(bank,(1-T.MathUtils.smoothstep(geography.river,3,10))*.5);
   target.lerp(rock,T.MathUtils.smoothstep(geography.height,2.5,stop.worldKind?19:9));
-  target.lerp(crest,T.MathUtils.smoothstep(geography.height,biome.snow?10:17,biome.snow?18:34)*(biome.snow?.88:.65));return target;
+  target.lerp(crest,T.MathUtils.smoothstep(geography.height,biome.snow?10:17,biome.snow?18:34)*(biome.snow?.88:.65));
+  // Under a mapped city the road distance is zero, so the globe shows earth between the tiles' ground polygons.
+  if(cityGround)target.lerp(cityGround,1-T.MathUtils.smoothstep(geography.road,0,5));
+  return target;
  };
 }
 export function createRoadMarking(stop:TransitStop){

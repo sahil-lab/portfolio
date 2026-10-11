@@ -1,6 +1,6 @@
 import {createMetroPath,metroAxleSpan,metroDistance,rocketFlight} from './transit-motion';
 export type PlanetWorldKind='research'|'foundry'|'skills';
-export type TransitStop={id:string;name:string;subtitle:string;x:number;y:number;z:number;color:string;theme:'home'|'copper'|'garden'|'prism';radius?:number;worldKind?:PlanetWorldKind};
+export type TransitStop={id:string;name:string;subtitle:string;x:number;y:number;z:number;color:string;theme:'home'|'copper'|'garden'|'prism';radius?:number;worldKind?:PlanetWorldKind;city?:'bengaluru'};
 /** Satellite worlds share spherical gravity and a flat landing deck. */
 export const transitStops:readonly TransitStop[]=[
  {id:'motherboard',name:'Motherboard Central',subtitle:'Lantern Quarter, nine hundred homes, and the original workshop districts.',x:-36.5,y:.8,z:3,color:'#e9c687',theme:'home'},
@@ -13,6 +13,7 @@ export const transitStops:readonly TransitStop[]=[
  {id:'ai-research',name:'AI Research Planet',subtitle:'Chalk ridges, folded observatories, and a working neural classification atelier.',x:-2550,y:650,z:-2600,color:'#78bdb7',theme:'prism',radius:128,worldKind:'research'},
  {id:'project-foundry',name:'Project Foundry Planet',subtitle:'Basalt mesas, terracotta workshops, and portfolio projects on a working assembly line.',x:2550,y:580,z:-2250,color:'#d08c71',theme:'copper',radius:144,worldKind:'foundry'},
  {id:'skills-technology',name:'Skills / Technology Planet',subtitle:'Verdant terraces, timber aqueducts, and a hands-on dataflow conservatory.',x:0,y:740,z:3400,color:'#94b96c',theme:'garden',radius:136,worldKind:'skills'},
+ {id:'bengaluru',name:'Bengaluru - The Garden City',subtitle:'Vidhana Soudha, Cubbon Park, and the civic core, mapped from OpenStreetMap and wrapped around a globe.',x:0,y:900,z:-2250,color:'#d9b25c',theme:'garden',radius:200,city:'bengaluru'},
 ];
 export const planetStyles:Record<string,{land:string;terrain:string;growth:string;homes:string[];towns:string[]}>= {
  petal:{land:'#cfdfb5',terrain:'#92b888',growth:'#eeb6c7',homes:['#f1b5be','#f2ddbc','#acd2c4','#d8b4c9'],towns:['Petal Promenade','Blossom Bakery','Rosewater Row','Orchard Market','Peony Place','Garden Observatory']},

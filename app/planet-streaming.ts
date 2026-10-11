@@ -10,16 +10,22 @@ import type {ForgeSnapshot} from './forge-feed';
 import {loadAuthoredTerrain,type AuthoredTerrain} from './authored-terrain';
 import {createAssetManager} from './asset-manager';
 import {diagnosticError,recordDiagnostic} from './client-diagnostics';
+import {cityPlanetFor} from './bengaluru-city-config';
+import type {CityPlanetTiles} from './bengaluru-city-planet';
 
 type Landscape=ReturnType<typeof createPlanetLandscape>;
 type Builder=typeof buildPlanetLandscape;
+type CityLoader=(surface:PlanetSurface,signal:AbortSignal)=>Promise<CityPlanetTiles|null>;
 export type PlanetLoadState='unloaded'|'loading'|'loaded'|'active'|'sleeping'|'failed';
 function createOrbitalProxy(surface:PlanetSurface){
  const geometry=new T.SphereGeometry(1,40,28),position=geometry.attributes.position,colors=new Float32Array(position.count*3),normal=new T.Vector3(),point=new T.Vector3(),land=new T.Color(planetStyles[surface.stop.id]?.land??surface.stop.color),patch=land.clone().multiplyScalar(.72),color=new T.Color();
  for(let index=0;index<position.count;index++){normal.fromBufferAttribute(position,index).normalize();planetPoint(surface,normal,point).sub(surface.center);position.setXYZ(index,point.x,point.y,point.z);color.copy(land).lerp(patch,(Math.sin(normal.x*9+normal.z*3)*Math.cos(normal.y*12-normal.x*4)+1)*.22).toArray(colors,index*3)}
- geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));mesh.name='Planet_StreamingSilhouette';mesh.position.copy(surface.center);return mesh;
+ geometry.setAttribute('color',new T.BufferAttribute(colors,3));geometry.computeVertexNormals();const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));mesh.name='Planet_StreamingSilhouette';mesh.position.copy(surface.center);
+ const city=cityPlanetFor(surface.stop);if(city)void import('./bengaluru-city-planet').then(module=>module.applyCityPlanetTexture(mesh,city),()=>false);
+ return mesh;
 }
-export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;beforeLoad?:()=>void;onRelease?:()=>void;runLoad?:(work:()=>Promise<boolean>,priority:number,signal:AbortSignal)=>Promise<boolean>}={}){
+const loadCityTiles:CityLoader=async(surface,signal)=>(await import('./bengaluru-city-planet')).loadCityPlanetTiles(surface,signal);
+export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;city?:CityLoader;beforeLoad?:()=>void;onRelease?:()=>void;runLoad?:(work:()=>Promise<boolean>,priority:number,signal:AbortSignal)=>Promise<boolean>}={}){
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
  function unload(){
@@ -35,7 +41,10 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
       options.beforeLoad?.();
    const factory=await (options.factory??(async()=>{const landscapeModule=await import('./planet-surface');return landscapeModule.buildPlanetLandscape}))();
     if(disposed||token!==generation)return false;terrain=options.terrain?await options.terrain(surface,controller.signal):options.factory?null:await loadAuthoredTerrain(surface,controller.signal);if(disposed||token!==generation)return false;
-    const builder=factory(staging,surface,terrain??undefined);let result:IteratorResult<string,Landscape>;
+    // A mapped city must arrive before the globe is built; a missing tile fails the destination instead of landing on bare ground.
+    const city=cityPlanetFor(surface.stop)?await (options.city??loadCityTiles)(surface,controller.signal):null;if(disposed||token!==generation)return false;
+    if(cityPlanetFor(surface.stop)&&!city)throw new Error('City tiles unavailable for '+surface.stop.id);
+    const builder=factory(staging,surface,terrain??undefined,city??undefined);let result:IteratorResult<string,Landscape>;
     do{if(disposed||token!==generation){builder.return(undefined as never);return false}result=await scheduler.run(()=>builder.next(),priority)}while(!result.done);
     if(disposed||token!==generation)return false;
     const landscape=result.value;finishKingdomMaterials(landscape.root);
@@ -50,7 +59,7 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
    pending=(options.runLoad?options.runLoad(work,priority,controller.signal):work()).catch(()=>{if(!disposed&&token===generation)state='failed';return false}).finally(()=>{pending=null;if(terrainController===controller)terrainController=null});return pending;
  }
  return {root,rotation,proxy,load,unload,get loaded(){return value!==null},get state(){return state},get lastUse(){return lastUse},get pending(){return pending},
-  get globe(){return value?.globe??proxy},get infrastructure(){return value?.infrastructure},get publicSpaces(){return value?.publicSpaces},get population(){return value?.population},get civilization(){return value?.civilization},get realm(){return value?.realm},get vegetation(){return value?.vegetation},get outposts(){return value?.outposts??[]},get details(){return value?.details},get distant(){return value?.distant??proxy},get streetLife(){return value?.streetLife},
+  get globe(){return value?.globe??proxy},get infrastructure(){return value?.infrastructure},get publicSpaces(){return value?.publicSpaces},get population(){return value?.population},get civilization(){return value?.civilization},get realm(){return value?.realm},get city(){return value?.city},get vegetation(){return value?.vegetation},get outposts(){return value?.outposts??[]},get details(){return value?.details},get distant(){return value?.distant??proxy},get streetLife(){return value?.streetLife},
   setRepositories(snapshot:ForgeSnapshot){repositoryData=snapshot;value?.civilization?.setRepositories(snapshot)},
   update(delta:number,reduced:boolean,observer:T.Group,active=false){
   const observed=!!root.userData.observed,wasActive=state==='active'||state==='loaded';
@@ -63,7 +72,7 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
   dispose(){if(disposed)return;disposed=true;unload();disposeScene(proxy);root.removeFromParent()},
  };
 }
-export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;onRelease?:()=>void}={}){
+export function createPlanetStreamer(parent:T.Object3D,surfaces:(PlanetSurface|null)[],options:{maxResident?:number;retireAfterMs?:number;now?:()=>number;factory?:()=>Promise<Builder>;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;city?:CityLoader;onRelease?:()=>void}={}){
  let protectedWorlds=new Set<number>();
  const scheduler=createWorkScheduler(),loads=createAssetManager({concurrency:1}),now=options.now??(()=>performance.now()),landscapes=surfaces.map((surface,index)=>surface?createStreamedPlanet(parent,surface,scheduler,{...options,beforeLoad:()=>makeRoom(index),runLoad:(work,priority,signal)=>runLoad(index,work,priority,signal)}):null);let lastSweep=-Infinity;
  const maxResident=options.maxResident??2,retireAfter=options.retireAfterMs??15000;

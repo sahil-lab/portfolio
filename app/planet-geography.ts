@@ -1,6 +1,7 @@
 import * as T from 'three';
 import type {TransitStop} from './transit-config';
 import {realmApproachDistance,realmRelief,realmSiteDistance} from './realm-layout';
+import {cityEdgeDistance,cityPlanetFor} from './bengaluru-city-config';
 
 export const terrainRevision='sculpted-v2';
 export const legacyTerrainRevision='legacy-v1';
@@ -27,8 +28,10 @@ export function riverLatitude(longitude:number,river:number,theme:TransitStop['t
 }
 export function planetGeography(surface:PlanetSurface,direction:T.Vector3){
   const latitude=Math.asin(T.MathUtils.clamp(direction.y,-1,1)),longitude=Math.atan2(direction.z,direction.x);
-  const road=Math.min(roadDistance(surface.radius,direction),realmApproachDistance(surface.stop,surface.radius,direction));
-  const river=Math.min(...[0,1].map(index=>Math.abs(latitude-riverLatitude(longitude,index,surface.stop.theme))*surface.radius));
+  // A mapped city is paved ground: nothing procedural grows or rises inside its disc, and relief begins past the edge.
+  const city=cityPlanetFor(surface.stop);
+  const road=city?cityEdgeDistance(city,surface.radius,direction):Math.min(roadDistance(surface.radius,direction),realmApproachDistance(surface.stop,surface.radius,direction));
+  const river=city?Infinity:Math.min(...[0,1].map(index=>Math.abs(latitude-riverLatitude(longitude,index,surface.stop.theme))*surface.radius));
   const clearance=T.MathUtils.smoothstep(road,4.2,20),landing=1-T.MathUtils.smoothstep(direction.y,.82,.92);
   let mountain=0;
   mountainDirections.forEach((center,index)=>{

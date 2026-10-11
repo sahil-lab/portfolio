@@ -31,56 +31,83 @@ const parseStatus=text=>{const resident=/(\d+) tiles resident/.exec(text??''),lo
 const setRangeValue=(input,value)=>{const descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');descriptor.set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))};
 
 /**
- * Kingdom integration: the satellite globe above the Forge/Citadel row, the Orbital Atlas card,
- * the in-world deck opening and closing, and the passport stamp.
- *   node scripts/check-bengaluru-planet.cjs --kingdom --url http://localhost:4380/
+ * Kingdom integration: Bengaluru is a stop on the orbital line. The atlas lists it beside the
+ * Citadel, a rocket flight lands on the globe, the mapped city is baked around the sphere with
+ * walkable streets and solid blocks, landmarks prompt, and the passport stamps the visit.
+ *   node scripts/check-bengaluru-planet.cjs --kingdom --url http://127.0.0.1:4390/
  */
 async function checkKingdom(browser,report,check){
  const context=await browser.newContext({viewport:options.mobile?{width:390,height:844}:{width:1440,height:960},deviceScaleFactor:1,isMobile:!!options.mobile,hasTouch:!!options.mobile});
  const page=await context.newPage();page.setDefaultTimeout(240000);
  page.on('pageerror',error=>report.errors.push(error.message));
- await page.addInitScript(()=>{localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality:'low',projectPreviews:false,cameraMode:'far',worldLighting:'day'}}));localStorage.removeItem('kingdom-bengaluru-v1');Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error({code:1})}}})});
+ await page.addInitScript(()=>{localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality:'low',projectPreviews:false,cameraMode:'far',worldLighting:'day'}}));localStorage.removeItem('kingdom-transit-v1');Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error({code:1})}}})});
  const base=new URL(options.url);base.pathname='/';base.search='';
  for(let attempt=1;;attempt++){
   try{await page.goto(base.href,{waitUntil:'domcontentloaded',timeout:240000});break}
   catch(error){if(attempt>=12||!/ERR_CONNECTION_REFUSED|ERR_EMPTY_RESPONSE/.test(String(error)))throw error;await page.waitForTimeout(15000)}
  }
  await page.waitForFunction(()=>{const main=document.querySelector('main.kingdom');if(main?.dataset.ready!=='true')return false;let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next)if(hook.memoizedState?.current?.renderer){globalThis.__blrWorld=hook.memoizedState.current;return true}fiber=fiber.return}return false},null,{timeout:240000});
- const satellite=await page.evaluate(()=>{const world=globalThis.__blrWorld,globe=world.scene.getObjectByName('Bengaluru_Globe');if(!globe)return null;globe.geometry.computeBoundingSphere();return {position:globe.parent.position.toArray().map(v=>Math.round(v)),radius:Math.round(globe.geometry.boundingSphere.radius),haze:!!world.scene.getObjectByName('Bengaluru_Haze'),batched:!globe.geometry.parameters,sceneScale:world.scene.scale.x}});
- check('satellite globe mounted above the Forge/Citadel row',satellite&&satellite.position[0]===0&&satellite.position[1]===640&&satellite.position[2]===-1250&&satellite.radius===90&&satellite.haze&&!satellite.batched,satellite);
- await page.waitForFunction(()=>{const map=globalThis.__blrWorld.scene.getObjectByName('Bengaluru_Globe').material.map;return !!map&&map.image&&map.image.width>1},null,{timeout:90000});
- const texture=await page.evaluate(()=>{const map=globalThis.__blrWorld.scene.getObjectByName('Bengaluru_Globe').material.map;return {width:map.image.width,height:map.image.height,colorSpace:map.colorSpace}});
- check('city sky texture rasterised onto the globe',texture.width===1536&&texture.height===768,texture);
- // Render the orbital row through a temporary camera and copy it out in the same task, before the world's next frame clears the buffer.
- const sky=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
-  const world=globalThis.__blrWorld,renderer=world.renderer,scene=world.scene,canvas=renderer.domElement,Camera=world.camera.constructor,camera=new Camera(55,canvas.width/canvas.height,1,12000),scale=scene.scale.x;
-  camera.position.set(0,1150*scale/2,-600*scale/2);camera.lookAt(0,950*scale/2,-2700*scale/2);camera.updateMatrixWorld();
-  const previous={target:renderer.getRenderTarget(),autoClear:renderer.autoClear};renderer.setRenderTarget(null);renderer.autoClear=true;renderer.render(scene,camera);renderer.setRenderTarget(previous.target);renderer.autoClear=previous.autoClear;
-  const probe=document.createElement('canvas');probe.width=canvas.width;probe.height=canvas.height;const context=probe.getContext('2d');context.drawImage(canvas,0,0);
-  const sample=context.getImageData(Math.floor(probe.width*.3),Math.floor(probe.height*.15),Math.floor(probe.width*.4),Math.floor(probe.height*.5)).data,colors=new Set();for(let i=0;i<sample.length;i+=16)colors.add((sample[i]>>3)<<10|(sample[i+1]>>3)<<5|(sample[i+2]>>3));
-  resolve({colors:colors.size,dataUrl:probe.toDataURL('image/png')});
- })));
- fs.writeFileSync(path.join(output,label+'-kingdom-sky.png'),Buffer.from(sky.dataUrl.split(',')[1],'base64'));
- check('orbital row renders with the Bengaluru globe in view',sky.colors>40,{colors:sky.colors});
- const openTravel=async()=>{await page.getByRole('button',{name:'World controls',exact:true}).click();await page.getByRole('button',{name:'Travel',exact:true}).click()};
+ const stop=await page.evaluate(()=>{const world=globalThis.__blrWorld,index=world.transport.surfaces.findIndex(surface=>surface?.stop.id==='bengaluru'),surface=world.transport.surfaces[index],proxy=world.scene.getObjectByName('Globe_bengaluru')?.getObjectByName('Planet_StreamingSilhouette');return {index,radius:surface?.radius,city:surface?.stop.city,position:surface?[surface.stop.x,surface.stop.y,surface.stop.z]:null,proxy:!!proxy}});
+ check('Bengaluru is a stop on the orbital line with its own globe',stop.index>0&&stop.radius===200&&stop.city==='bengaluru'&&stop.proxy,stop);
+ // The city map arrives through a lazy chunk and an SVG decode, so the silhouette is dressed asynchronously.
+ const dressed=await page.waitForFunction(()=>{const proxy=globalThis.__blrWorld.scene.getObjectByName('Globe_bengaluru')?.getObjectByName('Planet_StreamingSilhouette');return !!proxy&&proxy.rotation.z>1.5&&!!proxy.material.map&&proxy.material.map.image?.width>1},null,{timeout:120000}).then(()=>true,()=>false);
+ check('the orbital silhouette wears the baked city map',dressed);
+ const openTravel=async()=>{await page.getByRole('button',{name:'World controls',exact:true}).click();await page.getByRole('button',{name:'Travel',exact:true}).click();await page.locator('.planet-destinations').waitFor({timeout:30000})};
  await openTravel();
- const card=page.locator('.planet-bengaluru');await card.waitFor({timeout:30000});
- check('Orbital Atlas lists the Bengaluru planet beside the Forge and the Citadel',/Bengaluru - The Garden City/.test(await card.textContent())&&(await page.locator('.planet-destinations button').allTextContents()).some(text=>/GitHub - The Forge/.test(text))&&(await page.locator('.planet-destinations button').allTextContents()).some(text=>/LinkedIn - The Citadel/.test(text)));
- check('passport shows an unstamped Bengaluru entry',/BENGALURU/.test(await page.locator('.civilization-passport').textContent()));
+ const names=await page.locator('.planet-destinations button strong').allTextContents(),citadel=names.indexOf('LinkedIn - The Citadel'),bengaluru=names.indexOf('Bengaluru - The Garden City');
+ check('Orbital Atlas lists Bengaluru right after the Citadel',citadel>=0&&bengaluru===citadel+1&&names.includes('GitHub - The Forge'),{names});
+ check('passport shows an unstamped Bengaluru entry',/BENGALURU/.test(await page.locator('.civilization-passport').textContent())&&!/GARDEN CITY VISITOR/.test(await page.locator('.civilization-passport').textContent()));
  await page.screenshot({path:path.join(output,label+'-kingdom-atlas.png')});
- await card.click();
- await page.locator('.blr-overlay .blr-host[data-stage="ready"]').waitFor({timeout:240000});
- await page.waitForFunction(()=>{const text=document.querySelector('.blr-overlay .blr-status')?.textContent??'';const match=/(\d+) tiles resident/.exec(text);return match&&+match[1]>=8},null,{timeout:240000});
- check('orbital deck opens the explorable planet inside the kingdom',await page.locator('dialog.blr-overlay[open][aria-modal="true"]').count()===1&&await page.locator('.blr-overlay .blr-breadcrumbs').count()===0);
- const pauseState=await page.evaluate(()=>new Promise(resolve=>{const world=globalThis.__blrWorld,before=world.renderer.info.render.frame;setTimeout(()=>resolve({before,after:world.renderer.info.render.frame,focusInDeck:document.activeElement?.closest('.blr-overlay')!==null,ready:document.querySelector('main.kingdom')?.dataset.ready==='true'}),900)}));
- // A paused world may still draw one invalidation frame; a live loop would add many frames in 900 ms.
- check('kingdom pauses while the deck is open',pauseState.ready&&pauseState.after-pauseState.before<=2&&pauseState.focusInDeck,pauseState);
- await page.screenshot({path:path.join(output,label+'-kingdom-deck.png')});
+ // Stand on the rocket pad while the world runs (an open sheet pauses status updates), then pick the planet and launch; the flight prefetches the city.
+ await page.keyboard.press('Escape');await page.locator('.planet-destinations').waitFor({state:'detached',timeout:30000});
+ await page.evaluate(()=>{const world=globalThis.__blrWorld;world.player.position.set(-36.5+10,.8,3+2)});
+ await page.waitForFunction(()=>/Launch to another world/.test(globalThis.__blrWorld.transport.prompt()??''),null,{timeout:60000});
+ await openTravel();
+ await page.waitForFunction(()=>!document.querySelector('.boarding-actions button:nth-child(2)')?.disabled,null,{timeout:30000});
+ await page.locator('.planet-destinations button',{hasText:'Bengaluru - The Garden City'}).click();
+ await page.locator('.boarding-actions button',{hasText:'Launch rocket'}).click();
+ await page.waitForFunction(index=>{const journey=globalThis.__blrWorld.transport.journey;return journey.mode==='rocket'&&journey.destination===index},stop.index,{timeout:30000});
+ check('rocket launches toward Bengaluru',true);
+ // Journey time advances at most 0.1 s per frame, so a software-rendered flight takes far longer than its 10 s.
+ await page.waitForFunction(index=>{const journey=globalThis.__blrWorld.transport.journey;return journey.mode===null&&journey.current===index},stop.index,{timeout:240000});
+ await page.waitForFunction(index=>globalThis.__blrWorld.transport.streaming.ready(index),stop.index,{timeout:240000});
+ await page.waitForTimeout(1500);
+ const arrival=await page.evaluate(index=>{
+  const world=globalThis.__blrWorld,landscape=world.transport.landscapes[index],surface=world.transport.surfaces[index],city=landscape.city,player=world.player.position;
+  let batched=0;landscape.root.traverse(object=>{if(object.isMesh&&object.name==='SceneryBatch')batched+=object.geometry.index?object.geometry.index.count/3:object.geometry.attributes.position.count/3});
+  const trees=city?.root.getObjectByName('Bengaluru_trees');
+  return {state:landscape.state,visible:landscape.root.visible,triangles:city?.triangles,bakedTiles:city?.bakedTiles,landmarks:city?.landmarks.length,batched,trees:trees?trees.count:0,playerY:+player.y.toFixed(2),stopY:surface.stop.y,distanceToStop:+Math.hypot(player.x-surface.stop.x,player.z-surface.stop.z).toFixed(1),prompt:world.transport.prompt(),towns:landscape.infrastructure?.towns.length,residents:landscape.population?.residents.length};
+ },stop.index);
+ check('landing on the city globe bakes the mapped tiles around the sphere',arrival.state==='active'&&arrival.triangles>60000&&arrival.bakedTiles>=30&&arrival.batched>60000&&arrival.trees>1000&&arrival.landmarks===12&&arrival.towns===0&&arrival.residents===0,arrival);
+ check('the player stands on the landing deck',Math.abs(arrival.playerY-arrival.stopY)<2&&arrival.distanceToStop<20&&/Explore Bengaluru|Launch to another world/.test(arrival.prompt),arrival);
+ await page.screenshot({path:path.join(output,label+'-kingdom-arrival.png')});
+ // Teleports skip the parallel transport that walking performs, so rebuild the surface frame from the local up before stepping.
+ await page.evaluate(()=>{globalThis.__blrSettle=(world,surface,point)=>{const Vector=world.player.up.constructor,up=new Vector().copy(point).sub(surface.center).normalize();world.player.position.copy(point);world.player.userData.surfaceFrame=new (world.player.quaternion.constructor)().setFromUnitVectors(new Vector(0,1,0),up);world.transport.stepSurface(0,0,0)}});
+ const walk=await page.evaluate(index=>{
+  const world=globalThis.__blrWorld,landscape=world.transport.landscapes[index],surface=world.transport.surfaces[index],city=landscape.city;
+  const blockedBuilding=landscape.blocked(city.toPlanet(442.33,425.58,0),.45),openLawn=landscape.blocked(city.toPlanet(620+190,-150,0),.45);
+  globalThis.__blrSettle(world,surface,city.toPlanet(620+190,-150,0));const before=world.player.position.clone();
+  for(let step=0;step<20;step++)world.transport.stepSurface(0,1,.5);
+  const after=world.player.position.clone(),radius=after.distanceTo(surface.center);
+  return {blockedBuilding,openLawn,moved:+before.distanceTo(after).toFixed(2),radius:+radius.toFixed(2),planetRadius:surface.radius,upY:+world.player.up.y.toFixed(3)};
+ },stop.index);
+ check('city blocks are solid, the park lawn is open and walking follows the globe',walk.blockedBuilding===true&&walk.openLawn===false&&walk.moved>4&&Math.abs(walk.radius-walk.planetRadius)<2.6&&walk.upY>.95,walk);
+ const landmark=await page.evaluate(index=>{
+  const world=globalThis.__blrWorld,landscape=world.transport.landscapes[index],surface=world.transport.surfaces[index],city=landscape.city,vidhana=city.landmarks.find(entry=>entry.name==='Vidhana Soudha');
+  globalThis.__blrSettle(world,surface,city.toPlanet(-5.63,-40,0));
+  return {prompt:world.transport.prompt(),interact:world.transport.interact(),description:vidhana?.description};
+ },stop.index);
+ check('Vidhana Soudha prompts and answers with its OpenStreetMap height',/E \u00b7 Vidhana Soudha/.test(landmark.prompt)&&landmark.interact===true&&/30 m/.test(landmark.description),landmark);
+ // Let the follow camera settle behind the avatar before judging the view.
+ await page.waitForTimeout(3500);
+ const view=await page.evaluate(index=>{const world=globalThis.__blrWorld,surface=world.transport.surfaces[index],camera=world.camera,scale=world.scene.scale.x,center=surface.center.clone().multiplyScalar(scale);return {cameraAltitude:+(camera.position.distanceTo(center)/scale-surface.radius).toFixed(2)}},stop.index);
+ check('the follow camera stays above the city surface',view.cameraAltitude>0,view);
+ await page.screenshot({path:path.join(output,label+'-kingdom-city.png')});
+ const frame=await page.evaluate(()=>new Promise(resolve=>{const world=globalThis.__blrWorld,before=world.renderer.info.render.frame;requestAnimationFrame(()=>requestAnimationFrame(()=>{const canvas=world.renderer.domElement,probe=document.createElement('canvas');probe.width=160;probe.height=120;const context=probe.getContext('2d');context.drawImage(canvas,0,0,probe.width,probe.height);const data=context.getImageData(0,0,probe.width,probe.height).data,colors=new Set();for(let i=0;i<data.length;i+=4)colors.add((data[i]>>3)<<10|(data[i+1]>>3)<<5|(data[i+2]>>3));resolve({colors:colors.size,frames:world.renderer.info.render.frame-before,triangles:world.renderer.info.render.triangles})}))}));
+ check('the city renders with real detail',frame.frames>=1&&frame.colors>40&&frame.triangles>60000,frame);
+ await openTravel();
+ check('passport stamps the visit and the atlas marks the current stop',/GARDEN CITY VISITOR/.test(await page.locator('.civilization-passport').textContent())&&/HERE/.test(await page.locator('.planet-destinations button',{hasText:'Bengaluru - The Garden City'}).textContent())&&await page.evaluate(()=>JSON.parse(localStorage.getItem('kingdom-transit-v1')).visited.includes('bengaluru')));
  await page.keyboard.press('Escape');
- await page.locator('.blr-overlay').waitFor({state:'detached',timeout:30000});
- check('deck closes back to the same kingdom document',await page.evaluate(()=>document.querySelectorAll('canvas').length===1&&!!globalThis.__blrWorld.scene.getObjectByName('Bengaluru_Globe')));
- await openTravel();await page.locator('.civilization-passport').waitFor({timeout:30000});
- check('passport stamps the visit',/GARDEN CITY VISITOR/.test(await page.locator('.civilization-passport').textContent())&&await page.evaluate(()=>localStorage.getItem('kingdom-bengaluru-v1')==='1'));
  check('no page errors in the kingdom',report.errors.length===0,report.errors);
  await context.close();
 }

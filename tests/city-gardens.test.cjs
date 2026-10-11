@@ -28,7 +28,7 @@ test('public pools leave the Commons boulevard, storefront entrances, and worksh
 
 test('each planet has a pool and turf court clear of landing caps, logo footprints and roads',()=>{
   const {createPlanetInfrastructure}=require('../app/planet-infrastructure.ts'),{createPlanetSurface,planetGeography}=require('../app/planet-geography.ts'),{transitStops}=require('../app/transit-config.ts');
-  for(const stop of transitStops.slice(1)){
+  for(const stop of transitStops.slice(1).filter(stop=>!stop.city)){
     const scene=new T.Scene(),surface=createPlanetSurface(stop,stop.radius),city=createPlanetInfrastructure(scene,surface);assert.ok(city.pools.length>0,stop.name+' has no pool');
     for(const pool of city.pools){const direction=pool.position.clone().sub(surface.center).normalize(),land=planetGeography(surface,direction);assert.ok(direction.y<.85);assert.ok(land.road>=9);assert.ok(land.height<=.2&&land.height>=-.1,'Pools must use gentle settlement clearings');assert.equal(city.blocked(pool.position),true)}
     disposeScene(scene);

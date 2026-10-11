@@ -8,7 +8,7 @@ function instancePose(mesh,index){const matrix=new T.Matrix4(),position=new T.Ve
 
 test('all configured planet residents retain cheap instancing with four fitted occupational profiles',()=>{
  let count=0;
- for(const stop of transitStops.slice(1)){
+ for(const stop of transitStops.slice(1).filter(stop=>!stop.city)){
   const {scene,population}=populationFor(stop),meshes=population.root.children.filter(object=>object instanceof T.Mesh);count+=population.residents.length;
   assert.equal(population.residents.length,66);assert.equal(new Set(population.residents.map(resident=>resident.occupation)).size,4);
   assert.equal(meshes.length,14);assert.ok(meshes.every(mesh=>mesh instanceof T.InstancedMesh));
@@ -18,7 +18,7 @@ test('all configured planet residents retain cheap instancing with four fitted o
   for(const name of ['Heads','Faces','Collars','Equipment','Headwear','Smiles'])assert.equal(population.root.getObjectByName('Planet_Resident'+name).count,66);
   assert.equal(population.root.getObjectByName('Planet_ResidentArms').count,132);disposeScene(scene);
  }
- assert.equal(count,(transitStops.length-1)*66);assert.ok(count>=198);
+ assert.equal(count,transitStops.slice(1).filter(stop=>!stop.city).length*66);assert.ok(count>=198);
 });
 
 test('yielding residents plant their feet, keep their speech and reopen their eyes in reduced motion',()=>{

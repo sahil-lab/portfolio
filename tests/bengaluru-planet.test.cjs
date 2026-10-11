@@ -228,17 +228,107 @@ test('sky texture places the crown at the image centre with north up and east ri
  assert.equal(renderSkySvg([],projection,manifest),renderSkySvg([],projection,manifest),'deterministic');
 });
 
-test('kingdom satellite is a single textured globe that mounts, reports readiness and disposes',async()=>{
- const T=require('three'),{createBengaluruSatellite,bengaluruSatellite}=require('../app/bengaluru-satellite.ts'),scene=new T.Scene();
- const satellite=createBengaluruSatellite(scene);
- assert.equal(satellite.root.parent,scene);assert.deepEqual(satellite.root.position.toArray(),[bengaluruSatellite.x,bengaluruSatellite.y,bengaluruSatellite.z]);
- assert.equal(satellite.globe.geometry.parameters.radius,bengaluruSatellite.radius);assert.equal(scene.getObjectByName('Bengaluru_Globe'),satellite.globe);assert.ok(scene.getObjectByName('Bengaluru_Haze'));
- assert.equal(await satellite.ready,false,'no texture rasterisation outside a browser');
- const material=satellite.globe.material;require('../app/static-batching.ts').batchScenery(scene,{});
- assert.equal(scene.getObjectByName('Bengaluru_Globe'),satellite.globe,'static batching leaves the globe mesh alone');assert.equal(satellite.globe.material,material);assert.equal(satellite.globe.geometry.parameters.radius,bengaluruSatellite.radius);assert.ok(material.map,'placeholder map present until the city texture loads');
- const custom=createBengaluruSatellite(scene,{position:{x:1,y:2,z:3},radius:5,loadTexture:false});assert.deepEqual(custom.root.position.toArray(),[1,2,3]);assert.equal(await custom.ready,false);
- satellite.dispose();custom.dispose();assert.equal(scene.children.length,0);
- assert.equal(bengaluruSatellite.textureUrl,'/assets/bengaluru-v1/planet-sky.svg');assert.ok(Math.abs(bengaluruSatellite.x)<1&&bengaluruSatellite.y>600,'sits above the Forge/Citadel row');
+test('Bengaluru rides the orbital line as a full globe clear of the board and every other planet',()=>{
+ const {transitStops,TransitJourney,transitPoint}=require('../app/transit-config.ts'),{motherboardBounds}=require('../app/world-config.ts'),{createPlanetSurface}=require('../app/planet-geography.ts');
+ const index=transitStops.findIndex(stop=>stop.id==='bengaluru'),stop=transitStops[index];
+ assert.equal(index,transitStops.length-1,'appended so saved and shared station indices keep their meaning');assert.equal(stop.city,'bengaluru');assert.equal(stop.radius,200);assert.equal(stop.theme,'garden');
+ const nearestX=Math.max(motherboardBounds.minX,Math.min(motherboardBounds.maxX,stop.x)),nearestZ=Math.max(motherboardBounds.minZ,Math.min(motherboardBounds.maxZ,stop.z-3));
+ assert.ok(Math.hypot(stop.x-nearestX,stop.z-3-nearestZ)-stop.radius-48>30,'board clearance');
+ const surface=createPlanetSurface(stop,stop.radius);
+ for(const other of transitStops.slice(1)){if(other===stop)continue;assert.ok(Math.hypot(stop.x-other.x,stop.z-other.z)-stop.radius-other.radius-96>30,stop.id+' / '+other.id);assert.ok(surface.center.distanceTo(createPlanetSurface(other,other.radius).center)>surface.radius+other.radius+30,'spheres apart from '+other.id)}
+ for(const origin of [0,1,3])for(const mode of ['metro','rocket']){
+  const journey=new TransitJourney();journey.current=origin;assert.equal(journey.start(index,mode),true);
+  for(let sample=0;sample<=10;sample++)assert.ok(Object.values(transitPoint(transitStops[origin],stop,sample/10,mode)).every(Number.isFinite));
+  let arrivals=0;for(let frame=0;frame<170;frame++)arrivals+=Number(journey.tick(.1));assert.equal(arrivals,1);assert.equal(journey.current,index);
+ }
+});
+
+test('city globe projection inverts, flattens the mapped disc and keeps the open country procedural',()=>{
+ const T=require('three'),{transitStops}=require('../app/transit-config.ts'),{createPlanetSurface,planetGeography,planetPoint}=require('../app/planet-geography.ts'),{createPlanetColorizer}=require('../app/planet-biomes.ts');
+ const C=require('../app/bengaluru-city-config.ts'),stop=transitStops.find(entry=>entry.id==='bengaluru'),city=C.cityPlanetFor(stop),surface=createPlanetSurface(stop,stop.radius),R=surface.radius;
+ assert.ok(city&&C.cityPlanetFor({})===null&&C.cityPlanetFor(transitStops[1])===null);
+ assert.deepEqual(C.cityDirection(city,R,city.anchor.east,city.anchor.north),[0,1,0]);
+ for(const [east,north] of [[0,0],[-5.63,35.37],[1500,-150],[620,1400],[-900,-900],[620,-149]]){
+  const [x,y,z]=C.cityDirection(city,R,east,north),back=C.cityFlat(city,R,{x,y,z});
+  assert.ok(Math.abs(Math.hypot(x,y,z)-1)<1e-9);assert.ok(Math.abs(back.east-east)<1e-6&&Math.abs(back.north-north)<1e-6,`round trip ${east},${north}`);
+  assert.ok(Math.abs(back.rho-Math.hypot(east-city.anchor.east,north-city.anchor.north)*city.scale)<1e-6,'arc distance equals scaled flat distance');
+ }
+ const eastOfAnchor=C.cityDirection(city,R,city.anchor.east+500,city.anchor.north),northOfAnchor=C.cityDirection(city,R,city.anchor.east,city.anchor.north+500);
+ assert.ok(eastOfAnchor[0]>0&&Math.abs(eastOfAnchor[2])<1e-9&&northOfAnchor[2]<0&&Math.abs(northOfAnchor[0])<1e-9,'east is +x and north is -z, matching the standalone planet');
+ assert.ok(Math.abs(C.cityEdgeAngle(city,R)-1.2)<1e-9);
+ const inside=new T.Vector3(...C.cityDirection(city,R,1000,-800)),outside=new T.Vector3(0,-1,0),rim=new T.Vector3(...C.cityDirection(city,R,city.anchor.east+1700,city.anchor.north));
+ assert.equal(C.cityEdgeDistance(city,R,inside),0);assert.ok(C.cityEdgeDistance(city,R,outside)>300);assert.ok(Math.abs(C.cityEdgeDistance(city,R,rim)-15)<1e-6);
+ const flat=planetGeography(surface,inside),country=planetGeography(surface,outside);
+ assert.deepEqual([flat.height,flat.road,flat.water,flat.mountain],[0,0,false,flat.mountain]);assert.equal(flat.river,Infinity);assert.equal(country.water,false);assert.ok(country.road>300);
+ assert.ok(Math.abs(planetPoint(surface,inside).distanceTo(surface.center)-R)<1e-6,'the mapped disc is a true sphere');
+ const colorize=createPlanetColorizer(stop),cityGround=new T.Color(city.ground);
+ assert.ok(colorize(inside,flat).equals(cityGround),'earth tone under the tiles');assert.equal(colorize(outside,country).equals(cityGround),false);
+ assert.equal(createPlanetColorizer(transitStops[1])(inside,{height:0,road:0,river:Infinity}).equals(cityGround),false,'other globes keep their biome');
+});
+
+// Speech bubbles and signs draw text into canvases; the same stub the other planet tests use keeps that off the DOM.
+const withCanvasDocument=context=>{const previous=global.document;global.document={createElement:()=>({width:0,height:0,getContext:()=>new Proxy({measureText(text){return {width:text.length*parseFloat(this.font.split(' ')[1])*.55}}},{get:(object,key)=>object[key]??(()=>{}),set:(object,key,value)=>(object[key]=value,true)})})};context.after(()=>{if(previous===undefined)delete global.document;else global.document=previous})};
+
+test('city globes switch off the procedural network, travellers and shuttles',context=>{
+ withCanvasDocument(context);
+ const T=require('three'),{transitStops}=require('../app/transit-config.ts'),{createPlanetSurface}=require('../app/planet-geography.ts');
+ const stop=transitStops.find(entry=>entry.id==='bengaluru'),surface=createPlanetSurface(stop,stop.radius),scene=new T.Scene();
+ const infrastructure=require('../app/planet-infrastructure.ts').createPlanetInfrastructure(scene,surface);
+ assert.deepEqual([infrastructure.roads.length,infrastructure.rivers.length,infrastructure.towns.length,infrastructure.buildings.length,infrastructure.pools.length],[0,0,0,0,0]);
+ assert.equal(infrastructure.blocked(surface.center.clone().add(new T.Vector3(0,surface.radius,0)),.45),false);assert.equal(infrastructure.root.children.length,0);
+ const population=require('../app/planet-population.ts').createPlanetPopulation(scene,surface,infrastructure.towns);
+ assert.deepEqual([population.residents.length,population.traffic.length],[0,0]);assert.equal(population.prompt(surface.center),null);
+ const forge=createPlanetSurface(transitStops[1],transitStops[1].radius),forgeTowns=require('../app/planet-infrastructure.ts').planetTowns(forge);
+ assert.ok(forgeTowns.length>0&&require('../app/planet-population.ts').createPlanetPopulation(scene,forge,forgeTowns).residents.length>18,'other globes are unchanged');
+});
+
+const publishedRequest=(root)=>async(url)=>{const file=String(url).replace('/assets/bengaluru-v1/','');const bytes=fs.readFileSync(path.join(root,file));return {ok:true,status:200,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
+
+test('city planet bakes the published tiles onto the globe with collision footprints, trees and landmarks',async()=>{
+ const T=require('three'),{transitStops}=require('../app/transit-config.ts'),{createPlanetSurface}=require('../app/planet-geography.ts'),{disposeScene}=require('../app/scene-resources.ts');
+ const P=require('../app/bengaluru-city-planet.ts'),C=require('../app/bengaluru-city-config.ts'),stop=transitStops.find(entry=>entry.id==='bengaluru'),city=C.cityPlanetFor(stop),surface=createPlanetSurface(stop,stop.radius),R=surface.radius;
+ const selected=P.cityPlanetTiles(city);assert.ok(selected.length>=30&&selected.length<P.cityPlanetManifest.tiles.length,'only tiles touching the disc are fetched');
+ for(const tile of P.cityPlanetManifest.tiles){const [minE,minN,maxE,maxN]=tile.bounds,near=Math.hypot(Math.max(minE,Math.min(maxE,city.anchor.east))-city.anchor.east,Math.max(minN,Math.min(maxN,city.anchor.north))-city.anchor.north);assert.equal(selected.includes(tile),near<=city.radiusM,tile.id)}
+ const requests=[],request=publishedRequest(path.resolve(__dirname,'../public/assets/bengaluru-v1')),counting=async(url,init)=>{requests.push(String(url));return request(url,init)};
+ const aborted=new AbortController();aborted.abort();assert.equal(await P.loadCityPlanetTiles(surface,aborted.signal,counting),null);assert.equal(requests.length,0);
+ assert.equal(await P.loadCityPlanetTiles(createPlanetSurface(transitStops[1],transitStops[1].radius),new AbortController().signal,counting),null,'other globes fetch nothing');
+ assert.deepEqual(await P.loadCityPlanetTiles(surface,new AbortController().signal),{city,tiles:[],bytes:0},'no browser, no fetch: the globe builds bare');
+ await assert.rejects(P.loadCityPlanetTiles(surface,new AbortController().signal,async()=>({ok:false,status:503})),/responded 503/);
+ const payload=await P.loadCityPlanetTiles(surface,new AbortController().signal,counting);
+ assert.equal(payload.tiles.length,selected.length);assert.ok(requests.every(url=>url.endsWith('-l0.glb')),'near detail everywhere; the whole disc is walkable');assert.ok(payload.bytes>2e6);
+ const scene=new T.Scene(),builder=P.buildCityPlanetWorld(scene,surface,payload);let steps=0,result=builder.next();while(!result.done){steps++;result=builder.next()}const world=result.value;
+ assert.equal(steps,payload.tiles.length,'one scheduler step per tile');assert.equal(world.bakedTiles,payload.tiles.length);assert.ok(world.triangles>60000,'triangles '+world.triangles);assert.ok(world.blockerCount>20000);
+ const layers=world.root.children.filter(child=>child.isMesh).map(child=>child.name);assert.ok(layers.includes('Bengaluru_building')&&layers.includes('Bengaluru_ground'));
+ const point=new T.Vector3(),discUnits=city.radiusM*city.scale;let vertices=0;
+ for(const mesh of world.root.children){
+  if(!mesh.isMesh||mesh.isInstancedMesh)continue;const positions=mesh.geometry.attributes.position,index=mesh.geometry.index.array;assert.equal(mesh.geometry.attributes._featureid,undefined);
+  for(let i=0;i<index.length;i++){point.fromBufferAttribute(positions,index[i]);const distance=point.distanceTo(surface.center),arc=C.cityFlat(city,R,point.sub(surface.center)).rho;vertices++;
+   assert.ok(distance>R-2.6&&distance<R+120*city.scale,mesh.name+' vertex off the globe: '+distance);assert.ok(arc>=city.deckRadius-.05&&arc<=discUnits+.05,mesh.name+' outside the disc or on the deck: '+arc)}
+ }
+ assert.ok(vertices>100000);
+ const prestigeOpal=world.toPlanet(442.33,425.58,0),lawn=world.toPlanet(city.anchor.east+190,city.anchor.north,0);
+ assert.equal(world.blocked(prestigeOpal,.45),true,'building roofs block walking');assert.equal(world.blocked(lawn,.45),false,'Cubbon Park lawn stays open');assert.equal(world.blocked(lawn,2.25),false,'the rover reach stays short');
+ const flatBack=world.flatAt(prestigeOpal);assert.ok(Math.abs(flatBack.east-442.33)<.01&&Math.abs(flatBack.north-425.58)<.01);
+ assert.equal(world.blocked(surface.center.clone().add(new T.Vector3(0,-R,0)),.45),false,'the far side is open country');
+ assert.equal(world.landmarks.length,P.cityPlanetManifest.landmarks.length,'every published landmark lies inside the disc');
+ const vidhana=world.nearest(world.toPlanet(-5.63,35.37,0));assert.equal(vidhana?.name,'Vidhana Soudha');assert.match(vidhana.description,/Civic building .*30 m \(OpenStreetMap height tag\)/);assert.equal(world.nearest(lawn),undefined);
+ assert.ok(world.trees&&world.trees.count>1000&&world.trees.count<=city.trees);
+ const matrix=new T.Matrix4(),treePosition=new T.Vector3();world.trees.getMatrixAt(0,matrix);treePosition.setFromMatrixPosition(matrix);assert.ok(Math.abs(treePosition.distanceTo(surface.center)-R)<.2);
+ require('../app/static-batching.ts').batchScenery(world.root,{});assert.ok(world.root.children.some(child=>child.name==='SceneryBatch'),'the baked city merges like other scenery');
+ disposeScene(world.root);
+});
+
+test('a city globe builds through the shared planet landscape with its outposts kept off the map',async context=>{
+ withCanvasDocument(context);
+ const T=require('three'),{transitStops}=require('../app/transit-config.ts'),{createPlanetSurface}=require('../app/planet-geography.ts'),{createPlanetLandscape}=require('../app/planet-surface.ts');
+ const P=require('../app/bengaluru-city-planet.ts'),C=require('../app/bengaluru-city-config.ts'),stop=transitStops.find(entry=>entry.id==='bengaluru'),city=C.cityPlanetFor(stop),surface=createPlanetSurface(stop,stop.radius);
+ const payload=await P.loadCityPlanetTiles(surface,new AbortController().signal,publishedRequest(path.resolve(__dirname,'../public/assets/bengaluru-v1')));
+ const landscape=createPlanetLandscape(new T.Scene(),surface,undefined,payload);
+ assert.ok(landscape.city&&landscape.city.landmarks.length===P.cityPlanetManifest.landmarks.length);assert.equal(landscape.infrastructure.towns.length,0);assert.equal(landscape.population.residents.length,0);assert.equal(landscape.publicSpaces.places.length,0);
+ assert.equal(landscape.blocked(landscape.city.toPlanet(442.33,425.58,0)),true);assert.equal(landscape.blocked(landscape.city.toPlanet(city.anchor.east+190,city.anchor.north,0)),false);
+ const discUnits=city.radiusM*city.scale;for(const outpost of landscape.outposts)assert.ok(C.cityFlat(city,surface.radius,outpost.position.clone().sub(surface.center)).rho>discUnits+5,outpost.name+' keeps clear of the city');
+ assert.ok(landscape.distant.rotation.z>1.5,'the orbital silhouette turns the city map toward the landing pole');
+ assert.equal(createPlanetLandscape(new T.Scene(),surface).city,null,'no tiles means no city layer rather than a failure');
 });
 
 test('published build matches its manifest and the stored snapshot hash',()=>{

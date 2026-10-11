@@ -12,6 +12,7 @@ import {realmDesign,realmSiteDistance} from './realm-layout';
 import {createRoadMarking,planetBiome} from './planet-biomes';
 import {planetTownComposition} from './planet-composition';
 import {globeDirection,planetPoint,planetUp,planetGeography,riverLatitude,roadLatitudes,roadLongitudes,type PlanetSurface} from './planet-geography';
+import {cityPlanetFor} from './bengaluru-city-config';
 
 export type PlanetTown={name:string;direction:T.Vector3;position:T.Vector3;east:T.Vector3;north:T.Vector3};
 export function planetTowns(surface:PlanetSurface):PlanetTown[]{
@@ -28,6 +29,12 @@ export function planetTowns(surface:PlanetSurface):PlanetTown[]{
 
 export function createPlanetInfrastructure(parent:T.Object3D,surface:PlanetSurface){
   const root=new T.Group();root.name='Planet_Infrastructure_'+surface.stop.id;parent.add(root);
+  // A mapped city brings its own streets, water and blocks; the procedural network stays off that globe.
+  if(cityPlanetFor(surface.stop)){
+    root.userData.staticCameraBounds=[];
+    return {root,roads:[] as {name:string;directions:T.Vector3[]}[],rivers:[] as T.Mesh[],bridges:[] as T.Vector3[],towns:[] as PlanetTown[],buildings:[] as {position:T.Vector3;radius:number;town:string}[],pools:[] as {court:ReturnType<typeof createPoolCourt>;position:T.Vector3;inverse:T.Quaternion}[],architecture:[] as ReturnType<typeof createArchitectureNeighborhood>[],
+      updateArchitecture:(_observer:T.Vector3,_active:boolean)=>{},reserved:(_direction:T.Vector3,_position:T.Vector3)=>false,blocked:(_position:T.Vector3,_padding=.45)=>false,update:(_dt:number,_reduced:boolean)=>{}};
+  }
   const identity=civilizationFor(surface.stop),style=identity?civilizations[identity]:null;
   const realm=realmDesign(surface.stop),worldKind=surface.stop.worldKind;
   const finish=createCraftMaterials();
