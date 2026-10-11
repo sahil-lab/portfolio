@@ -37,7 +37,7 @@ export function finishKingdomMaterials(scene:T.Object3D){
       finished.add(material);
       material.dithering=true;
       const polished=material.roughness<=.28||material.userData.surface==='glass'||material.userData.surface==='water',natural=material.userData.surface==='natural'||material.vertexColors&&!material.userData.authoredArchitecture&&!material.userData.authoredCraft,ceramic=material.userData.surface==='ceramic';
-      if(!polished&&!natural&&!ceramic&&!material.map){
+      if(!polished&&!natural&&!ceramic&&!material.map&&!material.userData.authoredPaving){
         // Floors keep authored satin trims distinct from matte walls; ceilings stop surfaces going chalky.
         material.roughness=T.MathUtils.clamp(material.roughness,material.metalness>.35?.3:.46,material.metalness>.35?.5:.82);
         if(material instanceof T.MeshPhysicalMaterial){material.clearcoat=T.MathUtils.clamp(material.clearcoat,0,.35);material.clearcoatRoughness=T.MathUtils.clamp(material.clearcoatRoughness,.3,.65)}

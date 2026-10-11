@@ -47,3 +47,9 @@ test('Astra uses the shared tint hook and restores off-world reflections without
   for(const channel of ['r','g','b'])assert.ok(Math.abs(light.groundColor[channel]-original[channel])<.001);
   const look=astraSkyTint({...defaultWeather,updatedAt:'2026-09-20T18:00',cloudCover:0});assert.ok(look.sunY<22);assert.ok(look.ambient<.7);
 });
+
+test('steady atmosphere reuses weather-derived targets while changed weather refreshes them',context=>{
+ const scene=new T.Scene(),light=new T.HemisphereLight(),calls=[];scene.add(light);const atmosphere=createAstraAtmosphere(scene,look=>calls.push(look)),weather={...defaultWeather,updatedAt:'2026-09-20T12:00'};
+ const first=atmosphere.update(weather,0,true),set=context.mock.method(T.Color.prototype,'set');for(let frame=0;frame<120;frame++)assert.equal(atmosphere.update({...weather},1/60,true),first);assert.equal(set.mock.callCount(),0);assert.equal(calls.length,1);
+ const night={...weather,isDay:false},changed=atmosphere.update(night,1/60,true);assert.notEqual(changed,first);assert.deepEqual(changed,astraLightStory(night));assert.equal(calls.length,2);assert.equal(atmosphere.update(night,1/60,true),changed);atmosphere.update(night,1/60,false);assert.deepEqual(calls.at(-1),{});
+});

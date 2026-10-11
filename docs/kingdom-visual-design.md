@@ -29,6 +29,74 @@ lots and participate in collision checks. The small-screen Commons arrival has a
 tested sight line past the radio to the kettle storefront. The open atrium no
 longer imposes the previous solid ceiling on orbital camera movement.
 
+## Shared Lighting And Material Pass, 11 October 2026
+
+This pass applies the supplied visual direction through the app's existing imperative Three.js pipeline. The two referenced images were not attached to this request, so the written targets guide the work; no exact image-match claim is made. The recent memory fixes, original assets, gameplay, UI structure and full-resolution close-reading behavior remain intact.
+
+### Changes
+
+- Authored stone/asphalt paving is nonmetallic and matte, with roughness floors of 0.90/0.94 and restrained clearcoat. The shared texture channel modulates roughness within 0.95-1.0 instead of multiplying it by an unrestricted channel value. Wet weather still adjusts the material roughness. The final material-finishing pass now preserves this paving policy rather than clamping it back down.
+- Explicit sunset/cycle modes use an apricot-peach horizon, muted lavender upper sky and complementary haze. Twilight blending retains those colors instead of prematurely mixing them toward night. Night values and the local weather source remain distinct.
+- Daytime fill is slightly stronger, with cooler ground bounce. The generated environment's concentrated highlight is reduced from 3.4 to 2.0 while retaining its broad fill. This avoids darkening every shaded surface to suppress a reflection highlight.
+- Fixed lighting palettes are precomputed and blended through a reusable color object. Unchanged atmosphere updates reuse weather-derived targets and parsed colors; transitions still blend smoothly. Tests verify zero palette reparsing over 120 steady updates and refresh on changed weather/world state.
+
+The renderer keeps its custom Neutral tone mapping, exposure 0.95 and existing color-space handling. Bloom, GTAO, shadow-map dimensions/cadence, the 128-pixel generated environment and PMREM target reuse are unchanged. No new light, texture download, model subdivision, shadow map, post-processing pass, worker or dependency was added. The implementation does not migrate the app to React Three Fiber or add Drei.
+
+### Locked-Camera Evidence
+
+The diagnostic mode in `scripts/check-kingdom-visuals.cjs` uses a fixed Lantern Quarter camera, High quality, sunset mode, 1440 x 960 and exposure 0.95. It captures the current pipeline, neutral grading, a direct-render control without post-processing, and a control without environment illumination. These are temporary changes in an isolated browser, not application settings changes. Fresh frames are explicitly requested before WebGL pixel sampling.
+
+In the baseline, neutral grading barely changed mean luminance (0.417 to 0.416), while removing environment illumination reduced it to 0.246 and the fifth percentile from 0.174 to 0.070. The environment therefore remains important for readable shade. The final candidate's ordinary capture measured mean 0.483, fifth percentile 0.205 and 95th percentile 0.713, versus baseline 0.417, 0.174 and 0.647. Both ordinary captures reported 1,226 draws and 1,592,151 triangles. Whole-frame saturation decreased because the sky and fill changed; these statistics are not a substitute for inspecting the kiosk/character colors or a percentage match to a reference.
+
+The no-post-processing control performs an additional direct render, so its draw counter is not a performance comparison. Asset residency can differ while nearby city details settle. Source-level resource budgets and matched runtime checks are used separately; no whole-app FPS multiplier is inferred from these images.
+
+### Verification Scope
+
+The isolated candidate preserves the committed memory-fix baseline and excludes unrelated in-progress work. TypeScript, scoped lint, 70 shared lighting/material/environment/resource tests plus two focused paving tests, the Vercel-adapter build and output validator pass. The baseline and final four-control locked-camera runs passed nonblank-canvas, viewport/layout and error checks.
+
+The completed cross-world tour passed 46 views: mainland locations and all nine planets at surface/orbit distances on desktop and mobile, followed by first-person movement and night. Eleven workshop views passed across quality tiers, local/day/night lighting and movement. The High-quality mobile touch/orientation workflow passed native WebGL loss/restoration with the same document, scene and canvas; the existing Low-quality recovery policy is unchanged. These are local Chrome checks, not physical iPhone certification. Representative Lantern Quarter, workshop night and Copper planet screenshots were reviewed.
+
+Results are under `outputs/performance/oct11-lighting-polish/`, with screenshots and JSON reports under `outputs/playtest/oct11-lighting-*.png` and the corresponding `*-checks.json` files. Runtime fingerprints remained unchanged through the complete visual/recovery batch. The matched runtime timing comparison is recorded separately; the direct-render diagnostic is not used as an FPS benchmark.
+
+### Runtime Timing
+
+The first paired run used fixed Balanced quality, DPR 1 and three 90-frame samples after warm-up at each location. Desktop ran the baseline first; mobile reversed the order. The values below are the median sample's mean frame time in milliseconds, mapped by URL rather than the reversed run's labels. Lower is better.
+
+| Location | Desktop Baseline / Candidate | Mobile Baseline / Candidate, Reversed Order |
+| --- | --- | --- |
+| Plaza | 184.81 / 154.62 | 34.44 / 116.65 |
+| Project area | 110.37 / 112.77 | 26.67 / 60.03 |
+| Return | 162.21 / 163.14 | 37.22 / 64.07 |
+| Prism | 121.29 / 117.96 | 32.78 / 19.81 |
+
+These results are mixed, with a substantial mobile mainland regression in that run. Mobile startup also varied from 41.53 seconds for the candidate to 7.80 seconds for the later baseline, while retained geometry remained essentially unchanged. Changing machine load, run order and rendering work need to be distinguished from a code regression. A confirmation run with baseline-first mobile order is recorded separately; the initial results are retained, not replaced. Neither the visual improvements nor the verified reduction in repeated color parsing establishes an overall FPS gain.
+
+The completed baseline-first mobile confirmation used the same sources and settings:
+
+| Location | Mobile Baseline / Candidate, Confirmation |
+| --- | --- |
+| Plaza | 77.77 / 102.03 |
+| Project area | 62.77 / 63.14 |
+| Return | 92.40 / 79.63 |
+| Prism | 87.77 / 68.51 |
+
+The broad mainland slowdown did not repeat, but the plaza remained slower with the candidate. Startup was 24.52 / 30.94 seconds. Project and return snapshots also had different draw counts, so those rows are not equal-work comparisons. Both reports had no page errors, one canvas, no context loss and no horizontal overflow; all ten candidate source fingerprints remained unchanged. The confirmation is at `outputs/performance/oct11-lighting-timing-mobile-confirmation-mobile/metrics.json`.
+
+The final focused plaza comparison measured 74.25 / 79.07 ms before its diagnostic controls. Each control then warmed for 30 frames and sampled 60 frames:
+
+| Diagnostic Mode | Baseline / Candidate Frame Time, ms |
+| --- | --- |
+| Normal, start | 75.24 / 83.05 |
+| Draw calls suppressed | 29.45 / 26.11 |
+| Renderer suppressed | 16.66 / 16.66 |
+| Main-scene rendering only | 52.49 / 45.28 |
+| Shadows disabled | 72.22 / 66.94 |
+| Normal, end | 82.78 / 112.24 |
+
+Rendering is the main measured constraint in both builds. The candidate was quicker with several rendering controls but slower in normal frames, which also varied within each build. CPU wall-time around `renderer.render` was 50.76 / 49.25 ms at the start and 64.54 / 55.31 ms at the end; this is not a GPU timer and cannot exclude GPU or scheduling costs. The check did not isolate a consistent added cost from this patch. The mobile plaza slowdown remains an unresolved performance risk, not a demonstrated improvement or a proven machine-load artifact. No speculative runtime change or quality reduction was made from these results. The report is `outputs/performance/oct11-lighting-plaza-costs-mobile/metrics.json`; both builds passed the canvas, context, overflow and page-error checks, and candidate source fingerprints remained unchanged.
+
+This is a local implementation. It does not certify physical-device performance, introduce a new model-remodeling pass or imply a deployment. Future model changes should be justified by the matched view and budgets, rather than increasing geometry across the entire city.
+
 ## Optimized Diorama Finish, 10 October 2026
 
 The supplied reference calls for richer midtones, rounded edge highlights,

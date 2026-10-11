@@ -15,7 +15,7 @@ export type SkyEnvironmentInput={sun:T.DirectionalLight;up:T.Vector3;zenith:T.Co
  * studio HDR. `chroma` keeps part of the sky's colour in the fill (real skylight is far paler than
  * the zenith) and `floor` is a moonlit minimum so night shade never goes black.
  */
-export const skyEnvironmentRadiance={sky:4.2,ground:3,glow:1.2,highlight:3.4,keyReference:2.6,chroma:.5,floor:.2};
+export const skyEnvironmentRadiance={sky:4.2,ground:3,glow:1.2,highlight:2,keyReference:2.6,chroma:.5,floor:.2};
 
 export const skyEnvironmentShader={
   vertexShader:'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',

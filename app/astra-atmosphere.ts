@@ -3,8 +3,7 @@ import {astraLightStory} from './astra-lighting';
 import type {WeatherSnapshot} from './weather-state';
 import type {SkyLook} from './weather-sky';
 
-export function astraSkyTint(weather:WeatherSnapshot):Partial<SkyLook>{
-  const story=astraLightStory(weather);
+export function astraSkyTint(weather:WeatherSnapshot,story:ReturnType<typeof astraLightStory>=astraLightStory(weather)):Partial<SkyLook>{
   return {
     zenith:story.zenith,horizon:story.horizon,nadir:story.nadir,
     background:story.zenith,fogColor:story.horizon,fogDensity:story.fog,
@@ -20,16 +19,17 @@ export function createAstraAtmosphere(scene:T.Scene,tint:(look:Partial<SkyLook>)
   const lights:{light:T.HemisphereLight;sky:T.Color;ground:T.Color}[]=[];
   scene.traverse(object=>{if(object instanceof T.HemisphereLight)lights.push({light:object,sky:object.color.clone(),ground:object.groundColor.clone()})});
   const skyColor=new T.Color(),groundColor=new T.Color();
-  let previous='';
+  let previous:{active:boolean;kind:WeatherSnapshot['kind'];isDay:boolean;cover:number;updatedAt:string}|null=null,story:ReturnType<typeof astraLightStory>;
   return {
     update(weather:WeatherSnapshot,dt:number,active:boolean){
-      const story=astraLightStory(weather),blend=previous===''?1:1-Math.exp(-Math.min(Math.max(dt,0),.25)*1.4);
-      const signature=[active,weather.kind,weather.isDay,weather.cloudCover,weather.updatedAt].join('/');
-      if(signature!==previous){tint(active?astraSkyTint(weather):{});previous=signature}
+      const initial=previous===null,blend=initial?1:1-Math.exp(-Math.min(Math.max(dt,0),.25)*1.4);
+      if(!previous||previous.active!==active||previous.kind!==weather.kind||previous.isDay!==weather.isDay||!Object.is(previous.cover,weather.cloudCover)||previous.updatedAt!==weather.updatedAt){
+        story=Object.freeze(astraLightStory(weather));skyColor.set(story.skyLight);groundColor.set(story.groundLight);tint(active?astraSkyTint(weather,story):{});
+        previous={active,kind:weather.kind,isDay:weather.isDay,cover:weather.cloudCover,updatedAt:weather.updatedAt};
+      }
       scene.environmentIntensity=T.MathUtils.lerp(scene.environmentIntensity,active?story.environment:environment,blend);
       for(const entry of lights){
-        if(active){skyColor.set(story.skyLight);groundColor.set(story.groundLight)}else{skyColor.copy(entry.sky);groundColor.copy(entry.ground)}
-        entry.light.color.lerp(skyColor,blend);entry.light.groundColor.lerp(groundColor,blend);
+        entry.light.color.lerp(active?skyColor:entry.sky,blend);entry.light.groundColor.lerp(active?groundColor:entry.ground,blend);
       }
       return story;
     },

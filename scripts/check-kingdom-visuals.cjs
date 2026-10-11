@@ -7,6 +7,7 @@ const {ACESFilmicToneMapping,AgXToneMapping,NeutralToneMapping}=require('three')
 
 async function main(){
   const lanternOnly=process.argv.includes('--lantern');
+  const lightingStudy=process.argv.includes('--lighting-study');
   const bakeryStudy=process.argv.includes('--bakery-study');
   const atelierStudy=process.argv.includes('--atelier-study'),atelierAssets=atelierStudy||process.argv.includes('--atelier');
   const signatureStudy=process.argv.includes('--signature-study'),allSignatures=signatureStudy||process.argv.includes('--all-signatures')||atelierAssets;
@@ -20,7 +21,7 @@ async function main(){
   const paletteReview=process.argv.includes('--palette');
   const palettePanels=process.argv.includes('--palette-panels');
   const worldKitOnly=process.argv.includes('--world-kit')||blenderReturn||premiumAssets||terrainAssets||craftAssets;
-  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly||shopsOnly||worldKitOnly||pressStudy||collectiblePress||paletteReview||palettePanels;
+  const workshopOnly=process.argv.includes('--workshop')||process.argv.includes('--bake-workshop')||lanternOnly||lightingStudy||shopsOnly||worldKitOnly||pressStudy||collectiblePress||paletteReview||palettePanels;
   const matchReference=process.argv.includes('--match-reference');
   const referenceOnly=process.argv.includes('--reference')||matchReference;
   const browser=await chromium.launch({channel:workshopOnly?'chrome':'msedge',headless:true,args:workshopOnly?[]:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -92,7 +93,10 @@ async function main(){
     async function capture(name){
       assert.equal(await page.getByText(/^build error$/i).isVisible(),false,`${name}: a development error overlay covers the scene`);
       await page.evaluate(async()=>{await Promise.all([document.fonts.load('500 14px "Space Grotesk"'),document.fonts.load('500 25px "Fraunces"')]);await document.fonts.ready});
-      const pixels=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const pixels=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+        if(globalThis.__lightingStudy)globalThis.__kingdomReview.setPaused(true);
+        requestAnimationFrame(()=>{
+        if(globalThis.__lightingStudy?.direct){const world=globalThis.__kingdomReview,target=world.renderer.getRenderTarget();world.renderer.setRenderTarget(null);world.renderer.render(world.scene,world.camera);world.renderer.setRenderTarget(target)}
         const canvas=document.querySelector('.world canvas'),sample=document.createElement('canvas');sample.width=96;sample.height=64;
         const context=sample.getContext('2d');context.drawImage(canvas,0,0,96,64);const data=context.getImageData(0,0,96,64).data,colors=new Set();let sum=0,lit=0;
         const lumas=[];let saturation=0,value=0;
@@ -106,7 +110,8 @@ async function main(){
         const toolbar=[...document.querySelectorAll('.topbar button')].map(element=>{const rect=element.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
         const assetsReady=document.fonts.check('500 14px "Space Grotesk"')&&document.fonts.check('500 25px "Fraunces"');
         resolve({viewport:[innerWidth,innerHeight],colors:colors.size,litFraction:lit/(96*64),tone,hash:sum,overflow:document.documentElement.scrollWidth>innerWidth,controls,mapNodes,toolbar,assetsReady,render:globalThis.__kingdomReview.renderStats()});
-      }))));
+        });
+      })));
       assert.ok(pixels.colors>40,`${name}: world canvas is blank`);assert.ok(pixels.litFraction>.5,`${name}: world is underexposed`);assert.equal(pixels.overflow,false,`${name}: horizontal overflow`);
       for(const control of pixels.controls){assert.ok(control.x>=-1&&control.x+control.width<=pixels.viewport[0]+1,`${name}: clipped control ${control.name}`)}
       for(let index=0;index<pixels.mapNodes.length;index++)for(let other=index+1;other<pixels.mapNodes.length;other++)assert.ok(Math.abs(pixels.mapNodes[index][0]-pixels.mapNodes[other][0])>=44||Math.abs(pixels.mapNodes[index][1]-pixels.mapNodes[other][1])>=44,`${name}: district map targets overlap`);
@@ -123,6 +128,20 @@ async function main(){
     }
     const measure=()=>page.evaluate(()=>new Promise(resolve=>{const intervals=[],draws=[],triangles=[];let previous=0;function frame(now){if(previous){intervals.push(now-previous);const render=globalThis.__kingdomReview.renderStats();draws.push(render.calls);triangles.push(render.triangles)}previous=now;if(intervals.length<90)requestAnimationFrame(frame);else{const mean=values=>values.reduce((total,value)=>total+value,0)/values.length;intervals.sort((left,right)=>left-right);resolve({meanFrameMs:mean(intervals),p95FrameMs:intervals[Math.floor(intervals.length*.95)],meanDraws:mean(draws),meanTriangles:mean(triangles)})}}requestAnimationFrame(frame)}));
     const report=()=>console.log(JSON.stringify({checks:checks.map(({controls,mapNodes,toolbar,...check})=>({...check,visibleControls:controls.length,mapTargets:mapNodes.length,toolbarTargets:toolbar.length})),errors,screenshots:output},null,2));
+    if(lightingStudy){
+      const settings={muted:true,volume:.6,stableCamera:false,reducedMotion:true,projectPreviews:false,quality:'high',cameraMode:'far',movementMode:'walk',worldLighting:'sunset'};
+      await page.evaluate(value=>{__kingdomReview.settings(value);__kingdomReview.goCity()},settings);
+      await page.waitForFunction(()=>__kingdomReview.city.streaming().loading===0,null,{timeout:120000});
+      await page.evaluate(()=>new Promise(resolve=>{let remaining=120;function frame(){if(--remaining)requestAnimationFrame(frame);else resolve()}requestAnimationFrame(frame)}));
+      const state=await page.evaluate(()=>{const world=__kingdomReview;world.setPaused(true);globalThis.__lightingStudy={position:world.camera.position.clone(),quaternion:world.camera.quaternion.clone(),render:world.renderer.render,tone:world.renderer.toneMapping,environment:world.scene.environment};const study=__lightingStudy;world.renderer.render=function(scene,camera){if(camera===world.camera){camera.position.copy(study.position);camera.quaternion.copy(study.quaternion);camera.updateMatrixWorld(true)}return study.render.call(this,scene,camera)};return {exposure:world.renderer.toneMappingExposure,toneMapping:world.renderer.toneMapping,colorSpace:world.renderer.outputColorSpace,skyGenerations:world.skyEnvironment?.generations,render:world.renderStats()}});
+      try{
+        for(const mode of ['current','neutral','no-postprocessing','no-environment']){
+          await page.evaluate(({mode,neutral})=>{const world=__kingdomReview,study=__lightingStudy;world.renderer.toneMapping=mode==='neutral'?neutral:study.tone;world.scene.environment=mode==='no-environment'?null:study.environment;study.direct=mode==='no-postprocessing';world.setPaused(true)}, {mode,neutral:NeutralToneMapping});
+          await capture('lighting-'+mode);
+        }
+      }finally{await page.evaluate(()=>{const world=__kingdomReview,study=__lightingStudy;world.renderer.render=study.render;world.renderer.toneMapping=study.tone;world.scene.environment=study.environment;delete globalThis.__lightingStudy;world.setPaused(false)})}
+      assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,`${prefix}-checks.json`),JSON.stringify({diagnostic:'One locked Lantern Quarter camera, fixed viewport/exposure. Controls alter one rendering feature at a time; this is not a production settings change.',state,checks,errors},null,2));report();return;
+    }
     if(palettePanels){
       await page.evaluate(()=>__kingdomReview.settings({muted:true,volume:.6,stableCamera:false,reducedMotion:true,quality:'balanced',cameraMode:'far',movementMode:'walk',worldLighting:'day'}));
       const panels=[];

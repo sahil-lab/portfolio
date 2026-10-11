@@ -83,6 +83,14 @@ test('Blender paving preserves geometry and separates asphalt, stone and road ma
  const stripe=new T.Mesh(geometry,base);stripe.name='Latitude_Road_0_Centerline';assert.equal(applyAuthoredPaving(stripe),false);batchScenery(scene,{});assert.equal(new Set(scene.children.map(object=>object.material.userData.authoredPaving)).size,2);disposeScene(scene);
 });
 
+test('pavement stays matte under texture variation while wet-weather roughness remains adjustable',()=>{
+ const {applyAuthoredPaving}=require('../app/paving-material'),{createCityLightResponse}=require('../app/world-lighting'),scene=new T.Scene(),original=new T.MeshPhysicalMaterial({roughness:.55,metalness:.3,clearcoat:.6}),mesh=new T.Mesh(new T.PlaneGeometry(4,4),original);mesh.name='Quarter_Pavement';scene.add(mesh);
+ assert.equal(applyAuthoredPaving(mesh),true);const material=mesh.material;assert.ok(material.roughness>=.9);assert.equal(material.metalness,0);assert.ok(material.clearcoat<=.04);assert.equal(original.roughness,.55);
+ require('../app/kingdom-art').finishKingdomMaterials(scene);assert.ok(material.roughness>=.9,'the general finisher undid the matte paving policy');
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader,{});assert.match(shader.fragmentShader,/roughness\s*\*\s*mix\(0\.95,1\.0,kitSample\.g\)/);
+ const response=createCityLightResponse(scene);response.update(1,0,1);assert.ok(material.roughness<.6);response.update(1,0,0);assert.ok(material.roughness>=.9);response.dispose();disposeScene(scene);original.dispose();
+});
+
 function checkPlanetPlanting(){
  const {transitStops}=require('../app/transit-config'),{createPlanetSurface,planetPoint,planetGeography}=require('../app/planet-geography'),{createPlanetInfrastructure}=require('../app/planet-infrastructure'),{createPlanetPublicSpaces}=require('../app/planet-public-spaces'),{createPlanetCanopy}=require('../app/planet-canopy');
  for(const stop of transitStops.slice(1)){

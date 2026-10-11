@@ -10,6 +10,12 @@ test('the visual cycle progresses smoothly through daylight, sunset and night',(
  let previous=sampleWorldLighting('cycle',0,true),night=false,sunset=false;
  for(let seconds=1;seconds<=480;seconds++){const next=sampleWorldLighting('cycle',seconds,true);assert.ok(Math.abs(next.night-previous.night)<.06);night||=next.night>.95;sunset||=next.sunset>.9;previous=next}assert.ok(night&&sunset);
 });
+test('sunset retains a warm horizon and lavender sky without reparsing palette colors every frame',context=>{
+ const set=context.mock.method(T.Color.prototype,'set'),source={...defaultWeather,cloudCover:15},sunset=visualWeather(source,'sunset',0).tint;
+ for(let frame=0;frame<120;frame++)assert.deepEqual(visualWeather(source,'sunset',frame/60).tint,sunset);
+ assert.equal(set.mock.callCount(),0,'lighting allocated and parsed new palette colors each frame');
+ const sky=new T.Color(sunset.zenith),horizon=new T.Color(sunset.horizon);assert.ok(sky.b>sky.r&&sky.r>sky.g);assert.ok(horizon.r>horizon.g&&horizon.g>horizon.b);assert.ok(sunset.ambient>=.29);assert.equal(sunset.background,sunset.zenith);
+});
 test('clear daylight has directional contrast and distant haze while night leaves room for local illumination',()=>{
  const day=visualWeather(defaultWeather,'day',0).tint,night=visualWeather(defaultWeather,'night',0).tint;
  assert.ok(day.sunIntensity/day.ambient>6.5);assert.ok(day.ambient<.5);assert.ok(day.directional<=.5);assert.ok(day.fogDensity<.0007);

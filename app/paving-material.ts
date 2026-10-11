@@ -23,6 +23,8 @@ export function applyAuthoredPaving(mesh:T.Mesh){
  if(!finish){
   const texture=worldKitRelief(kind);if(!texture)return false;
     finish=original.clone();finish.userData.authoredPaving=kind;finish.userData.cityPaving=true;finish.normalMap=null;finish.bumpMap=finish.roughnessMap=texture;finish.bumpScale=asphalt?.055:.16;
+    finish.roughness=Math.max(finish.roughness,asphalt?.94:.9);finish.metalness=0;
+    if((finish as T.MeshPhysicalMaterial).isMeshPhysicalMaterial){const physical=finish as T.MeshPhysicalMaterial;physical.clearcoat=Math.min(physical.clearcoat,.04);physical.clearcoatRoughness=Math.max(physical.clearcoatRoughness,.6)}
     if(original.userData.premiumSurface)finish.map=null;
   const previous=original.onBeforeCompile.bind(original),key=original.customProgramCacheKey();
   finish.onBeforeCompile=(shader,renderer)=>{
@@ -36,14 +38,14 @@ export function applyAuthoredPaving(mesh:T.Mesh){
    shader.fragmentShader=declarations+shader.fragmentShader;
    shader.fragmentShader=shader.fragmentShader.replace('#include <bumpmap_pars_fragment>','#include <bumpmap_pars_fragment>\n'+sampling);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',T.ShaderChunk.normal_fragment_maps.replace('dHdxy_fwd()','kitHeightDerivative(kitSample.r,kitWeights)'));
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','float roughnessFactor=roughness*kitSample.g;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','float roughnessFactor=roughness*mix(0.95,1.0,kitSample.g);');
    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     vec3 kitWeights=pow(abs(normalize(kitWorldNormal)),vec3(6.0));
     kitWeights/=max(dot(kitWeights,vec3(1.0)),0.0001);
     vec4 kitSample=kitSurface(kitWorldPosition,kitWeights);
     diffuseColor.rgb*=mix(${asphalt?'0.92,1.04':'0.74,1.05'},kitSample.r);`);
   };
-  finish.customProgramCacheKey=()=>key+'/blender-paving-shared-sample-'+kind;finish.needsUpdate=true;cache.set(kind,finish);finishes.set(original,cache);
+  finish.customProgramCacheKey=()=>key+'/blender-paving-matte-v2-'+kind;finish.needsUpdate=true;cache.set(kind,finish);finishes.set(original,cache);
  }
  mesh.material=finish;mesh.userData.authoredPaving=kind;return true;
 }

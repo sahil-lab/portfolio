@@ -5,6 +5,11 @@ import type {WeatherSnapshot} from './weather-state';
 
 export const worldLightingModes=['local','day','sunset','night','cycle'] as const;
 export type WorldLightingMode=typeof worldLightingModes[number];
+const lightingPalette={
+ zenith:['#3d8fd6','#b69acb','#101f2d'],horizon:['#8fc3e6','#f6bca6','#293e4b'],fog:['#a9cde0','#d9b2be','#243d48'],sun:['#ffdfb4','#ffd099','#a9c8e3'],
+} as const;
+const lightingColors=Object.fromEntries(Object.entries(lightingPalette).map(([name,colors])=>[name,colors.map(color=>new T.Color(color))])) as Record<keyof typeof lightingPalette,T.Color[]>;
+const lightingColor=new T.Color();
 export function sampleWorldLighting(mode:WorldLightingMode,seconds:number,isDay:boolean){
  if(mode==='local')return {night:isDay?0:1,sunset:0};
  if(mode==='day')return {night:0,sunset:0};if(mode==='sunset')return {night:.2,sunset:1};if(mode==='night')return {night:1,sunset:0};
@@ -21,8 +26,8 @@ export function visualWeather(weather:WeatherSnapshot,mode:WorldLightingMode,sec
  const light=sampleWorldLighting(mode,seconds,weather.isDay),snapshot=mode==='local'?weather:{...weather,isDay:light.night<.55};
  const tint:Partial<SkyLook>={};
  if(mode!=='local'){
-  const color=(day:string,sunset:string,night:string)=>'#'+new T.Color(day).lerp(new T.Color(sunset),light.sunset*.8).lerp(new T.Color(night),light.night).getHexString();
-  Object.assign(tint,{zenith:color('#3d8fd6','#789aa4','#101f2d'),horizon:color('#8fc3e6','#edbc94','#293e4b'),background:color('#3d8fd6','#789aa4','#101f2d'),fogColor:color('#a9cde0','#c2a995','#243d48'),sunColor:color('#ffdfb4','#ffd099','#a9c8e3'),sunIntensity:2.9*(1-light.night)+.18*light.night-light.sunset*.55,ambient:.25*(1-light.night)+.2*light.night,directional:.5*(1-light.night)+.18*light.night,sunX:-40-20*light.night-light.sunset*85,sunY:65-light.sunset*40,sunZ:70-35*light.night,solarOpacity:(1-light.night)*(1-weather.cloudCover/140),moonOpacity:light.night,starsOpacity:light.night*(1-weather.cloudCover/130)});
+  const color=(name:keyof typeof lightingPalette)=>{const [day,sunset,night]=lightingColors[name];return '#'+lightingColor.copy(day).lerp(sunset,light.sunset).lerp(night,light.night*(1-light.sunset*.75)).getHexString()},zenith=color('zenith');
+  Object.assign(tint,{zenith,horizon:color('horizon'),background:zenith,fogColor:color('fog'),sunColor:color('sun'),sunIntensity:2.9*(1-light.night)+.18*light.night-light.sunset*.55,ambient:.32*(1-light.night)+.2*light.night,directional:.5*(1-light.night)+.18*light.night,sunX:-40-20*light.night-light.sunset*85,sunY:65-light.sunset*40,sunZ:70-35*light.night,solarOpacity:(1-light.night)*(1-weather.cloudCover/140),moonOpacity:light.night,starsOpacity:light.night*(1-weather.cloudCover/130)});
   if(!['fog','storm','rain','drizzle','sleet','snow'].includes(weather.kind))tint.fogDensity=.00045;
  }
  return {...light,morning:sampleMorning(mode,seconds,weather),snapshot,tint};
