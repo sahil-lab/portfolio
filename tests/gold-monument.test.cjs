@@ -123,27 +123,47 @@ test('project gallery arrival frames all five boards on desktop and narrow phone
  try{for(const aspect of [1440/960,390/844,320/926]){const camera=new T.PerspectiveCamera(50,aspect,.1,18000),rig=createGameCamera(camera,scene,player);rig.reset(projectBulletinCameraView(aspect));rig.update(0,false,{reducedMotion:true,stableCamera:false},false,18);camera.updateMatrixWorld(true);for(const entry of gallery.entries){const bounds=new T.Box3().setFromObject(entry.group);for(const horizontal of [bounds.min.x,bounds.max.x])for(const vertical of [bounds.min.y,bounds.max.y])for(const depth of [bounds.min.z,bounds.max.z]){const point=new T.Vector3(horizontal,vertical,depth).project(camera);assert.ok(Math.abs(point.x)<.95&&Math.abs(point.y)<.95,entry.project.id+' outside '+aspect)}}}}finally{disposeScene(scene);global.document=previous}
 });
 
+test('project previews serialize every quality tier and wait for close confirmation before reopening',()=>{
+ const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,0,0);
+ assert.deepEqual(budget.update([0,1],0,2),{load:[0],unload:[],visible:[0]});
+ assert.deepEqual(budget.update([1,2],10,2),{load:[],unload:[0],visible:[]});
+ assert.deepEqual(budget.update([1,2],10000,2),{load:[],unload:[],visible:[]},'a new preview started before the old frame confirmed closure');
+ assert.equal(budget.closed(2,10000),false,'an unrelated frame acknowledged another frame closing');
+ assert.equal(budget.closed(0,10000),true);
+ assert.deepEqual(budget.update([1,2],11199,2),{load:[],unload:[],visible:[]});
+ assert.deepEqual(budget.update([1,2],11200,2),{load:[1],unload:[],visible:[1]});
+ assert.equal(budget.residents.size,1);
+});
+
+test('project preview viewport preserves its aspect ratio with one quarter of the layout pixels',()=>{
+ const {projectPreviewViewport}=require('../app/project-page-previews.ts');
+ assert.deepEqual(projectPreviewViewport,{width:720,height:248});
+ assert.equal(projectPreviewViewport.width/projectPreviewViewport.height,1440/496);
+ assert.equal(projectPreviewViewport.width*projectPreviewViewport.height,1440*496/4);
+});
+
 test('statue website previews settle before loading and do not churn on rapid camera changes',()=>{
  const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,900,1200);
  for(let frame=0;frame<12;frame++){const result=budget.update([frame%3],frame*250,1);assert.deepEqual(result.load,[],'a passing camera view started a full website')}
  assert.deepEqual(budget.update([4],3000,1).load,[]);assert.deepEqual(budget.update([4],3899,1).load,[]);assert.deepEqual(budget.update([4],3900,1).load,[4]);
  assert.deepEqual(budget.update([3],4000,1).load,[]);assert.deepEqual(budget.update([3],4900,1).load,[],'another website started during the load cooldown');
- assert.deepEqual(budget.update([3],5100,1),{load:[3],unload:[4],visible:[3]});
- assert.deepEqual(budget.update([],5200,0,false),{load:[],unload:[3],visible:[]});assert.equal(budget.residents.size,0);
- const high=createProjectPreviewBudget(2500,900,1200);assert.deepEqual(high.update([0,1],0,2).load,[]);assert.deepEqual(high.update([0,1],900,2).load,[0]);assert.deepEqual(high.update([0,1],2099,2).load,[]);assert.deepEqual(high.update([0,1],2100,2).load,[1]);
+ assert.deepEqual(budget.update([3],5100,1),{load:[],unload:[4],visible:[]});assert.equal(budget.closed(4,5100),true);
+ assert.deepEqual(budget.update([3],6299,1).load,[]);assert.deepEqual(budget.update([3],6300,1),{load:[3],unload:[],visible:[3]});
+ assert.deepEqual(budget.update([],6400,0,false),{load:[],unload:[3],visible:[]});assert.equal(budget.residents.size,0);
+ const high=createProjectPreviewBudget(2500,900,1200);assert.deepEqual(high.update([0,1],0,2).load,[]);assert.deepEqual(high.update([0,1],900,2).load,[0]);assert.deepEqual(high.update([0,1],2100,2),{load:[],unload:[],visible:[0]});assert.deepEqual(high.update([1],3000,2).load,[]);assert.deepEqual(high.update([1],3900,2),{load:[],unload:[0],visible:[]});assert.equal(high.closed(0,3900),true);assert.deepEqual(high.update([1],5100,2).load,[1]);
 });
 
 test('project preview residency is bounded and leaving the gallery unloads running pages',()=>{
- const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,0,0);
- assert.deepEqual(budget.update([0,1,2,3,4],0,2),{load:[0,1],unload:[],visible:[0,1]});assert.equal(budget.residents.size,2);
- assert.deepEqual(budget.update([2,3,4],100,2),{load:[2,3],unload:[0,1],visible:[2,3]});assert.deepEqual(budget.update([],200,2),{load:[],unload:[],visible:[]});
- assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2,3],visible:[]});assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
+ const {createProjectPreviewBudget}=require('../app/project-page-previews.ts'),budget=createProjectPreviewBudget(2500,0,0,0);
+ assert.deepEqual(budget.update([0,1,2,3,4],0,2),{load:[0],unload:[],visible:[0]});assert.equal(budget.residents.size,1);
+ assert.deepEqual(budget.update([2,3,4],100,2),{load:[],unload:[0],visible:[]});assert.equal(budget.closed(0,100),true);assert.deepEqual(budget.update([2,3,4],101,2),{load:[2],unload:[],visible:[2]});assert.deepEqual(budget.update([],200,2),{load:[],unload:[],visible:[]});
+ assert.deepEqual(budget.update([],2800,2),{load:[],unload:[2],visible:[]});assert.equal(budget.closed(2,2800),true);assert.deepEqual(budget.update([4,1],3000,1),{load:[4],unload:[],visible:[4]});
  assert.deepEqual(budget.update([],3010,1,false),{load:[],unload:[4],visible:[]});assert.equal(budget.residents.size,0);
 });
-for(const placement of ['top-level','embedded','self','redirected','control','saved-off'])test('project preview frame safety and ownership: '+placement,context=>{
- const previous=global.document,mutations=[],checkpoints=[],diagnostics=require('../app/client-diagnostics.ts');context.mock.method(diagnostics,'checkpointDiagnostic',(type,data)=>checkpoints.push({type,data}));
+for(const placement of ['top-level','embedded','self','redirected','control','saved-off','cooperative','close-timeout'])test('project preview frame safety and ownership: '+placement,context=>{
+ const previous=global.document,mutations=[],checkpoints=[],messages=[],diagnostics=require('../app/client-diagnostics.ts');context.mock.method(diagnostics,'checkpointDiagnostic',(type,data)=>checkpoints.push({type,data}));
  class Element{
-  constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document;this.contentWindow={}}
+  constructor(){this.style={};this.dataset={};this.children=[];this.parentNode=null;this.ownerDocument=global.document;this.contentWindow={postMessage:(message,target)=>messages.push({message,target})}}
   setAttribute(name,value){this[name]=value}
   set src(value){mutations.push({action:'src',connected:!!this.parentNode});this.source=value}
   get src(){return this.source}
@@ -159,13 +179,21 @@ for(const placement of ['top-level','embedded','self','redirected','control','sa
  let previews;
  try{
   const {createProjectPagePreviews}=require('../app/project-page-previews.ts'),entry={project:{name:'Fixture',id:'fixture',url:placement==='self'?'https://portfolio.test/?project=fixture':'https://example.test/'},group:new T.Group()};
-  previews=createProjectPagePreviews(new Element(),new T.Scene(),new T.PerspectiveCamera(),new T.Group(),{entries:[entry],root:new T.Group()},placement!=='saved-off');const frame=previews.frames[0];
+  previews=createProjectPagePreviews(new Element(),new T.Scene(),new T.PerspectiveCamera(),new T.Group(),{entries:placement==='cooperative'||placement==='close-timeout'?[entry,{...entry,group:new T.Group()}]:[entry],root:new T.Group()},placement!=='saved-off');const frame=previews.frames[0];
+  if(placement==='close-timeout'){
+   context.mock.timers.enable({apis:['setTimeout']});const {projectPreviewMessage}=require('../app/embed-policy.ts');frame.start();const event=new Event('message');Object.assign(event,{origin:'https://example.test',source:frame.iframe.contentWindow,data:{type:projectPreviewMessage,version:1,action:'ready',token:new URL(frame.iframe.src).searchParams.get('preview-token')}});browser.dispatchEvent(event);frame.stop();context.mock.timers.tick(599);previews.frames[1].start();assert.equal(previews.frames[1].active,false);assert.equal(frame.active,true);context.mock.timers.tick(1);assert.equal(frame.active,false);assert.equal(frame.iframe.isConnected,false);previews.frames[1].start();assert.equal(previews.frames[1].active,true);return;
+  }
+  if(placement==='cooperative'){
+   const {projectPreviewMessage}=require('../app/embed-policy.ts'),send=(action,origin='https://example.test',source=frame.iframe.contentWindow,token=new URL(frame.iframe.src).searchParams.get('preview-token'))=>{const event=new Event('message');Object.assign(event,{origin,source,data:{type:projectPreviewMessage,version:1,action,token}});browser.dispatchEvent(event)};
+   frame.start();const visit=new URL(frame.iframe.src).searchParams.get('preview-token');send('ready');frame.stop();assert.equal(frame.active,true);assert.equal(frame.iframe.isConnected,true);assert.equal(entry.group.userData.previewState,'closing');assert.equal(messages.at(-1).message.action,'close');assert.equal(messages.at(-1).target,'https://example.test');previews.frames[1].start();assert.equal(previews.frames[1].active,false,'another preview started during child cleanup');
+   send('closed','https://untrusted.test');send('closed','https://example.test',{});send('closed','https://example.test',frame.iframe.contentWindow,'older-token');assert.equal(frame.active,true);send('closed');assert.equal(frame.active,false);assert.equal(frame.iframe.isConnected,false);previews.frames[1].start();assert.equal(previews.frames[1].active,true);previews.frames[1].stop();frame.start();send('ready','https://example.test',frame.iframe.contentWindow,visit);frame.stop();assert.equal(frame.active,false,'an old ready message made a new visit cooperative');return;
+  }
   if(placement==='embedded'||placement==='self'||placement==='control'||placement==='saved-off'){frame.start();assert.equal(frame.iframe.parentNode===null,true,'unsafe, disabled or controlled website was attached');assert.equal(frame.iframe.src,undefined);assert.equal(entry.group.userData.previewState,'fallback');assert.equal(previews.stats.loaded,0);if(placement==='control'){assert.equal(previews.diagnostics().previewMode,'off');assert.equal(checkpoints[0].data.action,'control-disabled');previews.setEnabled(false);previews.setEnabled(true);frame.start();assert.equal(frame.iframe.parentNode,null,'setting bypassed the URL control')}if(placement==='saved-off'){assert.equal(checkpoints[0].data.reason,'settings');previews.setEnabled(true);frame.start();assert.equal(frame.active,true)}return}
   if(placement==='redirected'){
    const {portfolioEmbedMessage}=require('../app/embed-policy.ts'),send=source=>{const event=new Event('message');Object.assign(event,{source,data:{type:portfolioEmbedMessage}});browser.dispatchEvent(event)};
    frame.start();send({});assert.ok(frame.iframe.parentNode,'an unrelated window disabled a preview');send(frame.iframe.contentWindow);assert.equal(frame.iframe.parentNode,null);assert.equal(frame.allowed,false);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.equal(frame.iframe.parentNode,null);return;
   }
-  assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);const oldLoad=frame.iframe.onload,oldError=frame.iframe.onerror;assert.equal(checkpoints[0].data.action,'loading');assert.equal(checkpoints[0].data.connected,false);assert.equal(checkpoints[0].data.previewWidth,1440);assert.equal(checkpoints[0].data.childObservable,false);assert.equal(checkpoints[0].data.childCanvasCount,null);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);assert.equal(frame.iframe.onload,null);assert.equal(frame.iframe.onerror,null);
+  assert.equal(frame.iframe.parentNode,null);frame.start();assert.ok(frame.iframe.parentNode);assert.equal(frame.object.element.style.width,'720px');assert.equal(frame.object.element.style.height,'248px');const oldLoad=frame.iframe.onload,oldError=frame.iframe.onerror;assert.equal(checkpoints[0].data.action,'loading');assert.equal(checkpoints[0].data.connected,false);assert.equal(checkpoints[0].data.previewWidth,720);assert.equal(checkpoints[0].data.previewHeight,248);assert.equal(checkpoints[0].data.childObservable,false);assert.equal(checkpoints[0].data.childCanvasCount,null);frame.stop();assert.equal(frame.iframe.parentNode,null);assert.equal(frame.iframe.src,undefined);assert.equal(frame.iframe.onload,null);assert.equal(frame.iframe.onerror,null);
   frame.start();assert.ok(frame.iframe.parentNode);oldLoad();oldError();assert.equal(entry.group.userData.previewState,'loading','an old visit affected the current frame');frame.iframe.onerror();assert.equal(frame.iframe.parentNode,null);assert.equal(entry.group.userData.previewState,'fallback');frame.start();assert.ok(frame.iframe.parentNode);assert.equal(previews.diagnostics().previewActive,1);assert.equal(previews.diagnostics().previewStarts,3);assert.equal(previews.diagnostics().previewStops,2);assert.equal(checkpoints.at(-1).data.previewGeneration,3);assert.equal(mutations.some(change=>change.connected),false,'src navigation occurred while attached');
   previews.setEnabled(false);assert.equal(frame.iframe.parentNode,null);assert.equal(frame.allowed,false);assert.equal(previews.diagnostics().previewMode,'off');assert.equal(previews.diagnostics().previewActive,0);assert.equal(previews.diagnostics().previewStops,3);assert.equal(previews.stats.pending,0);frame.start();assert.equal(previews.diagnostics().previewStarts,3);previews.setEnabled(false);assert.equal(previews.diagnostics().previewStops,3);
   previews.setEnabled(true);assert.equal(frame.allowed,true);assert.equal(frame.iframe.parentNode,null,'enabling eagerly loaded a preview');frame.start();assert.equal(frame.active,true);assert.equal(previews.diagnostics().previewStarts,4);assert.equal(previews.diagnostics().previewMode,'normal');
@@ -175,4 +203,17 @@ for(const placement of ['top-level','embedded','self','redirected','control','sa
 test('embedded portfolio detection notifies its parent before any world needs to be constructed',()=>{
  const {notifyEmbeddedPortfolio,portfolioEmbedMessage}=require('../app/embed-policy.ts'),sent=[],browser={parent:{postMessage:(message,target)=>sent.push({message,target})}};browser.self=browser;browser.top=browser;
  assert.equal(notifyEmbeddedPortfolio(browser),false);assert.deepEqual(sent,[]);browser.top={};assert.equal(notifyEmbeddedPortfolio(browser),true);assert.deepEqual(sent,[{message:{type:portfolioEmbedMessage},target:'*'}]);browser.parent.postMessage=()=>{throw new Error('Parent unavailable')};assert.equal(notifyEmbeddedPortfolio(browser),true);
+});
+
+test('decentralized preview lifecycle validates origin, source and visit token before disposing',async()=>{
+ const {projectPreviewUrl,readProjectPreviewRequest,registerProjectPreview,projectPreviewMessage}=require('../app/embed-policy.ts'),sent=[];
+ const browser=Object.assign(new EventTarget(),{location:{href:projectPreviewUrl('https://project.test/?keep=1','https://portfolio.test','visit-token-123')},parent:{postMessage:(message,target)=>sent.push({message,target})}});browser.self=browser;browser.top={};
+ assert.equal(new URL(browser.location.href).searchParams.get('keep'),'1');assert.deepEqual(readProjectPreviewRequest(browser),{parentOrigin:'https://portfolio.test',token:'visit-token-123'});
+ let finish,disposals=0;const dispose=registerProjectPreview(()=>{disposals++;return new Promise(resolve=>{finish=resolve})},browser);
+ const send=(origin,source,token='visit-token-123')=>{const event=new Event('message');Object.assign(event,{origin,source,data:{type:projectPreviewMessage,version:1,action:'close',token}});browser.dispatchEvent(event)};
+ assert.deepEqual(sent.map(entry=>[entry.message.action,entry.target]),[['ready','https://portfolio.test']]);
+ send('https://untrusted.test',browser.parent);send('https://portfolio.test',{});send('https://portfolio.test',browser.parent,'old-visit-token');await Promise.resolve();assert.equal(disposals,0);
+ send('https://portfolio.test',browser.parent);await Promise.resolve();assert.equal(disposals,1);assert.equal(sent.length,1,'closure was acknowledged before resource disposal finished');
+ finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(sent.at(-1).message.action,'closed');dispose();send('https://portfolio.test',browser.parent);await Promise.resolve();assert.equal(disposals,1);
+ browser.top=browser;assert.equal(readProjectPreviewRequest(browser),null);browser.top={};browser.location.href=projectPreviewUrl('https://project.test/','https://portfolio.test/path','visit-token-123');assert.equal(readProjectPreviewRequest(browser),null);
 });

@@ -20,6 +20,53 @@ This change set records the diagnostics implementation, mobile-browser research,
 
 No assets, visual effects, gameplay features or dependencies were removed. The existing Low-quality setting after graphics-context restoration is unchanged. Build/test snapshots, raw local log captures and screenshots remain ignored local artifacts; the source, reproducible checks and this report are included for publication. A Git push alone does not verify a successful hosted rollout or eliminate OS-driven browser termination.
 
+## Serialized Decentralized Previews
+
+The follow-up keeps previews off by default and preserves saved choices. When opted in, every quality tier admits at most one project iframe. An unselected frame is retired rather than kept running behind CSS. A cooperating child gets one `close` message and up to 600 ms to release its own resources; an unresponsive child is detached. The next iframe is admitted only after detachment and a 1,200 ms handoff interval. This interval reduces repeated startup churn, not a guarantee of OS memory reclamation.
+
+The iframe's internal viewport is 720 x 248, preserving the board's aspect ratio and world-space size with one quarter of the former layout pixels. This is not a universal cap on arbitrary child canvases. Inactive previews skip budget allocation, scene-bound scans and CSS rendering. No additional animation loop, polling interval, worker, proxy, screenshot service, database or runtime dependency is added to the portfolio.
+
+Each project has an independent embedded bootstrap selected by `portfolio-preview=1`, a valid `preview-parent` origin and a per-visit `preview-token`. Top-level visits ignore this mode and retain the full application. The embedded paths are deliberately read-only still views, not the full applications running invisibly inside non-interactive boards:
+
+| Project | Embedded Workload |
+| --- | --- |
+| Cosmic Wellness | Existing emotion data and a compact view; no React, Three.js, Firebase, videos or AI-service imports |
+| 3D Code Pad | Read-only code/editor view; no Monaco, execution APIs, React or third-party fonts |
+| Mindful Goal | Existing logo and sign-in view; no authentication, database, charting or animation startup |
+| Sahil Resume | Existing project artwork; no physics, audio, GLB loaders, WebGL or post-processing |
+| EcoFusion | Existing logo and land/water/energy imagery; no dashboard, map, chart, WebGL or third-party stylesheet startup |
+
+Preview assets are served from each project's own origin. Generated logos are at most 160 pixels per side, category images 320 x 112, and individual WebP files are below 25 KB. The portfolio does not download or cache these assets when previews are off. Normal project links are unchanged.
+
+`app/embed-policy.ts` defines the small dependency-free lifecycle contract. Child projects carry their own copy rather than fetching executable code from the portfolio. Both sides validate message origin, source window, version and visit token. Child `closed` acknowledgment follows disposal completion; duplicate or stale messages cannot close a newer visit. Settings-off, page-hidden and portfolio disposal detach immediately instead of waiting for a cooperative response.
+
+### Separate Project Rollout
+
+Child changes are prepared in independent local checkouts under `outputs/preview-projects/oct11-single-preview/`, not imported into this application's bundle. Cosmic Wellness, 3D Code Pad, Mindful Goal and the resume use their own Git repositories. EcoFusion's frontend was recovered from its uploaded deployment because that project has no Git source link; its 66 original frontend/public files were verified against Vercel's SHA-1 identifiers. Environment files and prior build output were excluded.
+
+Deploy and verify each child preview before publishing the parent handoff changes. A query parameter alone cannot reduce the workload of an old deployment that ignores it. Keep the default off until the independent child versions are live and the same-device preview tour succeeds. No child or parent push/deployment is implied by a local build.
+
+The resume's ordinary build currently encounters three pre-existing lint errors in unchanged source: an undefined `Stats` component and two hook-order violations. Its new entry/preview modules must be linted separately. A test bundle produced with the lint plugin disabled does not certify its full build gate; these existing errors remain a rollout blocker.
+
+### Local Preview Verification
+
+The parent passed 64 focused controls/preview/diagnostics tests, TypeScript, scoped lint, Vercel-adapter compilation and output validation. All 290 runtime source fingerprints still matched the isolated build. Cosmic Wellness, Code Pad, Mindful Goal and EcoFusion passed their production builds. The resume's new modules passed scoped lint and its test bundle compiled with the existing full-app lint failures excluded; its ordinary lint/build gate remains blocked as described above.
+
+Final desktop High (1440 x 960) and mobile Auto (390 x 844) runs each passed 18 checks using the actual local child production bundles under their original origins. All five child views had zero canvases/WebGL contexts, animation-frame requests, intervals and workers, with no third-party requests or new requests during the idle sample. The checked image dimensions were bounded, settings remained persistent, and the main scene produced nonblank fresh frames without unexpected context loss. Actual DOM connection observations, including CSS3D wrapper attachment, confirmed exactly one attached preview and the post-close gap. An earlier all-zero attachment counter was insufficient evidence and was corrected before accepting these results.
+
+Unique uncompressed local response payloads were 15,203 bytes for the resume, 37,395 for EcoFusion, 7,209 for Cosmic Wellness, 10,351 for Mindful Goal and 7,905 for Code Pad. These are fulfilled test-response body sizes, not compressed production transfer sizes or RAM/VRAM measurements. The previews still consume bounded DOM/image memory on the visitor's device; separate hosting does not move that memory to a server.
+
+Evidence is under `outputs/performance/oct11-serial-preview/`, with final reports in `desktop-ownership-verified/` and `mobile-ownership-verified/`. The initial external-font failure and the unsuccessful farther mobile test-camera position remain preserved as earlier attempts. Physical iPhone/WebKit stability, a universal no-reload guarantee, normal full-child-application workflows and deployment of these changes remain unverified. The local parent server does not redirect a human visitor's browser to the undeployed child bundles; the test harness performs that mapping only for its isolated browser.
+
+### Research Basis
+
+- [MDN Page Visibility](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API): CSS-hiding an iframe does not change the child document's visibility state.
+- [MDN iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe): each iframe is a complete document environment; sandboxing is not a RAM or GPU budget.
+- [MDN WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices): bounded backbuffers and eager resource disposal, without assuming a portable VRAM allowance.
+- [Three.js cleanup](https://threejs.org/manual/en/cleanup.html) and [R3F performance](https://r3f.docs.pmnd.rs/advanced/scaling-performance): explicitly manage owned resources and avoid continuous rendering when the view is at rest.
+- [Detached-window memory leaks](https://web.dev/articles/detached-window-memory-leaks): avoid retaining child documents/objects across removal; communicate through messages.
+- [MDN postMessage security](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage#security_concerns): validate the origin, source and message structure, with an exact target origin.
+
 ## Collect From Vercel
 
 Deploy the diagnostics changes before expecting these records. No additional database, credential, or logging vendor is required. `POST /api/client-diagnostics` emits one JSON console line per accepted event, tagged `KINGDOM_CLIENT`. A successful ingestion returns 204 with `Cache-Control: no-store`; this does not mean the reported client failure was harmless.
