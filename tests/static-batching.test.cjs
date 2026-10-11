@@ -2,6 +2,25 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{batchScenery,textureKey}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('static attribute packing reduces storage within bounded color and normal error',()=>{
+ const {compactStaticGeometry}=require('../app/static-batching.ts'),geometry=new T.BoxGeometry(),position=geometry.attributes.position,index=geometry.index,normal=geometry.attributes.normal;
+ geometry.rotateY(.37);geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(position.count*3).map((_,offset)=>(offset%17)/16),3));
+ const colors=Array.from(geometry.attributes.color.array),normals=Array.from(normal.array),before=geometry.attributes.color.array.byteLength+normal.array.byteLength;
+ compactStaticGeometry(geometry);assert.equal(geometry.attributes.position,position);assert.equal(geometry.index,index);assert.ok(geometry.attributes.color.array instanceof Uint8Array);assert.ok(geometry.attributes.normal.array instanceof Int16Array);assert.equal(geometry.attributes.color.normalized,true);assert.equal(geometry.attributes.normal.normalized,true);
+ for(const [name,values,tolerance] of [['color',colors,.5/255+1e-7],['normal',normals,.5/32767+1e-7]]){const attribute=geometry.attributes[name];for(let offset=0;offset<values.length;offset++)assert.ok(Math.abs(attribute.getComponent(Math.floor(offset/attribute.itemSize),offset%attribute.itemSize)-values[offset])<=tolerance,name+' exceeded its error budget')}
+ assert.equal(geometry.attributes.color.array.byteLength+geometry.attributes.normal.array.byteLength,before*3/8);const packed=geometry.attributes.color;compactStaticGeometry(geometry);assert.equal(geometry.attributes.color,packed);geometry.dispose();
+});
+
+test('static attribute packing leaves HDR colors, dynamic attributes and skinned geometry unchanged',()=>{
+ const {compactStaticGeometry}=require('../app/static-batching.ts'),geometry=new T.BoxGeometry();geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(1.2),3));geometry.attributes.normal.setUsage(T.DynamicDrawUsage);
+ const color=geometry.attributes.color,normal=geometry.attributes.normal;compactStaticGeometry(geometry);assert.equal(geometry.attributes.color,color);assert.equal(geometry.attributes.normal,normal);
+ geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(.5),3));geometry.setAttribute('skinIndex',new T.BufferAttribute(new Uint16Array(geometry.attributes.position.count*4),4));const skinColor=geometry.attributes.color;compactStaticGeometry(geometry);assert.equal(geometry.attributes.color,skinColor);geometry.dispose();
+});
+
+test('scenery output uses compact storage while retaining a full-precision option',()=>{
+ for(const compactAttributes of [true,false]){const root=new T.Group();for(let index=0;index<3;index++){const geometry=new T.BoxGeometry(1+index*.1,1,1);geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*3).fill(.5),3));root.add(new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true})))}batchScenery(root,{},compactAttributes?{}:{compactAttributes:false});assert.equal(root.children.length,1);const geometry=root.children[0].geometry;assert.equal(geometry.attributes.color.array.constructor.name,compactAttributes?'Uint8Array':'Float32Array');assert.equal(geometry.attributes.normal.array.constructor.name,compactAttributes?'Int16Array':'Float32Array');assert.equal(geometry.attributes.position.array.constructor.name,'Float32Array');disposeScene(root)}
+});
+
 test('indexed merge helper supports mixed source layouts without changing triangle data',()=>{
  const {mergeIndexedGeometries}=require('../app/static-batching.ts'),indexed=new T.BoxGeometry(),plane=new T.PlaneGeometry(),flat=plane.toNonIndexed(),box=indexed.toNonIndexed(),expected=[...box.attributes.position.array,...flat.attributes.position.array];
  const merged=mergeIndexedGeometries([indexed,flat]);assert.ok(merged);assert.equal(merged.index.count,42);assert.equal(merged.attributes.position.count,30);const expanded=merged.toNonIndexed();assert.deepEqual(Array.from(expanded.attributes.position.array),expected);
@@ -26,10 +45,10 @@ test('equivalent premium texture clones batch without merging different UVs or i
  assert.equal(root.children.filter(mesh=>mesh.material.map.repeat.x===2).length,1);assert.equal(root.children.filter(mesh=>mesh.material.map.channel===1).length,1);assert.equal(root.children.filter(mesh=>mesh.material.normalMap.source===other.source).length,1);disposeScene(root);
 });
 
-test('indexed merging preserves every transformed triangle and attribute without expanding shared vertices',()=>{
+test('full-precision indexed batching preserves every transformed triangle and attribute without expanding shared vertices',()=>{
  const root=new T.Group(),material=new T.MeshStandardMaterial(),expected={position:[],normal:[],uv:[]};for(let index=0;index<3;index++){const source=new T.BoxGeometry(1+index,.7,1.2),geometry=index===1?source.toNonIndexed():source;if(geometry!==source)source.dispose();const mesh=new T.Mesh(geometry,material);mesh.position.set(index*2+1,1,2);mesh.rotation.y=index*.2;root.add(mesh)}root.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(root);
  for(const mesh of root.children){const transformed=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld),flat=transformed.index?transformed.toNonIndexed():transformed;for(const name of Object.keys(expected))expected[name].push(...flat.attributes[name].array);if(flat!==transformed)flat.dispose();transformed.dispose()}
- batchScenery(root,{});assert.equal(root.children.length,1);const geometry=root.children[0].geometry;assert.ok(geometry.index);assert.ok(geometry.attributes.position.count<geometry.index.count);const flat=geometry.toNonIndexed();for(const [name,values] of Object.entries(expected))assert.deepEqual(Array.from(flat.attributes[name].array),values,name+' changed');const mergedBounds=new T.Box3().setFromObject(root);assert.ok(mergedBounds.min.distanceTo(bounds.min)<1e-6);assert.ok(mergedBounds.max.distanceTo(bounds.max)<1e-6);flat.dispose();disposeScene(root);
+ batchScenery(root,{}, {compactAttributes:false});assert.equal(root.children.length,1);const geometry=root.children[0].geometry;assert.ok(geometry.index);assert.ok(geometry.attributes.position.count<geometry.index.count);const flat=geometry.toNonIndexed();for(const [name,values] of Object.entries(expected))assert.deepEqual(Array.from(flat.attributes[name].array),values,name+' changed');const mergedBounds=new T.Box3().setFromObject(root);assert.ok(mergedBounds.min.distanceTo(bounds.min)<1e-6);assert.ok(mergedBounds.max.distanceTo(bounds.max)<1e-6);flat.dispose();disposeScene(root);
 });
 
 test('shared texture batching preserves edited primitive vertices, UVs and vertex colors',()=>{
@@ -39,7 +58,7 @@ test('shared texture batching preserves edited primitive vertices, UVs and verte
   const transformed=geometry.clone().applyMatrix4(mesh.matrix),flat=transformed.toNonIndexed();for(const name of Object.keys(expected))expected[name].push(...flat.attributes[name].array);flat.dispose();transformed.dispose();
  }
  batchScenery(root,{});assert.equal(root.children.length,1);assert.notEqual(root.children[0].isInstancedMesh,true,'different authored geometry was replaced with the first primitive');
- const flat=root.children[0].geometry.toNonIndexed();for(const [name,values] of Object.entries(expected))assert.deepEqual(Array.from(flat.attributes[name].array),values,name+' changed');flat.dispose();disposeScene(root);texture.dispose();
+ const flat=root.children[0].geometry.toNonIndexed();for(const [name,values] of Object.entries(expected)){const attribute=flat.attributes[name];if(name==='normal'||name==='color'){const tolerance=name==='color'?.5/255+1e-7:.5/32767+1e-7;for(let index=0;index<values.length;index++)assert.ok(Math.abs(attribute.getComponent(Math.floor(index/attribute.itemSize),index%attribute.itemSize)-values[index])<=tolerance,name+' exceeded its error budget')}else assert.deepEqual(Array.from(attribute.array),values,name+' changed')}flat.dispose();disposeScene(root);texture.dispose();
 });
 
 test('batching preserves shadow roles and depth state instead of inventing shadow casters',()=>{

@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {mergeIndexedGeometries} from './static-batching';
+import {compactStaticGeometry,mergeIndexedGeometries} from './static-batching';
 import {cacheStaticTransforms} from './static-transforms';
 
 export type GeometryVisibility={visible:boolean;castShadow:boolean};
@@ -17,6 +17,7 @@ export function createVisibleGeometry(parent:T.Object3D,parts:VisibleGeometryPar
      ranges.push({state:source.state,bounds:geometry.boundingBox!.clone(),start:vertices,count,shown:false,indices});geometries.push(geometry);vertices+=geometry.getAttribute('position').count;indexCount+=count;
   }
     const geometry=mergeIndexedGeometries(geometries);geometries.forEach(part=>part.dispose());if(!geometry)throw Error('City silhouette attributes must match');
+    compactStaticGeometry(geometry);
     const indices=new T.BufferAttribute(new Uint32Array(indexCount*2),1).setUsage(T.DynamicDrawUsage);geometry.setIndex(indices);geometry.setDrawRange(0,0);geometry.computeBoundingBox();geometry.computeBoundingSphere();
   const selections=[0,indexCount].map(start=>({start,count:0,shown:new Uint8Array(ranges.length)}));
   const mesh=new T.Mesh(geometry,material);mesh.name='City_VisibleSilhouettes';mesh.castShadow=mesh.receiveShadow=true;root.add(mesh);cacheStaticTransforms(mesh);

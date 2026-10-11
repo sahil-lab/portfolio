@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {emptyMarket,emptyNews,quoteFreshness,type MarketBulletin,type NewsBulletin,type MarketQuote} from './bulletin-data';
 import {createWoodenSign} from './wooden-sign';
-import {createReadableDisplay} from './readable-display';
+import {createAdaptiveDisplaySurface,createReadableDisplay} from './readable-display';
 import {cityBlock} from './city-architecture';
 
 export const bulletinSites={markets:{x:-77,z:152,width:18,height:10.125,yaw:-Math.PI/2},news:{x:-77,z:194,width:18,height:10.125,yaw:-Math.PI/2}};
@@ -25,13 +25,12 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
     const centerY=3.65+site.height/2,postOffset=site.width*.4;
     const frame=box(kind+'_BoardFrame',0,centerY,0,site.width+1.4,site.height+1.4,1,metal,group);frame.userData.cameraSolid=true;
     for(const side of [-1,1]){box(kind+'_BoardPost',side*postOffset,1.85,0,.8,3.7,1.1,metal,group).userData.cameraSolid=true;box(kind+'_BoardFoot',side*postOffset,.16,0,2.8,.32,3.4,trim,group)}
-    const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1152;const context=canvas.getContext('2d')!;
-    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
+    const surface=createAdaptiveDisplaySurface(2048,1152),{canvas,context,texture}=surface;
     const {front:display}=createReadableDisplay(group,kind==='markets'?'Market_Display':'News_Display',texture,site.width,site.height,1,new T.Vector3(0,centerY,0));
     box(kind+'_StatusTrim',0,centerY+site.height/2+.5,.25,site.width,.13,.3,new T.MeshBasicMaterial({color:kind==='markets'?'#9ce1c6':'#e9bc83'}),group);
     box(kind+'_ReadingCanopy',0,centerY+site.height/2+1,1.8,site.width+2,.2,4.6,metal,group);
     for(const side of [-1,1])box(kind+'_CanopyFascia',side*(site.width/2+.8),centerY+site.height/2+.76,1.8,.1,.3,4.6,trim,group);
-    return {kind,site,canvas,context,texture,display};
+    return {kind,site,canvas,context,texture,display,surface};
   });
   const pathMaterial=new T.MeshStandardMaterial({color:'#8f9c98',roughness:.96});pathMaterial.userData.surface='natural';
   box('Bulletin_ReadingCourt',-86,.025,173,20,.12,70,pathMaterial);box('Bulletin_ReadingWalk',-96,.03,173,3,.13,74,pathMaterial);
@@ -93,7 +92,8 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
   }
   function paint(reduced=false){paintMarket();paintNews(reduced);dirty=false}
   paint();
-  function update(dt:number,reduced:boolean,active:boolean){
+  function update(dt:number,reduced:boolean,active:boolean,position=player.position,visible=active){
+    for(const [index,board] of boards.entries())if(board.surface.update((position.x-board.site.x)**2+(position.z-board.site.z)**2+(position.y-9)**2,visible)){if(index===0)paintMarket();else paintNews(reduced)}
     const step=Number.isFinite(dt)?Math.max(0,Math.min(dt,.1)):0;
     if(previousReduced!==reduced){previousReduced=reduced;dirty=true}
     const nearby=active&&Object.values(bulletinSites).some(near);
@@ -102,7 +102,7 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
     const minute=Math.floor(Date.now()/60000);
     if(dirty||nearby&&lastMinute!==minute){lastMinute=minute;paintClock=0;paint(reduced)}else if(nearby&&!reduced&&paintClock>=.125){paintClock=0;paintNews(reduced)}
   }
-  return {root,boards,update,
+  return {root,boards,update,releaseDisplays:()=>{for(const [index,board] of boards.entries())if(board.surface.update(Infinity,false)){if(index===0)paintMarket();else paintNews(previousReduced)}},
     setMarket:(value:MarketBulletin)=>{market=value;stocks=value.quotes.filter(quote=>quote.kind==='stock');commodities=value.quotes.filter(quote=>quote.kind==='commodity');page=0;commodityIndex=0;dirty=true;paint(previousReduced)},
     setNews:(value:NewsBulletin)=>{news=value;newsIndex=0;scroll=0;dirty=true;paint(previousReduced)},
     get market(){return market},get news(){return news},get page(){return page},get headlineIndex(){return newsIndex},

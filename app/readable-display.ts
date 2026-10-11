@@ -5,6 +5,19 @@ import * as typeface from '../assets/fonts/helvetiker_regular.typeface.json';
 
 const facadeFont=new FontLoader().parse(('default' in typeface?typeface.default:typeface) as FontData);
 
+export function createAdaptiveDisplaySurface(width:number,height:number,nearDistance=45){
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(width/4));canvas.height=Math.max(1,Math.round(height/4));
+  const context=canvas.getContext('2d')!;context.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
+  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;let detailed=false,lastNear=-Infinity;
+  return {canvas,context,texture,get detailed(){return detailed},update(distanceSquared:number,active=true,now=performance.now()){
+    active=active&&!document.hidden;
+    const nearby=active&&distanceSquared<(nearDistance*(detailed?1.5:1))**2;if(nearby)lastNear=now;
+    const next=nearby||active&&detailed&&now-lastNear<8000;if(next===detailed)return false;
+    detailed=next;texture.dispose();canvas.width=Math.max(1,Math.round(width*(detailed?1:.25)));canvas.height=Math.max(1,Math.round(height*(detailed?1:.25)));
+    context.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);texture.needsUpdate=true;return true;
+  }};
+}
+
 export function createFacadeLettering(parent:T.Object3D,name:string,text:string,width:number,height:number,position:T.Vector3,color='#ff73cd'){
   const geometry=new TextGeometry(text,{font:facadeFont,size:1,depth:.035,curveSegments:2,bevelEnabled:true,bevelThickness:.008,bevelSize:.008,bevelSegments:1});geometry.computeBoundingBox();
   const bounds=geometry.boundingBox!,size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3()),scale=Math.min(width/Math.max(size.x,.001),height/Math.max(size.y,.001));

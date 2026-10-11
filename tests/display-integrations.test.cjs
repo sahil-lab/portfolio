@@ -3,7 +3,7 @@ require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const T=require('three'),{disposeScene}=require('../app/scene-resources.ts');
 global.document={createElement:()=>{
   const canvas={width:0,height:0,draws:[]};
-  const context={font:'',fillRect(){},strokeRect(){},fillText(text){canvas.draws.push(text)},beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){},save(){},restore(){},translate(){},rotate(){},closePath(){},roundRect(){},rect(){},clip(){},
+  const context={font:'',setTransform(...matrix){canvas.transform=matrix},fillRect(){},strokeRect(){},fillText(text){canvas.draws.push(text)},beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){},save(){},restore(){},translate(){},rotate(){},closePath(){},roundRect(){},rect(){},clip(){},
     measureText(text){return {width:text.length*(Number(this.font.match(/([\d.]+)px/)?.[1])||16)*.6}},createLinearGradient(){return {addColorStop(){}}}};
   canvas.getContext=()=>context;return canvas;
 }};
@@ -97,7 +97,7 @@ test('orbital resume stays readable and selectable outside both frame faces as i
 
 test('weather repaints one shared live canvas outside both frame faces',()=>{
   const {createWeatherWorld}=require('../app/weather-world.ts'),{parseCurrentWeather}=require('../app/weather-state.ts');
-  const scene=new T.Scene(),sun=new T.DirectionalLight(),player=new T.Group();scene.add(sun);scene.background=new T.Color();scene.fog=new T.FogExp2();
+  const scene=new T.Scene(),sun=new T.DirectionalLight(),player=new T.Group();player.position.set(0,.8,69);scene.add(sun);scene.background=new T.Color();scene.fog=new T.FogExp2();
   const weather=createWeatherWorld(scene,player,sun),{front,back,texture}=checkDisplay(weather.root,'Weather_Display',[weather.root]),counts=disposalCounts(front),version=texture.version;
   const frameBounds=new T.Box3().setFromObject(weather.root.getObjectByName('Weather_Display_Frame'));
   assert.ok(front.getWorldPosition(new T.Vector3()).z>frameBounds.max.z);assert.ok(back.getWorldPosition(new T.Vector3()).z<frameBounds.min.z);
@@ -112,6 +112,7 @@ test('weather repaints one shared live canvas outside both frame faces',()=>{
 test('bulletin data and rear-side paging update shared faces without recreating display resources',()=>{
   const {createBulletinWorld,bulletinSites}=require('../app/bulletin-world.ts'),{emptyMarket,emptyNews,quoteFromYahoo}=require('../app/bulletin-data.ts');
   const scene=new T.Scene(),player=new T.Group(),notices=[],world=createBulletinWorld(scene,player,text=>notices.push(text));
+  player.position.set(-102,.8,173);world.update(0,true,true);
   const displays=['Market_Display','News_Display'].map(name=>checkDisplay(world.root,name,[world.root])),counts=displays.map(pair=>disposalCounts(pair.front)),versions=displays.map(pair=>pair.texture.version);
   displays.forEach((pair,index)=>{assert.equal(pair.front,world.boards[index].display);assert.equal(pair.texture,world.boards[index].texture);assert.equal(pair.texture.image,world.boards[index].canvas);assert.equal(pair.texture.image.width,2048);assert.equal(pair.texture.image.height,1152)});
   const quotes=Array.from({length:7},(_,index)=>quoteFromYahoo({symbol:'DISPLAY'+index,quoteType:'EQUITY',longName:'Verified display company '+index,regularMarketPrice:100.5,marketCap:1e11-index,regularMarketChangePercent:1.5,regularMarketTime:1789761600,currency:'USD',marketState:'CLOSED'}));
@@ -125,6 +126,14 @@ test('bulletin data and rear-side paging update shared faces without recreating 
   world.update(.1,true,true);
   displays.forEach((pair,index)=>{assert.equal(pair.front.material.map,pair.texture);assert.equal(pair.back.material.map,pair.texture);assert.ok(pair.texture.version>versions[index]);assert.deepEqual(counts[index](),[0,0,0])});
   disposeScene(scene);for(const count of counts)assert.deepEqual(count(),[1,1,1]);
+});
+
+test('large displays keep lightweight distant surfaces and restore original resolution near the viewer',()=>{
+ const {createWeatherWorld}=require('../app/weather-world.ts'),{createBulletinWorld,bulletinSites}=require('../app/bulletin-world.ts'),{createKingdomChronicle,chronicleSite}=require('../app/kingdom-chronicle.ts'),scene=new T.Scene(),player=new T.Group(),sun=new T.DirectionalLight();scene.add(sun);player.position.set(1000,.8,1000);
+ const weather=createWeatherWorld(scene,player,sun),bulletins=createBulletinWorld(scene,player,()=>{}),chronicle=createKingdomChronicle(scene),weatherCanvas=weather.root.getObjectByName('Weather_Display').material.map.image;
+ assert.deepEqual([weatherCanvas.width,weatherCanvas.height],[512,256]);assert.deepEqual([chronicle.canvas.width,chronicle.canvas.height],[450,300]);assert.ok(bulletins.boards.every(board=>board.canvas.width===512&&board.canvas.height===288));
+ weather.update(0,true,true,false,false,new T.Vector3(0,.8,69));assert.deepEqual([weatherCanvas.width,weatherCanvas.height],[2048,1024]);const site=bulletinSites.news;bulletins.update(0,true,true,new T.Vector3(site.x,.8,site.z+7));assert.deepEqual([bulletins.boards[1].canvas.width,bulletins.boards[1].canvas.height],[2048,1152]);chronicle.update(0,true,new T.Vector3(chronicleSite.x,.8,chronicleSite.z+6));assert.deepEqual([chronicle.canvas.width,chronicle.canvas.height],[1800,1200]);
+ weather.releaseDisplay();bulletins.releaseDisplays();chronicle.releaseDisplay();assert.equal(weatherCanvas.width,512);assert.ok(bulletins.boards.every(board=>board.canvas.width===512));assert.equal(chronicle.canvas.width,450);disposeScene(scene);
 });
 
 

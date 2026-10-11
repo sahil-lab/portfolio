@@ -8,6 +8,7 @@
     {
       "number": 1,
       "image": "/assets/resume-book/page-1.webp",
+      "previewImage": "/assets/resume-book/page-1-preview.webp",
       "width": 2048,
       "height": 2897,
       "aspect": 0.7070757687338248,
@@ -16,6 +17,7 @@
     {
       "number": 2,
       "image": "/assets/resume-book/page-2.webp",
+      "previewImage": "/assets/resume-book/page-2-preview.webp",
       "width": 2048,
       "height": 2897,
       "aspect": 0.7070757687338248,
@@ -24,6 +26,7 @@
     {
       "number": 3,
       "image": "/assets/resume-book/page-3.webp",
+      "previewImage": "/assets/resume-book/page-3-preview.webp",
       "width": 2048,
       "height": 2897,
       "aspect": 0.7070757687338248,

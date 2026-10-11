@@ -3,10 +3,23 @@ require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const T=require('three'),{disposeScene}=require('../app/scene-resources.ts');
 global.document={createElement:()=>{
   const canvas={width:0,height:0,draws:[]};
-  const context={font:'',fillRect(){},strokeRect(){},fillText(text){canvas.draws.push(text)},beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){},save(){},restore(){},translate(){},rotate(){},closePath(){},roundRect(){},
+  const context={font:'',setTransform(...matrix){canvas.transform=matrix},fillRect(){},strokeRect(){},fillText(text){canvas.draws.push(text)},beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){},save(){},restore(){},translate(){},rotate(){},closePath(){},roundRect(){},
     measureText(text){return {width:text.length*(Number(this.font.match(/([\d.]+)px/)?.[1])||16)*.6}},createLinearGradient(){return {addColorStop(){}}}};
   canvas.getContext=()=>context;return canvas;
 }};
+
+test('adaptive display storage preserves full paint coordinates and avoids resolution churn',()=>{
+ const {createAdaptiveDisplaySurface}=require('../app/readable-display.ts'),surface=createAdaptiveDisplaySurface(2048,1152),texture=surface.texture;let releases=0;texture.addEventListener('dispose',()=>releases++);
+ assert.deepEqual([surface.canvas.width,surface.canvas.height],[512,288]);assert.deepEqual(surface.canvas.transform,[.25,0,0,.25,0,0]);
+ assert.equal(surface.update(10,true,0),true);assert.deepEqual([surface.canvas.width,surface.canvas.height],[2048,1152]);assert.equal(surface.texture,texture);assert.equal(releases,1);assert.deepEqual(surface.canvas.transform,[1,0,0,1,0,0]);
+ assert.equal(surface.update(200**2,true,7999),false);assert.equal(releases,1);assert.equal(surface.update(200**2,true,8000),true);assert.deepEqual([surface.canvas.width,surface.canvas.height],[512,288]);assert.equal(releases,2);
+ assert.equal(surface.update(10,true,9000),true);assert.equal(surface.update(10,false,9001),true);assert.deepEqual([surface.canvas.width,surface.canvas.height],[512,288]);assert.equal(surface.update(200**2,false,10000),false);assert.equal(releases,4);texture.dispose();
+});
+
+test('hidden documents cannot promote a display to high resolution',()=>{
+ const {createAdaptiveDisplaySurface}=require('../app/readable-display.ts'),surface=createAdaptiveDisplaySurface(1800,1200);global.document.hidden=true;
+ try{assert.equal(surface.update(0,true),false);assert.deepEqual([surface.canvas.width,surface.canvas.height],[450,300])}finally{delete global.document.hidden;surface.texture.dispose()}
+});
 
 function readablePair(root,name,casing,elevation=0,clearance=Infinity){
   root.updateMatrixWorld(true);

@@ -3,6 +3,22 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {cacheStaticTransforms} from './static-transforms';
 import {applyAuthoredPaving} from './paving-material';
 
+export function compactStaticGeometry(geometry:T.BufferGeometry){
+  if(geometry.attributes.skinIndex||geometry.attributes.skinWeight||Object.keys(geometry.morphAttributes).length)return geometry;
+  for(const name of ['color','normal']){
+    const attribute=geometry.getAttribute(name);
+    if(!attribute||'data' in attribute||!(attribute.array instanceof Float32Array)||attribute.normalized||attribute.usage!==T.StaticDrawUsage||attribute.gpuType!==T.FloatType||Object.prototype.hasOwnProperty.call(attribute,'onUploadCallback'))continue;
+    if(name==='normal'?attribute.itemSize!==3:attribute.itemSize!==3&&attribute.itemSize!==4)continue;
+    const source=attribute.array,minimum=name==='normal'?-1:0,maximum=name==='normal'?32767:255;let eligible=true;
+    for(let index=0;index<source.length;index++)if(!Number.isFinite(source[index])||source[index]<minimum||source[index]>1){eligible=false;break}
+    if(!eligible)continue;
+    const data=name==='normal'?new Int16Array(source.length):new Uint8Array(source.length);
+    for(let index=0;index<source.length;index++)data[index]=Math.round(source[index]*maximum);
+    const packed=new T.BufferAttribute(data,attribute.itemSize,true);packed.name=attribute.name;geometry.setAttribute(name,packed);
+  }
+  return geometry;
+}
+
 export function mergeIndexedGeometries(geometries:T.BufferGeometry[]){
   if(geometries.some(geometry=>geometry.index))for(const geometry of geometries)if(!geometry.index){const count=geometry.attributes.position.count,indices=count>65535?new Uint32Array(count):new Uint16Array(count);for(let index=0;index<count;index++)indices[index]=index;geometry.setIndex(new T.BufferAttribute(indices,1))}
   return mergeGeometries(geometries);
@@ -34,7 +50,7 @@ function sameGeometry(first:T.BufferGeometry,second:T.BufferGeometry){
 }
 
 /** Batch immutable scenery by material and spatial tile, retaining camera collision bounds. */
-export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>,options:{preserveMaterials?:boolean}={}){
+export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>,options:{preserveMaterials?:boolean;compactAttributes?:boolean}={}){
   const dynamic=new Set<T.Object3D>();Object.values(animated).forEach(v=>{for(const item of Array.isArray(v)?v:[v])if((item as T.Object3D|undefined)?.isObject3D)dynamic.add(item as T.Object3D)});
   const groups=new Map<string,T.Mesh[]>();const collision:T.Box3[]=[...(scene.userData.staticCameraBounds??[])];scene.updateWorldMatrix(true,true);
   const inverseRoot=new T.Matrix4().copy(scene.matrixWorld).invert();
@@ -58,6 +74,7 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>,op
     const signatures=list.map(o=>JSON.stringify({type:o.geometry.type,parameters:(o.geometry as T.BoxGeometry).parameters,windowRoom:o.geometry.userData.windowRoom}));
     if(list.length>=4&&signatures.every(key=>key===signatures[0])&&(list[0].geometry as T.BoxGeometry).parameters&&list.every(object=>sameGeometry(list[0].geometry,object.geometry))){
       const mesh=new T.InstancedMesh(list[0].geometry.clone(),list[0].material,list.length);
+      if(options.compactAttributes!==false)compactStaticGeometry(mesh.geometry);
       list.forEach((o,i)=>mesh.setMatrixAt(i,new T.Matrix4().multiplyMatrices(inverseRoot,o.matrixWorld)));mesh.computeBoundingSphere();mesh.name='SceneryInstances';mesh.castShadow=list[0].castShadow;mesh.receiveShadow=list[0].receiveShadow;scene.add(mesh);
       mesh.updateMatrix();mesh.matrixAutoUpdate=false;cacheStaticTransforms(mesh);
       for(const o of list){o.removeFromParent();o.geometry.dispose();if(o.material!==mesh.material)(o.material as T.Material).dispose()}
@@ -65,6 +82,7 @@ export function batchScenery(scene:T.Object3D,animated:Record<string,unknown>,op
     }
     const geometries=list.map(object=>object.geometry.clone().applyMatrix4(new T.Matrix4().multiplyMatrices(inverseRoot,object.matrixWorld)));
     const merged=mergeIndexedGeometries(geometries);geometries.forEach(geometry=>geometry.dispose());if(!merged)continue;
+    if(options.compactAttributes!==false)compactStaticGeometry(merged);
     const mesh=new T.Mesh(merged,list[0].material);mesh.name='SceneryBatch';mesh.castShadow=list[0].castShadow;mesh.receiveShadow=list[0].receiveShadow;scene.add(mesh);
     mesh.updateMatrix();mesh.matrixAutoUpdate=false;cacheStaticTransforms(mesh);
     const retained=list[0].material;

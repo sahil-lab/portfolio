@@ -1,17 +1,16 @@
 import * as T from 'three';
 import {defaultWeather,type WeatherSnapshot} from './weather-state';
 import {createWeatherSky} from './weather-sky';
-import {createReadableDisplay} from './readable-display';
+import {createAdaptiveDisplaySurface,createReadableDisplay} from './readable-display';
 import {cityBlock} from './city-architecture';
 import {visualWeather,type WorldLightingMode} from './world-lighting';
 
 export const weatherScreenSite={x:0,z:63,width:27,height:12};
 export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.DirectionalLight){
   const root=new T.Group();root.name='LocalWeather';scene.add(root);
-  let weather={...defaultWeather},clock=0,lastActive=true,lastInside=false,lastReduced=false,lightingMode:WorldLightingMode='local';
+  let weather={...defaultWeather},clock=0,lastActive=true,lastInside=false,lastReduced=false,lightingMode:WorldLightingMode='local',observer=player.position;
   let visual=visualWeather(weather,lightingMode,clock);
-  const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1024;const context=canvas.getContext('2d')!;
-  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
+  const surface=createAdaptiveDisplaySurface(2048,1024),{context,texture}=surface;
   const frameMaterial=new T.MeshPhysicalMaterial({color:'#eff3e9',roughness:.38,metalness:.12,clearcoat:.4});
   function box(name:string,x:number,y:number,z:number,width:number,height:number,depth:number,material:T.Material){
     const mesh=new T.Mesh(cityBlock(width,height,depth,.4),material);mesh.name=name;mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh;
@@ -56,8 +55,9 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
   const rain=new T.LineSegments(rainGeometry,new T.LineBasicMaterial({color:'#a9ddf4',transparent:true,opacity:.55,depthWrite:false}));rain.name='Weather_Rain';rain.frustumCulled=false;root.add(rain);
   const snow=new T.Points(snowGeometry,new T.PointsMaterial({color:'#f3fbff',size:.16,transparent:true,opacity:.88,depthWrite:false}));snow.name='Weather_Snow';snow.frustumCulled=false;root.add(snow);
   paint();
-  function update(dt:number,reduced:boolean,active:boolean,inside:boolean,instant=false){
-    lastActive=active;lastInside=inside;lastReduced=reduced;
+  function update(dt:number,reduced:boolean,active:boolean,inside:boolean,instant=false,position=observer){
+    lastActive=active;lastInside=inside;lastReduced=reduced;observer=position;
+    if(surface.update((position.x-weatherScreenSite.x)**2+(position.z-weatherScreenSite.z)**2+(position.y-10)**2,active))paint();
     if(!reduced)clock+=Math.max(0,Math.min(dt,.1));
     visual=visualWeather(weather,lightingMode,clock);
     const atmosphere=sky.update(visual.snapshot,dt,reduced,active,instant,visual.tint),frozen=weather.kind==='snow'||weather.kind==='sleet';
@@ -73,7 +73,7 @@ export function createWeatherWorld(scene:T.Scene,player:T.Group,sun:T.Directiona
     }
   }
   update(0,false,true,false,true);
-  return {root,sky,update,tint:sky.tint,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
+  return {root,sky,update,releaseDisplay:()=>{if(surface.update(Infinity,false))paint()},tint:sky.tint,set:(value:WeatherSnapshot)=>{weather={...value};paint();update(0,lastReduced,lastActive,lastInside)},get snapshot(){return weather},
     lighting:(mode:WorldLightingMode)=>{if(lightingMode!==mode){lightingMode=mode;visual=visualWeather(weather,lightingMode,clock)}},get visual(){return visual},
     blocked:(x:number,z:number,y:number)=>Math.abs(z-63)<1.1&&(y>3.8&&Math.abs(x)<14.7||[-11.5,11.5].some(post=>Math.abs(x-post)<1.7)),
     near:()=>player.position.y<3&&Math.hypot(player.position.x,Math.abs(player.position.z-63)-7)<6,

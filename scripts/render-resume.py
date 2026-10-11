@@ -8,6 +8,15 @@ import pypdfium2 as pdfium
 from PIL import Image
 
 
+def save_preview(image: Image.Image, output: Path, filename: str) -> str:
+    preview_name = f"{Path(filename).stem}-preview.webp"
+    preview_width = min(512, image.width)
+    size = (preview_width, round(preview_width * image.height / image.width))
+    with image.resize(size, Image.Resampling.LANCZOS) as preview:
+        preview.save(output / preview_name, format="WEBP", lossless=True, method=6)
+    return preview_name
+
+
 def render_resume(source: Path, output: Path, width: int = 2048) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     pages = []
@@ -24,10 +33,12 @@ def render_resume(source: Path, output: Path, width: int = 2048) -> dict:
                 finally:
                     text_page.close()
                 bitmap = page.render(scale=width / page_width)
+                image = None
                 try:
                     image = bitmap.to_pil().convert("RGB")
                     filename = f"page-{index + 1}.webp"
                     image.save(output / filename, format="WEBP", lossless=True, method=6)
+                    preview_name = save_preview(image, output, filename)
                     with Image.open(output / filename) as saved:
                         saved.load()
                         if min(saved.size) < 1000 or saved.convert("L").getextrema()[0] > 245:
@@ -35,12 +46,15 @@ def render_resume(source: Path, output: Path, width: int = 2048) -> dict:
                     pages.append({
                         "number": index + 1,
                         "image": f"/assets/resume-book/{filename}",
+                        "previewImage": f"/assets/resume-book/{preview_name}",
                         "width": image.width,
                         "height": image.height,
                         "aspect": page_width / page_height,
                         "text": text,
                     })
                 finally:
+                    if image is not None:
+                        image.close()
                     bitmap.close()
             finally:
                 page.close()

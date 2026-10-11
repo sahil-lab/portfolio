@@ -117,6 +117,104 @@ The initial controlled High-quality desktop workflow reproduced a real blank can
 
 The presentation layer now restores the previous render target, `autoClear`, and scene override material on an exception before propagating the original error. The world records that error, pauses its animation loop and allows an explicit Resume without rebuilding or reloading the document. Normal effects remain unchanged, as does the existing Low-quality policy after context restoration. This fixes the reproduced sequence; it does not establish that all reported iPhone failures have the same cause.
 
+## Measured Local Memory
+
+The 11 October investigation profiled the isolated local build at `http://127.0.0.1:4369/`, not an unrebuilt working tree or a physical phone. Fresh Windows Chrome sessions used Balanced quality, device scale factor 1, desktop 1440 x 960 and mobile-emulated 390 x 844 viewports. Live previews, audio/voice and the Linux PC were inactive. Each run visited the plaza, project area, Prism planet and returned to the plaza. The profiler collected unique scene backing-buffer sizes and Chromium heap counters before/after forced GC; the second run also collected four successful detailed native memory dumps.
+
+### Largest Reported Categories
+
+| Category | Observed Range | Interpretation |
+| --- | --- | --- |
+| GPU-process `malloc` allocator | 652.2-761.3 MiB | Largest reported native allocator in the profiled browser; includes host-side graphics/driver allocations and is **not physical VRAM** |
+| Main renderer ArrayBuffer/external-string backing storage | 247.8-288.7 MiB after GC | Primarily binary assets; scene geometry accounts for 213.8-260.0 MiB of this category |
+| Main renderer native canvas resources | 208.0-223.8 MiB | Browser-reported canvas resource allocation, supporting the in-world display-texture priority |
+| Main JavaScript object heap | 91.4-105.3 MiB after GC | Objects, code-related data, strings and application state, excluding the separately reported backing-store category |
+
+These figures are not independent totals. Geometry is part of backing storage; native allocator parents/children and shared graphics resources overlap. Do not add rows or call the GPU-process allocator a VRAM measurement. The native dump did not provide usable process RSS/private-footprint totals in this capture. Three.js texture/geometry counts likewise are not byte measurements.
+
+The scene image census found 366.8 MiB of base pixels at the plaza and 417.5 MiB on the planet **if represented as RGBA8**. This is a dimension-based payload estimate, not measured residency. At the plaza it comprises 213 canvas images (195.5 MiB), 47 ImageBitmaps (90.6 MiB), eight HTML images (76.3 MiB), and other image descriptors (4.5 MiB). Actual formats, mipmaps, copies, upload state and cached images outside the scene change the real footprint.
+
+### Specific Targets
+
+| Resource | Measured Storage Or RGBA8 Base Estimate |
+| --- | --- |
+| Scene position attributes | 52.2 MiB of backing buffers |
+| Scene normal attributes | 52.1 MiB of backing buffers |
+| Scene color attributes | 47.3 MiB of backing buffers |
+| Scene UV attributes | 34.8 MiB of backing buffers |
+| Shared city silhouette geometry | 37.9 MiB of backing buffers |
+| Loaded Prism detail | 61.8 MiB of backing buffers |
+| First two referenced resume page images, each 2048 x 2897 | 45.3 MiB combined RGBA8 base estimate; additional cached pages are not included in that figure |
+| Companion base-color, normal and roughness maps, each 2048 x 2048 | 48 MiB combined RGBA8 base estimate |
+| Markets and news canvases, each 2048 x 1152 | 18 MiB combined RGBA8 base estimate |
+| Chronicle canvas, 1800 x 1200 | 8.24 MiB RGBA8 base estimate |
+| Weather canvas, 2048 x 1024 | 8 MiB RGBA8 base estimate |
+
+The source confirms that `createResumeBooks()` eagerly starts every resume-page load. `createBulletinWorld()` allocates both full-resolution canvases during construction. `createVisibleGeometry()` merges city silhouette data and retains per-range indices plus separate main/shadow index regions. These are concrete optimization surfaces, not evidence that the individual features should be removed.
+
+### Recommended Order
+
+1. **Introduce byte/pixel-budgeted display residency.** Keep small, readable placeholders at a distance; allocate high-resolution canvas/page textures only when needed and retire unused ones with hysteresis. Retain compact text/data/redraw recipes rather than every large canvas. Halving both dimensions quarters pixel storage, but visual readability must be checked before choosing each tier. Static signs can share backgrounds or use an atlas; dynamic displays should retain their existing update-on-change behavior.
+2. **Load resume pages by visibility and spread.** Avoid decoding every full-resolution page at startup. Preserve page turning and high-resolution close reading, with a bounded shared cache and cancellation of obsolete loads. Both books already share page textures, so duplicating that cache per book would be a regression.
+3. **Compact selected geometry attributes.** Normalized Uint8 colors could reduce the eligible 47.3 MiB color buffers to about 11.8 MiB; normalized Int16 normals could reduce 52.1 MiB to about 26.1 MiB. These are theoretical representation savings, not implemented results. Verify value ranges, lighting error, custom shaders, skinning and exporters before adoption. Keep world-position precision unless a per-chunk quantization scheme is validated.
+4. **Reduce texture residency, not merely download size.** Evaluate 1024-pixel variants and GPU-compressed KTX2/Basis assets for suitable 2048-pixel maps. Three 2048-square RGBA8 maps reduced to 1024-square would save 36 MiB of base pixels, before mipmaps. Normal-map fidelity and close-ups need explicit comparison. JPEG/WebP compression alone does not reduce same-dimension decoded/GPU storage. Reuse one transcoder loader, cap worker concurrency and account for decode/transcode peaks.
+5. **Make geometry/cache residency byte-aware.** The 37.9 MiB silhouette mesh is a useful first target for spatial partitioning and duplicate-index review. Preserve visibility and shadow behavior. Share immutable geometry and use instancing where shapes genuinely match; merging draws can duplicate vertex data and is not automatically a memory optimization.
+6. **Control peak coexistence.** Bound simultaneous fetch/decode/upload work and release obsolete intermediates before loading replacements. Do not retain inactive planet detail just because a count-based limit permits it. Preserve live/shared resources and the current scene while unloading others.
+7. **Preserve recovery when releasing CPU copies.** `texture.dispose()` releases renderer resources but does not necessarily release a retained canvas/ImageBitmap source. Close ImageBitmaps and drop references only after their last owner is finished, or retain a way to reload them. Likewise, do not blindly clear BufferAttribute arrays after upload: raycasting, export, updates and WebGL restoration may still need them.
+
+### Retention Versus Peaks
+
+On the desktop return checkpoint, backing storage fell from about 335.6 MiB before GC to 247.9 MiB afterward. Scene geometry returned from 260.0 MiB on the planet to 219.95 MiB, essentially its initial value. The mobile-emulated run also returned to the initial geometry and backing-store levels, with one document and roughly 475 DOM nodes. These two routes do not establish an unbounded JavaScript/geometry leak.
+
+However, GPU-process native `malloc` rose from 652.2 MiB initially to 761.3 MiB on return while its reported logical `gpu` allocator returned from 264.3 MiB on the planet to approximately its initial 248.6 MiB. Caching, allocator retention, driver behavior or a leak require repeated-cycle attribution to distinguish. Do not claim all native memory was reclaimed. Forced GC is a diagnostic comparison, not a production fix, and these desktop measurements do not establish an iPhone termination threshold.
+
+### Reproduction And Sources
+
+The existing `scripts/compare-runtime.cjs` now accepts `--memory` and `--native-memory`. With modern Node and Playwright available, use `--single local --control http://127.0.0.1:4369/ --memory --native-memory --label local-memory`, adding `--mobile` for the emulated viewport. Native traces are generated only by this explicit profiling tool, not by the application. Original artifacts are under `outputs/performance/oct11-memory-census-desktop/` and `outputs/performance/oct11-memory-attribution-mobile/`; `ranked-summary.json` records the non-additive native categories. The observed low FPS during these profiled sessions is not a controlled performance comparison.
+
+- [Chrome memory diagnostics](https://developer.chrome.com/docs/devtools/memory-problems): live heap versus process footprint, allocation profiling and retained-object checks.
+- [Chromium Runtime protocol](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-getHeapUsage): separate JavaScript, embedder-GC and backing-store fields; measurements cover an isolate, not an arbitrary individual object.
+- [Three.js texture memory](https://threejs.org/manual/en/textures.html#memory): image dimensions, mipmaps and the distinction between transfer compression and GPU storage.
+- [Three.js BufferAttribute](https://threejs.org/docs/pages/BufferAttribute.html) and [KHR_mesh_quantization](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_mesh_quantization): normalized integer attributes and precision/compatibility tradeoffs.
+- [KTX2Loader](https://threejs.org/docs/pages/KTX2Loader.html): hardware detection, transcoding, worker limits and loader disposal.
+- [ImageBitmap.close](https://developer.mozilla.org/en-US/docs/Web/API/ImageBitmap/close) and [WebGL memory budgeting](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices#estimate_a_per-pixel_vram_budget): explicit resource ownership and budgets without relying on a portable free-VRAM query.
+
+The initial investigation changed only profiling/reporting. The following implementation applies the highest-priority reductions; other techniques above remain proposals.
+
+## Implemented Memory Reductions
+
+The memory follow-up preserves the world, models, original resume PDF, full-resolution page images and near-view display layouts. It does not depend on the separate, unpublished child-preview rollout.
+
+- Resume books load shared 512 x 724 preview images initially. Only the nearest book's current spread requests original 2048-pixel pages, with one request in flight and at most two resident detail textures. Page turning retires obsolete details, distant views return to previews after an eight-second grace period, and hidden/off-mainland states release them immediately. Late arrivals cannot restore retired textures. The existing PDF renderer now generates the previews; original page/PDF hashes were preserved.
+- Weather, market, news and chronicle canvases use quarter dimensions while distant. Their original paint coordinates are retained through a canvas transform, and original resolution returns nearby. Distance/time hysteresis avoids repeated resizing. GPU texture allocation is released before a size change; both faces keep sharing the same texture. Hidden pages cannot promote themselves back to full resolution through a late data update.
+- Owned static scenery and city-silhouette outputs store eligible colors as normalized Uint8 values and normals as normalized Int16 values. Positions, UVs, indices and collision bounds remain unchanged. Error bounds are half a quantization step (plus floating-point tolerance). Skinned/morph geometry, dynamic/interleaved attributes, custom upload callbacks, nonfinite values and HDR/out-of-range colors are excluded. The exact merge helper is unchanged, and batching supports `compactAttributes: false` for full-precision output.
+- No new runtime dependency, animation loop, polling timer, worker or server-side service is introduced. CPU data needed for raycasting and context restoration remains available.
+
+### Matched Before And After
+
+Separate fresh Chrome processes tested the committed pre-fix build at local port 4368 and the isolated publication candidate at 4370. Both used Balanced quality, mobile-emulated 390 x 844, DPR 1, previews/audio/VM off, and the plaza -> project area -> Prism -> return route. These are Windows Chrome measurements, not physical iPhone limits or a controlled FPS benchmark.
+
+| Metric | Before | After | Reduction |
+| --- | --- | --- | --- |
+| Plaza scene geometry buffers | 219.95 MiB | 194.56 MiB | 25.39 MiB |
+| Prism scene geometry buffers | 260.02 MiB | 232.00 MiB | 28.01 MiB |
+| Plaza ArrayBuffer/external-string backing storage after GC | 247.78 MiB | 222.39 MiB | 25.39 MiB |
+| Plaza native canvas-resource allocation | 208.04 MiB | 167.45 MiB | 40.58 MiB |
+| Prism native canvas-resource allocation | 223.77 MiB | 183.19 MiB | 40.58 MiB |
+| Plaza scene-image RGBA8 base-pixel estimate | 366.81 MiB | 292.27 MiB | 74.54 MiB |
+
+The geometry reduction is included in backing-storage reduction, and image estimates overlap native resources; do not add these rows. Near the statue's resume book, full-resolution pages were deliberately resident and the image estimate was 334.71 MiB instead of the distant 292.27 MiB. GPU-process native malloc was lower at these checkpoints by approximately 6-19 MiB, but allocator caching/driver behavior makes that less directly attributable than unique geometry bytes. Neither this metric nor the image estimate is a physical VRAM reading.
+
+### Verification And Limits
+
+- The isolated publication candidate passed 73 focused memory/display/navigation tests and 21 scene-export/resource/recovery tests, TypeScript, scoped lint, the Vercel-adapter production build and output validator. Existing generated Linux-PC inputs were copied only after validating their manifest hashes; unrelated work was not included in the candidate.
+- The resume browser check verified low-resolution startup with no resident full pages, original-resolution near views on both sides of both books, page turning, all reader pages, zoom, text mode, click/touch, the original PDF hash and release back to previews. Its menu path and statue camera were updated to match the existing UI/foreground geometry; runtime book positions were not changed.
+- Desktop and mobile browser checks verified all four large displays restore their original resolution nearby, paint nonblank content, preserve viewport bounds, shrink on hidden state and repaint after return. The mobile weather probe enters the actual close-reading area; the ordinary mobile Commons arrival is intentionally farther away.
+- The existing High-quality mobile touch/orientation workflow passed native WebGL loss/restoration with the same document, scene and canvas. The prior Low-quality policy after context restoration is unchanged.
+- Before/after raw memory traces, build logs and browser captures are under `outputs/performance/oct11-memory-fix/` and `outputs/performance/oct11-memory-fix-{before,after}-mobile/`. These local artifacts are not required at runtime.
+
+These checks establish bounded resource behavior and local allocation savings, not a universal no-reload guarantee. Browser/OS pressure can still terminate a page, and physical-device soak testing remains necessary. The older child-preview changes and unrelated work are outside this memory publication.
+
 ## Actual Mobile Limits
 
 There is **no universal Safari, Chrome, Firefox, or in-app-browser MB allowance** for a Three.js page. Device RAM, OS and engine version, other tabs/apps, foreground/background state, GPU/driver behavior and embedded-app policy matter. Do not treat old claims of 256 MB/384 MB canvas quotas or a JavaScript heap limit as a current universal iOS 18.7 limit. WebKit has changed canvas accounting over time, including removal of an artificial canvas-context limit in a 2023 Technology Preview; that is not a guarantee of unlimited memory on current iPhones.

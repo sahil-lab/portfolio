@@ -1,7 +1,7 @@
 import * as T from 'three';
 import * as resume from './resume-data.json';
 import {emptyForge,type ForgeSnapshot} from './forge-feed';
-import {createReadableDisplay} from './readable-display';
+import {createAdaptiveDisplaySurface,createReadableDisplay} from './readable-display';
 
 export const chronicleSite={x:-45.2,z:14,width:10.8,height:7.4};
 
@@ -27,8 +27,7 @@ export function createKingdomChronicle(scene:T.Scene){
   for(const side of [-1,1]){box('Chronicle_Support',side*4.6,1.1,0,.32,2.2,.8,frame);box('Chronicle_Base',side*4.6,.18,0,1.5,.36,2,frame)}
   box('Chronicle_Printer',4.1,1.5,.35,1.4,1.4,1.1,frame);box('Chronicle_PrintSlot',4.1,1.75,.92,1.06,.08,.04,paper);
   const strip=box('Chronicle_UpdateStrip',4.1,1.48,.94,.8,.42,.02,paper);
-  const canvas=document.createElement('canvas');canvas.width=1800;canvas.height=1200;const context=canvas.getContext('2d')!;
-  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
+  const surface=createAdaptiveDisplaySurface(1800,1200,30),{canvas,context,texture}=surface;texture.anisotropy=4;
   createReadableDisplay(root,'Chronicle_VerifiedDisplay',texture,10.8,7.2,.65,new T.Vector3(0,5.7,0));
   let snapshot:ForgeSnapshot={...emptyForge},printing=0;
   function paint(){
@@ -46,7 +45,7 @@ export function createKingdomChronicle(scene:T.Scene){
     context.fillStyle='#83a9b7';context.font='500 25px "Trebuchet MS", sans-serif';context.fillText(lines.source,85,1100,1620);texture.needsUpdate=true;
   }
   paint();
-  return {root,canvas,set:(value:ForgeSnapshot)=>{snapshot=value;printing=1;paint()},update:(dt:number,reduced:boolean)=>{printing=Math.max(0,printing-dt*.28);strip.scale.y=reduced?1:1+printing*.8},
+  return {root,canvas,set:(value:ForgeSnapshot)=>{snapshot=value;printing=1;paint()},releaseDisplay:()=>{if(surface.update(Infinity,false))paint()},update:(dt:number,reduced:boolean,position?:T.Vector3,active=true)=>{if((position||!active)&&surface.update(position?(position.x-chronicleSite.x)**2+(position.z-chronicleSite.z)**2+(position.y-5.7)**2:Infinity,active))paint();printing=Math.max(0,printing-dt*.28);strip.scale.y=reduced?1:1+printing*.8},
     near:(position:T.Vector3)=>Math.hypot(position.x-chronicleSite.x,position.z-chronicleSite.z-3)<6&&position.y<3,
     blocked:(x:number,z:number,y:number)=>y<10&&Math.abs(x-chronicleSite.x)<5.9&&Math.abs(z-chronicleSite.z)<.85,
     details:()=>{const lines=chronicleLines(snapshot);return lines.status+'. '+lines.repositories+' public repositories, '+lines.stars+' stars. '+lines.source+'. Career data: supplied resume.'},
