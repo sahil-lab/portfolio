@@ -47,7 +47,7 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface,au
   yield 'terrain';
   const solids:{position:T.Vector3;radius:number}[]=[];
   const outposts:{root:T.Group;position:T.Vector3;name:string;architecture:ReturnType<typeof createArchitectureNeighborhood>;inverse:T.Quaternion}[]=[];
-  for(let index=0;index<5;index++){
+  for(let index=0;index<(city?.region?0:5);index++){
     const angle=index*Math.PI*2/5,direction=index===4?new T.Vector3(0,-1,0):new T.Vector3(Math.cos(angle),-.1,Math.sin(angle)).normalize();
     const position=planetPoint(surface,direction),up=planetUp(surface,position),group=new T.Group();group.position.copy(position);group.quaternion.setFromUnitVectors(vertical,up);root.add(group);
     const platform=new T.Mesh(new T.CylinderGeometry(4,4.4,.4,24),new T.MeshStandardMaterial({color:palette?.stone??'#d4dfd0',roughness:.65}));platform.position.y=.2;group.add(platform);
@@ -65,10 +65,11 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface,au
   const civilization=createCivilizationWorld(root,surface);
   yield 'civilization';
   const cityWorld=city?yield* buildCityPlanetWorld(root,surface,city):null;
+  if(cityWorld?.region){surface.mappedGround=(direction,target)=>cityWorld.region!.projectGround(direction,target);surface.mappedContact=position=>cityWorld.region!.sampleGround(position)}
   yield 'city';
   const streetLife=createStreetLife(root,{id:surface.stop.id,seed:surface.stop.id.length,anchors:publicSpaces.places.map(place=>({id:place.kind,position:place.approach,rotation:place.rotation})),project:point=>planetPoint(surface,point.clone().sub(surface.center)),up:point=>planetUp(surface,point),blocked:(point,padding)=>{const terrain=planetGeography(surface,point.clone().sub(surface.center).normalize());return terrain.water||terrain.road<padding+1||terrain.river<padding+1||infrastructure.blocked(point,padding)||publicSpaces.blocked(point,padding)||vegetation.blocked(point,padding)||!!realm?.blocked(point,padding)||population.blocked(point,padding)||!!civilization?.blocked(point,padding)||!!cityWorld?.blocked(point,padding)||solids.some(solid=>point.distanceToSquared(solid.position)<(solid.radius+padding)**2)}});
   yield 'street-life';
-  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root,streetLife:streetLife.root});
+  batchScenery(root,{outposts:outposts.map(outpost=>outpost.root),vegetation:vegetation.root,publicSpaces:publicSpaces.root,population:population.root,civilization:civilization?.root,realm:realm?.root,streetLife:streetLife.root,...(cityWorld?.region?{city:cityWorld.root}:{})});
   const details=new T.Group();details.name='Planet_SurfaceDetails';details.add(...root.children);root.add(details);
   const distant=authored?.distant??new T.Mesh(terrainGeometry(40,28),globe.material);distant.name='Planet_OrbitalSilhouette';distant.position.copy(surface.center);root.add(distant);
   const cityIdentity=cityPlanetFor(surface.stop);if(cityIdentity&&!authored)void applyCityPlanetTexture(distant,cityIdentity);
@@ -76,7 +77,7 @@ export function* buildPlanetLandscape(parent:T.Object3D,surface:PlanetSurface,au
   const rotation=createPlanetRotation(root,surface.center);
   const outpostObserver=new T.Vector3();
   return {root,globe,outposts,infrastructure,publicSpaces,vegetation,population,civilization,realm,city:cityWorld,rotation,details,distant,streetLife,
-    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{details.visible=active||!!root.userData.observed;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);vegetation.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active,streetLife.blocked);streetLife.update(dt,reduced,active,player.position,root.userData.streetLifeEnvironment??{morning:1,night:0},root.userData.streetLifeQuality??'balanced')},
+    update:(dt:number,reduced:boolean,player:T.Group,active=true)=>{const cityOverview=!!cityWorld?.region&&!!root.userData.observed;cityWorld?.region?.update(dt,player,active&&!cityOverview);details.visible=(active||!!root.userData.observed)&&!cityOverview;distant.visible=!details.visible;infrastructure.updateArchitecture(player.position,active);publicSpaces.update(dt,reduced,player.position,active);vegetation.update(dt,reduced,player.position,active);for(const outpost of outposts)outpost.architecture.update(outpostObserver.copy(player.position).sub(outpost.position).applyQuaternion(outpost.inverse),active);civilization?.updateArchitecture(player.position,active);if(realm){realm.silhouette.visible=!details.visible;realm.update(dt,reduced,active||!!root.userData.observed)}if(active){infrastructure.update(dt,reduced);civilization?.update(dt,reduced)}population.update(dt,reduced,player,active,streetLife.blocked);streetLife.update(dt,reduced,active&&!cityWorld?.region,player.position,root.userData.streetLifeEnvironment??{morning:1,night:0},root.userData.streetLifeQuality??'balanced')},
     blocked:(position:T.Vector3,padding=.45)=>streetLife.blocked(position,padding)||infrastructure.blocked(position,padding)||publicSpaces.blocked(position,padding)||vegetation.blocked(position,padding)||!!realm?.blocked(position,padding)||population.blocked(position,padding)||!!civilization?.blocked(position,padding)||!!cityWorld?.blocked(position,padding)||solids.some(solid=>position.distanceToSquared(solid.position)<(solid.radius+padding)**2),
     nearest:(position:T.Vector3)=>outposts.find(outpost=>position.distanceTo(outpost.position)<7),
   };

@@ -85,6 +85,37 @@ export function createPlanetProjection({cityRadiusM,capAngleDeg}:PlanetProjectio
  };
 }
 
+export type WrappedPlanetOptions={localBounds:readonly [number,number,number,number];anchor?:readonly [number,number];radius?:number};
+
+export function createWrappedPlanetProjection({localBounds,anchor=[0,0],radius}:WrappedPlanetOptions):PlanetProjection&{kind:'whole-globe';localBounds:readonly [number,number,number,number]}{
+ const [west,south,east,north]=localBounds,width=east-west,height=north-south;
+ if(!localBounds.every(Number.isFinite)||width<=0||height<=0||!anchor.every(Number.isFinite))throw new RangeError('whole-globe projection needs finite local bounds and anchor');
+ const globeRadius=radius??Math.max(width/(2*Math.PI),height/Math.PI);
+ if(!Number.isFinite(globeRadius)||globeRadius<=0)throw new RangeError('whole-globe radius must be finite and positive');
+ const anchorLongitude=((anchor[0]-west)/width-.5)*Math.PI*2,anchorLatitude=((anchor[1]-south)/height-.5)*Math.PI;
+ const sinLongitude=Math.sin(anchorLongitude),cosLongitude=Math.cos(anchorLongitude),sinLatitude=Math.sin(anchorLatitude),cosLatitude=Math.cos(anchorLatitude);
+ const eastAxis:Vec3=[cosLongitude,0,-sinLongitude],northAxis:Vec3=[-sinLatitude*sinLongitude,cosLatitude,-sinLatitude*cosLongitude],upAxis:Vec3=[cosLatitude*sinLongitude,sinLatitude,cosLatitude*cosLongitude];
+ const up=(localEast:number,localNorth:number,target:Vec3=[0,0,0])=>{
+  const longitude=((localEast-west)/width-.5)*Math.PI*2,latitude=((localNorth-south)/height-.5)*Math.PI;
+  const cosine=Math.cos(latitude),rawX=cosine*Math.sin(longitude),rawY=Math.sin(latitude),rawZ=cosine*Math.cos(longitude);
+  target[0]=rawX*eastAxis[0]+rawZ*eastAxis[2];target[1]=rawX*upAxis[0]+rawY*upAxis[1]+rawZ*upAxis[2];target[2]=-(rawX*northAxis[0]+rawY*northAxis[1]+rawZ*northAxis[2]);return target;
+ };
+ return {
+  kind:'whole-globe',localBounds,radius:globeRadius,capAngleDeg:360,
+  cityRadiusM:Math.max(...[[west,south],[east,south],[east,north],[west,north]].map(([localEast,localNorth])=>Math.hypot(localEast-anchor[0],localNorth-anchor[1]))),
+  up,
+  theta:(localEast,localNorth)=>Math.acos(Math.max(-1,Math.min(1,up(localEast,localNorth)[1]))),
+  toPlanet(localEast,localNorth,elevation=0,target=[0,0,0]){up(localEast,localNorth,target);const distance=globeRadius+elevation;target[0]*=distance;target[1]*=distance;target[2]*=distance;return target},
+  fromPlanet(planetX,planetY,planetZ){
+   const distance=Math.hypot(planetX,planetY,planetZ);
+   if(!Number.isFinite(distance)||distance===0)throw new RangeError('planet centre has no geographic direction');
+   const rawX=planetX*eastAxis[0]+planetY*upAxis[0]-planetZ*northAxis[0],rawY=planetY*upAxis[1]-planetZ*northAxis[1],rawZ=planetX*eastAxis[2]+planetY*upAxis[2]-planetZ*northAxis[2];
+   const longitude=Math.atan2(rawX,rawZ),latitude=Math.asin(Math.max(-1,Math.min(1,rawY/distance)));
+   return {east:west+(longitude/(Math.PI*2)+.5)*width,north:south+(latitude/Math.PI+.5)*height,height:distance-globeRadius};
+  },
+ };
+}
+
 /** Flat tangent-plane placement used at sphereMorph=0; identical formula to the vertex shader. */
 export function toFlatPlane(radius:number,east:number,north:number,height=0,target:Vec3=[0,0,0]):Vec3{target[0]=east;target[1]=radius+height;target[2]=-north;return target}
 

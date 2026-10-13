@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
-const T=require('three'),{createGameCamera}=require('../app/game-camera.ts'),{defaultSettings}=require('../app/persistence.ts');
+const T=require('three'),{createGameCamera,mappedCameraView}=require('../app/game-camera.ts'),{defaultSettings}=require('../app/persistence.ts');
 function setup(){const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1.5,.1,18000);scene.add(player);return {scene,player,camera,rig:createGameCamera(camera,scene,player)}}
 test('third-person orbit settles quickly and follows the same path at different frame rates',()=>{
  const sampled=[30,60,120].map(rate=>{const {rig,camera}=setup();rig.rotate(-80,40,false);rig.update(1/rate,false,defaultSettings);assert.ok(rig.yaw>.1&&rig.yaw<.5);for(let frame=1;frame<rate;frame++)rig.update(1/rate,false,defaultSettings);assert.ok(Math.abs(rig.yaw-.5)<1e-7);return camera.position});
@@ -23,4 +23,22 @@ test('authored views refit on aspect changes but never overwrite manual orbit, z
  rig.rotate(-80,0,false);rig.update(1,false,defaultSettings,false,12.5);camera.aspect=1.5;rig.update(1,false,defaultSettings,false,12.5);assert.ok(Math.abs(rig.yaw-.4)<1e-10);
  rig.reset(view(camera.aspect),view);rig.zoom(12);camera.aspect=390/844;rig.update(1,false,defaultSettings,false,12.5);assert.equal(rig.yaw,-.12);assert.ok(camera.position.distanceTo(new T.Vector3(0,12.5,0))<73);
  rig.reset(view(camera.aspect),view);rig.setMode('close');camera.aspect=1.5;rig.update(1,false,defaultSettings);assert.equal(rig.mode,'close');assert.ok(camera.position.distanceTo(new T.Vector3(0,1.5,0))<25);
+});
+
+test('mapped city camera finds a clear angle instead of filling the screen with the character',()=>{
+
+test('mapped character cameras preserve framing clearance on narrow mobile viewports',()=>{
+ const direction=new T.Vector3(0,.2,1).normalize(),result=mappedCameraView(new T.Vector3(),direction,new T.Vector3(0,1,0),18,15,(_origin,heading,distance)=>Math.abs(heading.x)<.8?4:distance);
+ assert.ok(result.distance>=15);assert.ok(Math.abs(direction.x)>=.8);
+ const {rig,camera,player}=setup();camera.aspect=390/844;camera.updateProjectionMatrix();rig.reset({yaw:0,pitch:.18,zoom:8});rig.update(1/60,false,defaultSettings,false,1.65,(_origin,_direction,distance)=>distance);
+ const target=player.position.clone().add(new T.Vector3(0,1.65,0));assert.ok(camera.position.distanceTo(target)>8,'mobile framing expands past the desktop distance');
+});
+ const {rig,camera,player}=setup();rig.reset({yaw:0,pitch:.18,zoom:10,focusHeight:1.65});
+ const clearance=(_origin,direction,distance)=>Math.abs(direction.x)<.6?2:distance;
+ rig.update(1/60,false,defaultSettings,false,1.65,clearance);
+ const target=player.position.clone().add(new T.Vector3(0,1.65,0)),heading=camera.position.clone().sub(target).normalize();
+ assert.ok(camera.position.distanceTo(target)>=5);assert.ok(Math.abs(heading.x)>=.6);assert.equal(player.visible,true);
+ assert.ok(Math.abs(rig.yaw)>=Math.PI/6,'movement and camera heading remain aligned');
+ rig.reset({yaw:0,pitch:.18,zoom:10,focusHeight:1.65});rig.update(1/60,false,{...defaultSettings,stableCamera:true},false,1.65,clearance);
+ assert.equal(rig.yaw,0,'stable-camera preference never rotates automatically');assert.equal(player.visible,false,'a blocked stable view does not show a giant close-up');
 });

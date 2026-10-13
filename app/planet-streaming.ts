@@ -30,7 +30,7 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
  function unload(){
    if(value||pending)recordDiagnostic('planet_unloaded',{phase:surface.stop.id,ready:!!value});
-   generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
+  generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;value.city?.region?.dispose();delete surface.mappedGround;delete surface.mappedContact;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
  }
  async function load(priority=1):Promise<boolean>{
   if(disposed)return false;if(value){lastUse=now();return true}if(pending)return pending;

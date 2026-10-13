@@ -5,7 +5,7 @@ import {cityEdgeDistance,cityPlanetFor} from './bengaluru-city-config';
 
 export const terrainRevision='sculpted-v2';
 export const legacyTerrainRevision='legacy-v1';
-export type PlanetSurface={stop:TransitStop;radius:number;center:T.Vector3;capHeight:number;terrainRevision?:typeof terrainRevision|typeof legacyTerrainRevision};
+export type PlanetSurface={stop:TransitStop;radius:number;center:T.Vector3;capHeight:number;terrainRevision?:typeof terrainRevision|typeof legacyTerrainRevision;mappedGround?:(direction:T.Vector3,target:T.Vector3)=>T.Vector3;mappedContact?:(position:T.Vector3)=>{point:T.Vector3;normal:T.Vector3}|null};
 export const roadLatitudes=[.46,0,-.48];
 export const roadLongitudes=[0,Math.PI/3,Math.PI*2/3];
 export const mountainDirections=[
@@ -54,11 +54,13 @@ export function createPlanetSurface(stop:TransitStop,radius=82):PlanetSurface{
   return {stop,radius,capHeight,center:new T.Vector3(stop.x,stop.y-capHeight,stop.z-3),terrainRevision};
 }
 export function planetPoint(surface:PlanetSurface,direction:T.Vector3,target=new T.Vector3()){
+  if(surface.mappedGround)return surface.mappedGround(direction,target);
   const normal=direction.clone().normalize(),blend=T.MathUtils.smoothstep(normal.y,(surface.capHeight-2)/surface.radius,surface.capHeight/surface.radius);
   const radius=(blend>0?T.MathUtils.lerp(surface.radius,surface.capHeight/normal.y,blend):surface.radius)+planetGeography(surface,normal).height;
   return target.copy(normal).multiplyScalar(radius).add(surface.center);
 }
 export function planetUp(surface:PlanetSurface,position:T.Vector3,target=new T.Vector3()){
+  if(surface.mappedGround)return target.copy(position).sub(surface.center).normalize();
   const normal=position.clone().sub(surface.center).normalize();
   const axis=Math.abs(normal.y)>.95?new T.Vector3(1,0,0):new T.Vector3(0,1,0);
   const right=axis.cross(normal).normalize(),forward=new T.Vector3().crossVectors(normal,right).normalize(),delta=.0005;

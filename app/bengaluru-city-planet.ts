@@ -12,10 +12,11 @@ import {cityDirection,cityEdgeAngle,cityFlat,cityPlanetFor,type CityPlanet} from
 import {planetPoint,type PlanetSurface} from './planet-geography';
 import {describeHeight} from './bengaluru-text';
 import {disposeScene} from './scene-resources';
+import {loadBengaluruRegion,buildBengaluruRegionWorld,type RegionPayload,type RegionControls} from './bengaluru-region-world';
 
 export const cityPlanetManifest=manifestJson as unknown as PlanetManifest;
 export type CityPlanetTile={record:TileRecord;scene:T.Object3D};
-export type CityPlanetTiles={city:CityPlanet;tiles:CityPlanetTile[];bytes:number};
+export type CityPlanetTiles={city:CityPlanet;tiles:CityPlanetTile[];bytes:number;region?:RegionPayload};
 export type CityLandmark={name:string;description:string;kind:string;position:T.Vector3;record:LandmarkRecord};
 const cellMetres=25,landmarkReach=14;
 const layerNames=['building','ground','water'] as const;
@@ -31,6 +32,7 @@ export async function loadCityPlanetTiles(surface:PlanetSurface,signal:AbortSign
  const city=cityPlanetFor(surface.stop);if(!city||signal.aborted)return null;
  // Like authored terrain, there is nothing to fetch outside a browser; the globe then builds without its city layer.
  if(typeof window==='undefined'&&request===fetch)return {city,tiles:[],bytes:0};
+ if(city.projection==='whole-globe'){const region=await loadBengaluruRegion(surface,signal,request);return region?{city,tiles:[],bytes:region.tiles.reduce((total,tile)=>total+tile.bytes,0),region}:null}
  const loader=new GLTFLoader(),queue=cityPlanetTiles(city),tiles:CityPlanetTile[]=[];let bytes=0;
  const worker=async()=>{
   for(let tile=queue.shift();tile&&!signal.aborted;tile=queue.shift()){
@@ -68,6 +70,7 @@ const landmarkKinds:Record<string,string>={building:'Civic building',park:'Park'
 
 /** Bakes the loaded tiles onto the globe one tile per step; the planet builder yields between steps. */
 export function* buildCityPlanetWorld(parent:T.Object3D,surface:PlanetSurface,payload:CityPlanetTiles){
+ if(payload.region)return yield* buildBengaluruRegionWorld(parent,surface,payload.region);
  const {city}=payload,radius=surface.radius,root=new T.Group();root.name='Planet_City_'+city.id;parent.add(root);
  const materials:Record<Layer,T.MeshStandardMaterial>={
   building:new T.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.82,metalness:0}),
@@ -143,7 +146,7 @@ export function* buildCityPlanetWorld(parent:T.Object3D,surface:PlanetSurface,pa
   return false;
  };
  const probe=new T.Vector3();
- return {root,landmarks,materials,trees,triangles,bakedTiles,bytes:payload.bytes,blockerCount:blockerList.length/6,toPlanet,
+ return {root,region:undefined as RegionControls|undefined,landmarks,materials,trees,triangles,bakedTiles,bytes:payload.bytes,blockerCount:blockerList.length/6,toPlanet,
   flatAt:(position:T.Vector3)=>cityFlat(city,radius,probe.copy(position).sub(surface.center)),
   blocked(position:T.Vector3,padding=.45){
    const {east,north,rho}=cityFlat(city,radius,probe.copy(position).sub(surface.center));
@@ -182,7 +185,7 @@ function loadSkyTexture(city:CityPlanet,width=1536){
  * sphere's +x, so the mesh turns it toward the landing pole; the flat cap is too shallow to notice.
  */
 export function applyCityPlanetTexture(mesh:T.Mesh,city:CityPlanet){
- const material=new T.MeshStandardMaterial({color:city.ground,roughness:.95,metalness:0});mesh.material=material;mesh.rotation.z=Math.PI/2;
+ const material=new T.MeshStandardMaterial({color:city.ground,roughness:.95,metalness:0,fog:city.projection!=='whole-globe'});mesh.material=material;mesh.rotation.z=Math.PI/2;
  return loadSkyTexture(city).then(texture=>{
   if(!texture)return false;
   material.map=texture;material.color.set('#ffffff');material.needsUpdate=true;return true;

@@ -19,11 +19,13 @@ export function createAngelFlight(options:{height:number;surfaces?:readonly(Plan
  const clearance=Math.max(12,options.height*1.15),position=options.start?.clone()??new T.Vector3(angelArrival.x,angelArrival.y,angelArrival.z),velocity=new T.Vector3();
  const state={position,velocity,controlled:false,roaming:true,current:0,destination:null as number|null,progress:0,speed:0,boosting:false,yaw:0,bank:0,elapsed:0,arrivals:0};
  const desired=new T.Vector3(),step=new T.Vector3(),normal=new T.Vector3(),previous=new T.Vector3(),orbitTarget=new T.Vector3();
- let route:T.CatmullRomCurve3|null=null,routeTime=0,orbitTime=0,roamTime=0,roamDuration=32+random()*12,planetCursor=0;
- const worldLimit=Math.max(...transitStops.map(stop=>Math.max(Math.abs(stop.x),Math.abs(stop.z))))+1500;
+ let route:T.CatmullRomCurve3|null=null,routeTime=0,routeDuration=angelFlightLimits.tripSeconds,orbitTime=0,roamTime=0,roamDuration=32+random()*12,planetCursor=0;
+ const planets=surfaces.filter((surface):surface is PlanetSurface=>!!surface);
+ const worldLimit=Math.max(1500,...planets.map(surface=>Math.max(Math.abs(surface.center.x),Math.abs(surface.center.z))+safeRadius(surface)+1500));
+ const minimumY=Math.min(-700,...planets.map(surface=>surface.center.y-safeRadius(surface)-200)),maximumY=Math.max(1900,...planets.map(surface=>surface.center.y+safeRadius(surface)+200));
  function safeRadius(surface:PlanetSurface){return surface.radius+(surface.stop.worldKind?64:38)+clearance}
  function keepClear(point:T.Vector3){
-  point.x=clamp(point.x,-worldLimit,worldLimit);point.z=clamp(point.z,-worldLimit,worldLimit);point.y=clamp(point.y,-700,1900);
+    point.x=clamp(point.x,-worldLimit,worldLimit);point.z=clamp(point.z,-worldLimit,worldLimit);point.y=clamp(point.y,minimumY,maximumY);
   if(point.x>motherboardBounds.minX-clearance&&point.x<motherboardBounds.maxX+clearance&&point.z>motherboardBounds.minZ-clearance&&point.z<motherboardBounds.maxZ+clearance)point.y=Math.max(angelFlightLimits.minimumAltitude,point.y);
   for(const surface of surfaces){
    if(!surface)continue;normal.copy(point).sub(surface.center);const radius=safeRadius(surface),length=normal.length();
@@ -52,6 +54,7 @@ export function createAngelFlight(options:{height:number;surfaces?:readonly(Plan
   if(targetSurface)endLift.addScaledVector(target.clone().sub(targetSurface.center).normalize(),190);else endLift.y=260;
   const middle=startLift.clone().lerp(endLift,.5);middle.y=Math.max(startLift.y,endLift.y,...surfaces.filter((surface):surface is PlanetSurface=>!!surface).map(surface=>surface.center.y+safeRadius(surface)))+180;
   route=new T.CatmullRomCurve3([origin,startLift,middle,endLift,target],false,'centripetal');route.arcLengthDivisions=600;
+    routeDuration=targetSurface?.stop.city||sourceSurface?.stop.city?Math.max(angelFlightLimits.tripSeconds,route.getLength()*1.5/angelFlightLimits.boostSpeed):angelFlightLimits.tripSeconds;
   routeTime=0;state.destination=destination;state.progress=0;state.boosting=false;return true;
  }
  function setControlled(controlled:boolean){state.controlled=controlled;state.roaming=!controlled;route=null;state.destination=null;state.progress=0;velocity.set(0,0,0);state.speed=0;state.boosting=false;roamTime=0;state.current=region(position)}
@@ -68,7 +71,7 @@ export function createAngelFlight(options:{height:number;surfaces?:readonly(Plan
   if(manual){route=null;state.destination=null;state.progress=0;state.roaming=false}
   previous.copy(position);
   if(route){
-   routeTime+=delta;state.progress=Math.min(1,routeTime/angelFlightLimits.tripSeconds);
+    routeTime+=delta;state.progress=Math.min(1,routeTime/routeDuration);
    route.getPointAt(T.MathUtils.smoothstep(state.progress,0,1),desired);travel(desired);velocity.copy(position).sub(previous).divideScalar(delta);
    if(state.progress===1){state.current=state.destination!;state.destination=null;state.arrivals++;route=null;velocity.set(0,0,0);orbitTime=Math.PI/2;roamTime=0}
   }else{
@@ -90,5 +93,5 @@ export function createAngelFlight(options:{height:number;surfaces?:readonly(Plan
    state.yaw+=turn*(1-Math.exp(-4*delta));state.bank=T.MathUtils.damp(state.bank,clamp(-turn*.22,-.32,.32),4,delta);
   }else state.bank=T.MathUtils.damp(state.bank,0,4,delta);
  }
- return {state,surfaces,clearance,update,navigate,setControlled,setRoaming,keepClear,region,safeRadius};
+ return {state,surfaces,clearance,update,navigate,setControlled,setRoaming,keepClear,region,safeRadius,get tripSeconds(){return routeDuration}};
 }

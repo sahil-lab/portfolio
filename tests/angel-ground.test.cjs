@@ -8,6 +8,7 @@ const height=23.625,input={x:0,z:1,yaw:0,run:false},surfaces=transitStops.map((s
 function create(options={}){return createAngelGround({height,surfaces,...options})}
 test('angel walks, accelerates into a run and brakes to planted rest without moving on paused time',()=>{
  const ground=create(),contact=ground.findLanding(new T.Vector3(150,100,103),0);assert.ok(contact);ground.place(contact);
+ assert.equal(ground.walkSpeed,2,'mainland walking is two metres per second');
  assert.equal(ground.state.position.y,height*.5);ground.update(1/60,input);assert.ok(ground.state.speed<ground.walkSpeed*.1);
  for(let frame=0;frame<120;frame++)ground.update(1/60,input);assert.ok(Math.abs(ground.state.speed-ground.walkSpeed)<.001);assert.equal(ground.state.pace,'walk');
  for(let frame=0;frame<120;frame++)ground.update(1/60,{...input,run:true});assert.ok(Math.abs(ground.state.speed-ground.runSpeed)<.001);assert.equal(ground.state.pace,'run');
@@ -54,4 +55,16 @@ test('free roam and returning to Main resume airborne movement from grounded sta
   if(releaseControl)motion.control(false);else motion.roam(true);assert.equal(motion.state.phase,'taking-off');
   for(let frame=0;frame<400;frame++)motion.update(1/60);assert.equal(motion.state.phase,'flying');assert.equal(motion.flight.state.roaming,true);assert.ok(motion.flight.state.speed>0);
  }
+});
+
+test('Bengaluru ground movement scales the existing angel and respects mapped contact readiness',()=>{
+ const stop=transitStops.findIndex(entry=>entry.id==='bengaluru'),surface=surfaces[stop];let ready=true;
+ surface.mappedContact=position=>ready?{point:position.clone().sub(surface.center).normalize().multiplyScalar(surface.radius).add(surface.center),normal:position.clone().sub(surface.center).normalize()}:null;
+ try{
+  const ground=create(),position=surface.center.clone().add(new T.Vector3(0,surface.radius,0)),contact=ground.findLanding(position,stop);assert.ok(contact);ground.place(contact);
+    assert.ok(Math.abs(ground.state.position.distanceTo(ground.state.foot)-.675)<1e-6);assert.ok(Math.abs(ground.radius-.225)<1e-12);assert.ok(Math.abs(ground.walkSpeed-1.5)<1e-12);
+    for(let frame=0;frame<120;frame++)ground.update(1/60,input);assert.ok(Math.abs(ground.state.speed-1.5)<.002,'same character walks at two source metres per second');
+  ready=false;assert.equal(ground.sample(ground.state.position,stop),null,'unloaded surfaces cannot be landed on');
+  assert.equal(ground.scaleAt(0),1,'other worlds retain the original angel size');
+ }finally{delete surface.mappedContact}
 });

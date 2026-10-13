@@ -21,6 +21,7 @@ export function createPlanetColorizer(stop:TransitStop){
  const biome=planetBiome(stop),land=new T.Color(biome.land),grove=new T.Color(biome.grove),rock=new T.Color(biome.rock),crest=new T.Color(biome.crest),bank=new T.Color(biome.bank);
  const city=cityPlanetFor(stop),cityGround=city?new T.Color(city.ground):null;
  return (direction:T.Vector3,geography:{height:number;road:number;river:number},target=new T.Color())=>{
+    if(cityGround&&geography.road<=0)return target.copy(cityGround);
   const patch=.5+(Math.sin(direction.x*4+direction.z*3)+Math.cos(direction.y*5-direction.x*2))*.25;
   target.copy(land).lerp(grove,T.MathUtils.smoothstep(patch,.22,.8)*.78);
   target.lerp(bank,(1-T.MathUtils.smoothstep(geography.river,3,10))*.5);

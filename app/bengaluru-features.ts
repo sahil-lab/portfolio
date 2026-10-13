@@ -6,12 +6,13 @@
  * actual `height=*` from a storey count, and most Bengaluru buildings have neither.
  */
 import {createLocalFrame,type LocalFrame} from './bengaluru-projection';
+import {createSpatialIndex} from './spatial-index';
 
 export type OsmCoordinate={lat:number;lon:number};
 export type OsmMember={type:'node'|'way'|'relation';ref:number;role?:string;geometry?:OsmCoordinate[];lat?:number;lon?:number};
 export type OsmElement={type:'node'|'way'|'relation';id:number;tags?:Record<string,string>;lat?:number;lon?:number;geometry?:(OsmCoordinate|null)[];members?:OsmMember[]};
 /** Overpass `[out:json]` + `out geom` document; osmium/other exports can be adapted to this shape. */
-export type OsmSnapshot={version?:number;generator?:string;osm3s?:{timestamp_osm_base?:string;copyright?:string};elements:OsmElement[]};
+export type OsmSnapshot={version?:number;generator?:string;osm3s?:{timestamp_osm_base?:string;copyright?:string};provenance?:{format:string;sourceUrl?:string;inputSha256:string;inputBytes:number;aoi:{kind:string;id:string;bbox:{south:number;west:number;north:number;east:number}};skipped:{id:string;reason:string}[]};elements:OsmElement[]};
 
 export type FeatureClass='building'|'road'|'rail'|'water'|'park'|'poi'|'place';
 export type HeightSource='osm-height'|'building-levels'|'type-default'|'default';
@@ -280,9 +281,11 @@ export function markBuildingParts(features:SourceFeature[],coverage=.6){
  const parts=features.filter(f=>f.featureClass==='building'&&f.tags['building:part']!==undefined&&f.tags.building===undefined),outlines=features.filter(f=>f.featureClass==='building'&&f.tags.building!==undefined&&f.polygons);
  if(!parts.length)return;
  const bounds=outlines.map(outline=>ringBounds(outline.polygons![0].outer)),covered=new Float64Array(outlines.length);
+ const spatial=createSpatialIndex(outlines.map((_outline,index)=>index),index=>({minX:bounds[index][0],minZ:bounds[index][1],maxX:bounds[index][2],maxZ:bounds[index][3]}),128),candidates=new Set<number>();
  for(const part of parts){
   const [x,y]=part.local;
-  for(let i=0;i<outlines.length;i++){const b=bounds[i];if(x<b[0]||x>b[2]||y<b[1]||y>b[3])continue;if(outlines[i].polygons!.some(polygon=>pointInPolygon([x,y],polygon))){covered[i]+=part.areaM2??0;break}}
+    spatial.query({minX:x,maxX:x,minZ:y,maxZ:y},candidates);
+    for(const index of [...candidates].sort((first,second)=>first-second)){const bound=bounds[index];if(x<bound[0]||x>bound[2]||y<bound[1]||y>bound[3])continue;if(outlines[index].polygons!.some(polygon=>pointInPolygon([x,y],polygon))){covered[index]+=part.areaM2??0;break}}
  }
  outlines.forEach((outline,i)=>{if(covered[i]>0&&covered[i]>=(outline.areaM2??Infinity)*coverage)outline.hasParts=true});
 }

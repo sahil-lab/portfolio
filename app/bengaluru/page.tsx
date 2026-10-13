@@ -1,9 +1,10 @@
 import type {Metadata} from 'next';
-import {BengaluruPlanetView} from '../bengaluru-planet-view';
+import Image from 'next/image';
+import Home from '../page';
 
 export const metadata:Metadata={
  title:'Bengaluru as a planet — OpenStreetMap geography on a small world',
- description:'The civic core of Bengaluru from OpenStreetMap, kept at its mapped positions and bent onto a fictional planet with streamed tiles, landmarks and an accessible place index.',
+ description:'Explore Bengaluru with the kingdom character or angel: mapped OpenStreetMap streets, streamed buildings, district navigation and a source-derived fallback.',
 };
 
-export default function BengaluruPage(){return <BengaluruPlanetView/>}
+export default function BengaluruPage(){return <><Home initialBengaluru/><noscript><Image src="/assets/bengaluru-region-v1/planet-fallback.svg" alt="Bengaluru globe derived from OpenStreetMap buildings, roads, parks and lakes." width={1024} height={1024} unoptimized loading="eager" style={{width:'100%',height:'auto'}}/><p>Map data: <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, ODbL 1.0.</p></noscript></>}

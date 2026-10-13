@@ -3,6 +3,17 @@ import type {CameraMode,Settings} from './persistence';
 import {createSpatialIndex} from './spatial-index';
 import {updateWorldTransformOnce} from './static-transforms';
 export const planetArrivalCameraView=(aspect:number)=>({yaw:1.05,pitch:.26,zoom:Math.max(62,Math.min(108,34/aspect)),focusHeight:5.8});
+export function mappedCameraView(origin:T.Vector3,direction:T.Vector3,up:T.Vector3,desired:number,minimum:number,clearance:(origin:T.Vector3,direction:T.Vector3,distance:number)=>number,stable=false){
+ let distance=clearance(origin,direction,desired),turn=0;
+ if(stable||distance>=minimum)return {distance,turn};
+ const original=direction.clone(),candidate=new T.Vector3(),best=direction.clone();
+ for(let step=1;step<=12;step++)for(const sign of [1,-1]){
+  const offset=step*Math.PI/12*sign;candidate.copy(original).applyAxisAngle(up,offset);const available=clearance(origin,candidate,desired);
+  if(available>distance){distance=available;turn=offset;best.copy(candidate)}
+  if(distance>=minimum){direction.copy(best);return {distance,turn}}
+ }
+ direction.copy(best);return {distance,turn};
+}
 type CameraView={yaw?:number;pitch?:number;zoom?:number;focusHeight?:number};
 type CameraBounds={mesh:T.Mesh;box:T.Box3;matrix:T.Matrix4;local:T.Box3;geometry:T.BufferGeometry|null;position?:T.BufferAttribute|T.InterleavedBufferAttribute;version?:number};
 export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player:T.Group){
@@ -28,7 +39,7 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;if(x||y)responsiveView=null;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,mode==='first-person'?-1.35:.16,mode==='first-person'?1.35:1.15)},
     zoom:(amount:number)=>{if(mode!=='first-person'){if(amount)responsiveView=null;zoom=T.MathUtils.clamp(zoom+amount,5,zoomLimit)}},
     reset:(view:CameraView={},responsive?:(aspect:number)=>CameraView)=>{applyView(view);responsiveView=responsive??null;framedAspect=camera.aspect},
-    update:(dt:number,inside:boolean,settings:Settings,vehicle=false,targetHeight=1.5)=>{
+    update:(dt:number,inside:boolean,settings:Settings,vehicle=false,targetHeight=1.5,clearance?:(origin:T.Vector3,direction:T.Vector3,distance:number)=>number)=>{
       if(responsiveView&&camera.aspect!==framedAspect){applyView(responsiveView(camera.aspect));framedAspect=camera.aspect}
       clock+=dt;if(clock>1){clock=0;boxes.length=0;movingBounds.length=0;scene.traverseVisible(object=>{boxes.push(...(object.userData.staticCameraBounds??[]));if(object instanceof T.Mesh&&object.userData.cameraSolid){let entry=dynamicBoxes.get(object);if(!entry){entry={mesh:object,box:new T.Box3(),matrix:new T.Matrix4(),local:new T.Box3(),geometry:null};dynamicBoxes.set(object,entry)}movingBounds.push(entry)}});index=createSpatialIndex(boxes,bounds,32)}
       // Door leaves and lifts can move between frames. Refresh their bounds without allocating.
@@ -49,17 +60,23 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
       if(mode==='first-person'){updateNear(0,inside);camera.position.copy(target);camera.up.copy(player.up);camera.lookAt(wanted.copy(target).sub(direction));player.visible=false;return}
       // Wheel/pinch zoom eases toward its target; only obstruction clamping below is allowed to snap.
       eased=T.MathUtils.damp(eased,zoom,8,dt);
-      const desired=vehicle?Math.max(eased,46):inside?Math.min(eased,16):eased;
-      let safe=desired;ray.set(target,direction);
-      wanted.copy(target).addScaledVector(direction,desired);sweep.makeEmpty().expandByPoint(target).expandByPoint(wanted);index.query(bounds(sweep),candidates);
-      for(const box of candidates){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
-      for(const {mesh,box} of movingBounds){if(!mesh.visible||!mesh.parent||box.containsPoint(target)||!box.intersectsBox(sweep))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
+      const desired=clearance?Math.max(eased,8,6.5/Math.max(.4,camera.aspect)):vehicle?Math.max(eased,46):inside?Math.min(eased,16):eased;
+      const clearDistance=(heading:T.Vector3)=>{
+        let safe=desired;ray.set(target,heading);
+        wanted.copy(target).addScaledVector(heading,desired);sweep.makeEmpty().expandByPoint(target).expandByPoint(wanted);index.query(bounds(sweep),candidates);
+        for(const box of candidates){if(box.containsPoint(target))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
+        for(const {mesh,box} of movingBounds){if(!mesh.visible||!mesh.parent||box.containsPoint(target)||!box.intersectsBox(sweep))continue;if(ray.intersectBox(box,hit))safe=Math.min(safe,Math.max(.6,target.distanceTo(hit)-.1))}
+        return clearance?Math.min(safe,clearance(target,heading,safe)):safe;
+      };
+      const mapped=clearance?mappedCameraView(target,direction,player.up,desired,desired*.9,(_origin,heading)=>clearDistance(heading),settings.stableCamera):null;
+      const safe=mapped?.distance??clearDistance(direction);
+      if(mapped?.turn){yaw+=mapped.turn;easedYaw+=mapped.turn;responsiveView=null}
       distance=safe<distance?safe:T.MathUtils.lerp(distance,safe,1-Math.exp(-dt*5));
       updateNear(distance,inside);
       wanted.copy(direction).multiplyScalar(distance).add(target);
       // The camera is placed on the swept ray each frame: no smoothing through walls.
       camera.position.copy(wanted);camera.up.copy(player.up);camera.lookAt(target);
-      player.visible=distance>1.2;
+      player.visible=distance>(clearance?Math.max(3.2,3/camera.aspect):1.2);
     }
   };
 }

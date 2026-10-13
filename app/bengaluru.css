@@ -1,3 +1,36 @@
+.bengaluru-controls{position:absolute;z-index:18;left:18px;top:94px;width:280px;max-width:calc(100vw - 36px);max-height:calc(100dvh - 240px);overflow:auto;padding:14px;color:#253d37;background:rgba(249,252,250,.96);border:1px solid #a9bcb2;border-radius:6px;box-shadow:0 6px 18px #142b251a;letter-spacing:0;}
+.bengaluru-controls header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.bengaluru-tools-actions{display:flex;align-items:center;gap:5px;}
+.bengaluru-controls h1{font-size:23px;line-height:1.2;margin:3px 0 12px;letter-spacing:0;}
+.bengaluru-kicker{font-size:10px;color:#55756a;letter-spacing:0;}
+.bengaluru-controls button{min-height:36px;border:1px solid #a3b8ad;border-radius:4px;background:#f8fcfa;color:#284339;padding:6px 9px;cursor:pointer;font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;}
+.bengaluru-controls button:disabled{opacity:.55;cursor:default;}
+.bengaluru-controls button:focus-visible,.bengaluru-controls summary:focus-visible,.bengaluru-controls input:focus-visible{outline:2px solid #3b826d;outline-offset:2px;}
+.bengaluru-character{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0;padding:0;border:0;min-inline-size:0;}
+.bengaluru-character button[aria-pressed=true]{background:#285b4b;border-color:#285b4b;color:#fff;}
+.bengaluru-current{display:block;font-size:12px;padding:10px 0;min-height:34px;overflow-wrap:anywhere;}
+.bengaluru-places{border-top:1px solid #c4d2cb;padding-top:9px;}
+.bengaluru-controls summary{font-size:12px;cursor:pointer;min-height:30px;}
+.bengaluru-places summary{display:flex;align-items:center;gap:6px;}
+.bengaluru-places label{display:block;font-size:11px;margin:6px 0;}
+.bengaluru-places form>div{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:5px;}
+.bengaluru-places input{width:100%;min-width:0;border:1px solid #9eb5a9;background:#fff;border-radius:4px;padding:8px;color:#203e34;font:inherit;font-size:12px;}
+.bengaluru-places ul{list-style:none;margin:8px 0;padding:0;max-height:230px;overflow:auto;}
+.bengaluru-places li button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;border:0;border-radius:0;border-bottom:1px solid #dce5df;padding:9px 3px;text-align:left;}
+.bengaluru-places li span{font-size:12px;overflow-wrap:anywhere;}
+.bengaluru-places small{font-size:10px;color:#647d72;}
+.bengaluru-source{margin-top:9px;border-top:1px solid #c4d2cb;padding-top:9px;}
+.bengaluru-source p,.bengaluru-status{font-size:11px;line-height:1.5;overflow-wrap:anywhere;}
+.bengaluru-feature{border-top:1px solid #c4d2cb;margin-top:8px;padding-top:8px;font-size:11px;overflow-wrap:anywhere;}
+.bengaluru-feature h2{font-size:13px;line-height:1.4;margin:0 0 5px;letter-spacing:0;}
+.bengaluru-feature p{margin:4px 0;line-height:1.5;}
+.bengaluru-attribution{display:block;font-size:9px;color:#527367;margin-top:5px;}
+.bengaluru-map-credit{position:absolute;z-index:20;left:16px;bottom:4px;max-width:calc(100% - 32px);font-size:10px;color:#ecf7ef;background:#17392ccc;padding:2px 8px;}
+.bengaluru-fallback{position:absolute;inset:0;background:#14291f;z-index:12;display:grid;place-items:center;}
+.bengaluru-fallback img{width:100%;height:100%;object-fit:contain;}
+.bengaluru-fallback>a{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;}
+@media(max-width:640px){.bengaluru-controls{top:80px;left:10px;width:calc(100vw - 20px);max-width:420px;max-height:calc(100dvh - 280px);padding:9px;display:grid;grid-template-columns:minmax(0,1fr) 158px;gap:3px 5px;}.bengaluru-controls header{gap:4px;}.bengaluru-controls h1{font-size:18px;margin:2px 0 3px;}.bengaluru-kicker{font-size:9px;}.bengaluru-character{align-self:center;gap:4px;}.bengaluru-character button{font-size:12px;padding:5px;}.bengaluru-current,.bengaluru-places,.bengaluru-source,.bengaluru-feature,.bengaluru-status,.bengaluru-attribution{grid-column:1 / -1;}.bengaluru-current{min-height:18px;padding:2px 0;font-size:10px;}.bengaluru-places,.bengaluru-source{padding-top:4px;margin-top:0;}.bengaluru-controls summary{min-height:22px;}.bengaluru-attribution{margin-top:0;font-size:8px;}.bengaluru-places ul{max-height:150px;}}
+
 .blr-page{min-height:100vh;background:#0f2622;color:#e4ecd9;padding:28px max(18px,calc((100vw - 1240px)/2)) 48px;font-family:Arial,Helvetica,sans-serif}
 .blr-page a{color:#d5eaa8;text-decoration:underline;text-underline-offset:4px}
 .blr-breadcrumbs{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:22px}

@@ -14,14 +14,15 @@ export function createAngelLocomotion(options:AngelGroundEnvironment&{height:num
   return surface?position.distanceTo(surface.center)<surface.radius+600:position.x>motherboardBounds.minX&&position.x<motherboardBounds.maxX&&position.z>motherboardBounds.minZ&&position.z<motherboardBounds.maxZ;
  }
  function begin(phase:AngelLocomotionPhase,destination:T.Vector3,normal:T.Vector3){
+  const physicalHeight=height*ground.scaleAt(contact?.stop??flight.state.current);
   from.copy(flight.state.position);to.copy(destination);fromFrame.copy(state.frame);toFrame.copy(phase==='landing'?new T.Quaternion().setFromUnitVectors(vertical,normal):new T.Quaternion());
-  const first=from.clone().lerp(to,.23),second=to.clone().addScaledVector(normal,phase==='landing'?height*.9:-height*.45);
-  transition=new T.CubicBezierCurve3(from.clone(),first,second,to.clone());duration=T.MathUtils.clamp(from.distanceTo(to)/(height*1.5),1.35,4.5);transitionTime=0;state.phase=phase;state.progress=0;
+  const first=from.clone().lerp(to,.23),second=to.clone().addScaledVector(normal,phase==='landing'?physicalHeight*.9:-physicalHeight*.45);
+  transition=new T.CubicBezierCurve3(from.clone(),first,second,to.clone());duration=T.MathUtils.clamp(from.distanceTo(to)/(physicalHeight*1.5),1.35,4.5);transitionTime=0;state.phase=phase;state.progress=0;
   flight.setRoaming(false);flight.state.speed=0;flight.state.bank=0;flight.state.boosting=false;
  }
  function land(){
   if(!flight.state.controlled||!canLand())return false;const stop=flight.region(flight.state.position),landing=ground.findLanding(flight.state.position,stop);if(!landing)return false;
-    contact=landing;pendingDestination=null;pendingRoam=false;begin('landing',landing.point.clone().addScaledVector(landing.normal,footOffset),landing.normal);return true;
+    contact=landing;pendingDestination=null;pendingRoam=false;begin('landing',landing.point.clone().addScaledVector(landing.normal,footOffset*ground.scaleAt(stop)),landing.normal);return true;
  }
  function takeoff(){
   if(state.phase==='flying'||state.phase==='taking-off')return false;
@@ -61,7 +62,12 @@ export function createAngelLocomotion(options:AngelGroundEnvironment&{height:num
   return false;
  }
  function roam(enabled:boolean){pendingRoam=enabled;if(enabled&&state.phase!=='flying'){takeoff();return}flight.setRoaming(enabled)}
- return {state,flight,ground,update,land,takeoff,control,navigate,roam,canLand,
+ function placeAt(position:T.Vector3,stop:number){
+  const landing=ground.findLanding(position,stop);if(!landing)return false;
+  transition=null;pendingDestination=null;pendingRoam=false;contact=landing;flight.setRoaming(false);ground.place(landing);flight.state.position.copy(ground.state.position);flight.state.current=stop;flight.state.destination=null;flight.state.velocity.set(0,0,0);flight.state.speed=0;
+  state.phase='grounded';state.frame.copy(ground.state.frame);state.up.copy(ground.state.up);return true;
+ }
+ return {state,flight,ground,update,land,takeoff,control,navigate,roam,canLand,placeAt,
   setGroundMode:(mode:'walk'|'run')=>{state.groundMode=mode},
   setFootOffset:(value:number)=>{footOffset=value;ground.setFootOffset(value)},
  };

@@ -6,7 +6,7 @@
  * fallback, and layout without horizontal overflow. Writes screenshots and a JSON report.
  */
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {values:options}=require('node:util').parseArgs({options:{url:{type:'string',default:'http://localhost:4370/bengaluru'},mobile:{type:'boolean'},kingdom:{type:'boolean'},browser:{type:'string',default:'msedge'},output:{type:'string',default:'outputs/playtest/bengaluru-planet'}}});
+const {values:options}=require('node:util').parseArgs({options:{url:{type:'string',default:'http://localhost:4370/bengaluru'},mobile:{type:'boolean'},kingdom:{type:'boolean'},regional:{type:'boolean'},buildings:{type:'boolean'},'rocket-arrival':{type:'boolean'},browser:{type:'string',default:'msedge'},output:{type:'string',default:'outputs/playtest/bengaluru-planet'}}});
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
 const {chromium}=require(packageRoot??'playwright');
 const output=path.resolve(options.output);fs.mkdirSync(output,{recursive:true});
@@ -112,10 +112,191 @@ async function checkKingdom(browser,report,check){
  await context.close();
 }
 
+async function checkBuildingViews(page,check,viewport){
+ const selected=await page.evaluate(()=>{
+  const world=globalThis.__blrWorld,city=world.transport.landscapes[world.transport.journey.current].city;
+  const candidates=[];
+  city.root.traverse(mesh=>{
+   if(mesh.name!=='Bengaluru_building')return;
+   const local=mesh.geometry.attributes.cityMeters,ids=mesh.geometry.getAttribute('_featureid'),bounds=new Map();
+   for(let vertex=0;vertex<local.count;vertex++){
+    const id=Math.round(ids.getX(vertex)),entry=bounds.get(id)??{id,minEast:Infinity,maxEast:-Infinity,minNorth:Infinity,maxNorth:-Infinity,minHeight:Infinity,maxHeight:-Infinity};bounds.set(id,entry);
+    entry.minEast=Math.min(entry.minEast,local.getX(vertex));entry.maxEast=Math.max(entry.maxEast,local.getX(vertex));entry.minNorth=Math.min(entry.minNorth,local.getZ(vertex));entry.maxNorth=Math.max(entry.maxNorth,local.getZ(vertex));entry.minHeight=Math.min(entry.minHeight,local.getY(vertex));entry.maxHeight=Math.max(entry.maxHeight,local.getY(vertex));
+   }
+   for(const entry of bounds.values()){
+    const width=entry.maxEast-entry.minEast,depth=entry.maxNorth-entry.minNorth,height=entry.maxHeight-entry.minHeight;
+    if(width>=10&&width<=60&&depth>=10&&depth<=60&&height>=6&&height<=45)candidates.push({mesh,...entry,width,depth,height});
+   }
+  });
+  candidates.sort((first,second)=>first.width*first.depth-second.width*second.depth);
+  const selected=candidates[Math.floor(candidates.length/2)];if(!selected)return null;
+  const source=selected.mesh.geometry,ids=source.getAttribute('_featureid'),vertices=[];
+  for(let offset=0;offset<source.index.count;offset+=3)if(Math.round(ids.getX(source.index.getX(offset)))===selected.id)vertices.push(source.index.getX(offset),source.index.getX(offset+1),source.index.getX(offset+2));
+  const geometry=new source.constructor();
+  for(const name of ['position','color','cityMeters']){
+   const original=source.getAttribute(name),values=new original.array.constructor(vertices.length*original.itemSize);
+   for(let index=0;index<vertices.length;index++)for(let component=0;component<original.itemSize;component++)values[index*original.itemSize+component]=original.array[vertices[index]*original.itemSize+component];
+   geometry.setAttribute(name,new original.constructor(values,original.itemSize,original.normalized));
+  }
+  geometry.computeBoundingBox();const center=geometry.boundingBox.getCenter(world.player.position.clone()),up=center.clone().sub(world.transport.surfaces[world.transport.journey.current].center).normalize(),rotation=new world.player.quaternion.constructor().setFromUnitVectors(up,world.player.up.clone().set(0,1,0));
+  geometry.translate(-center.x,-center.y,-center.z);geometry.applyQuaternion(rotation);geometry.computeBoundingBox();geometry.computeBoundingSphere();
+  const material=selected.mesh.material.clone();material.onBeforeCompile=selected.mesh.material.onBeforeCompile;material.customProgramCacheKey=selected.mesh.material.customProgramCacheKey;
+  const scene=new world.scene.constructor();scene.background=world.scene.background.clone();scene.add(new selected.mesh.constructor(geometry,material));
+  for(const sourceLight of world.scene.children.filter(object=>object.isHemisphereLight||object.isDirectionalLight)){
+   const light=sourceLight.clone();light.castShadow=false;if(light.isDirectionalLight){light.position.set(12,20,14);light.target.position.set(0,0,0);scene.add(light.target)}scene.add(light);
+  }
+  const renderer=new world.renderer.constructor({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=world.renderer.toneMapping;renderer.toneMappingExposure=world.renderer.toneMappingExposure;renderer.outputColorSpace=world.renderer.outputColorSpace;
+  renderer.domElement.id='bengaluru-building-check';renderer.domElement.style.cssText='position:fixed;inset:0;z-index:2147483647;width:100vw;height:100vh';document.body.appendChild(renderer.domElement);
+  const camera=new world.camera.constructor(45,innerWidth/innerHeight,.1,2000),angle=Math.min(Math.PI/4,2*Math.atan(Math.tan(Math.PI/8)*camera.aspect)),distance=geometry.boundingSphere.radius/Math.sin(angle/2)*1.2,target=geometry.boundingSphere.center;
+  globalThis.__blrBuildingPreview={renderer,scene,camera,geometry,material,distance,target};
+  return {tile:selected.mesh.userData.cityTile,featureIndex:selected.id,width:selected.width,depth:selected.depth,height:selected.height,triangles:vertices.length/3,materialSide:material.side};
+ });
+ check('building close-up uses a complete source mesh with single-sided material',selected!==null&&selected.triangles>=12&&selected.materialSide===0,selected);
+ try{
+  for(const [name,yaw,pitch] of [['front',Math.PI/4,.35],['right',Math.PI*3/4,.35],['back',Math.PI*5/4,.35],['left',Math.PI*7/4,.35],['underside',Math.PI/4,-.6]]){
+   const pixels=await page.evaluate(({yaw,pitch})=>{
+    const {renderer,scene,camera,distance,target}=globalThis.__blrBuildingPreview;camera.position.copy(target).add(target.clone().set(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(distance));camera.lookAt(target);renderer.render(scene,camera);
+    const canvas=renderer.domElement,probe=document.createElement('canvas');probe.width=160;probe.height=120;const drawing=probe.getContext('2d');drawing.drawImage(canvas,0,0,160,120);const data=drawing.getImageData(0,0,160,120).data,colors=new Set();let foreground=0;
+    for(let offset=0;offset<data.length;offset+=4){colors.add((data[offset]>>3)<<10|(data[offset+1]>>3)<<5|(data[offset+2]>>3));if(Math.abs(data[offset]-data[0])+Math.abs(data[offset+1]-data[1])+Math.abs(data[offset+2]-data[2])>20)foreground++}
+    return {colors:colors.size,foreground,frame:renderer.info.render.frame,width:innerWidth,height:innerHeight,canvasWidth:canvas.clientWidth,canvasHeight:canvas.clientHeight};
+   },{yaw,pitch});
+   check('building '+name+' renders a visible framed mesh',pixels.frame>0&&pixels.colors>8&&pixels.foreground>300&&pixels.width===viewport.width&&pixels.height===viewport.height&&pixels.canvasWidth===viewport.width&&pixels.canvasHeight===viewport.height,pixels);
+   await page.locator('#bengaluru-building-check').screenshot({path:path.join(output,label+'-regional-building-'+name+'.png')});
+  }
+ }finally{
+  await page.evaluate(()=>{const preview=globalThis.__blrBuildingPreview;if(!preview)return;preview.renderer.domElement.remove();preview.geometry.dispose();preview.material.dispose();preview.renderer.dispose();preview.renderer.forceContextLoss();delete globalThis.__blrBuildingPreview});
+ }
+}
+
+async function checkRegional(browser,report,check){
+ const viewport=options.mobile?{width:390,height:844}:{width:1440,height:960};
+ const context=await browser.newContext({viewport,deviceScaleFactor:1,isMobile:!!options.mobile,hasTouch:!!options.mobile});
+ await context.addInitScript(()=>{
+  localStorage.setItem('living-computer-kingdom:v1',JSON.stringify({version:1,settings:{muted:true,quality:'balanced',projectPreviews:false,cameraMode:'far',worldLighting:'day'}}));
+  Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error({code:1})}}});
+ });
+ const page=await context.newPage();page.setDefaultTimeout(180000);
+ page.on('pageerror',error=>report.errors.push(error.message));
+ page.on('console',message=>{if(message.type()==='error')report.consoleErrors.push(message.text())});
+ page.on('response',response=>{if(response.status()>=400)report.failedResources.push(response.status()+' '+response.url())});
+ const client=await context.newCDPSession(page);await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});
+ const openCityControls=async()=>{await page.getByRole('button',{name:'World controls',exact:true}).click();await page.getByRole('button',{name:'Bengaluru places',exact:true}).click();await page.locator('.bengaluru-controls').waitFor()};
+ const walkWithKeyboard=async()=>{
+  const distances=[];
+  for(const key of ['w','a','s','d']){
+   const before=await page.evaluate(()=>globalThis.__blrWorld.player.position.toArray());await page.keyboard.down(key);
+   await page.evaluate(()=>new Promise(resolve=>{let frames=0;const next=()=>{if(++frames>=24)resolve();else requestAnimationFrame(next)};requestAnimationFrame(next)}));
+   await page.keyboard.up(key);
+   distances.push(await page.evaluate(before=>{const position=globalThis.__blrWorld.player.position;return Math.hypot(position.x-before[0],position.y-before[1],position.z-before[2])},before));
+  }
+  return distances;
+ };
+ const capture=async name=>{
+  const pixels=await page.evaluate(()=>new Promise(resolve=>{
+   const world=globalThis.__blrWorld,before=world.renderer.info.render.frame;world.setPaused(false);
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const canvas=world.renderer.domElement,probe=document.createElement('canvas');probe.width=160;probe.height=120;const drawing=probe.getContext('2d');drawing.drawImage(canvas,0,0,160,120);
+    const data=drawing.getImageData(0,0,160,120).data,colors=new Set();for(let offset=0;offset<data.length;offset+=4)colors.add((data[offset]>>3)<<10|(data[offset+1]>>3)<<5|(data[offset+2]>>3));
+    resolve({colors:colors.size,frames:world.renderer.info.render.frame-before,width:innerWidth,height:innerHeight,canvasWidth:canvas.clientWidth,canvasHeight:canvas.clientHeight,overflow:document.documentElement.scrollWidth>innerWidth});
+   }));
+  }));
+  check(name+' renders a fresh nonblank frame',pixels.frames>0&&pixels.colors>40,pixels);check(name+' viewport stays within bounds',pixels.width===viewport.width&&pixels.height===viewport.height&&pixels.canvasWidth===viewport.width&&!pixels.overflow,pixels);
+  await page.screenshot({path:path.join(output,label+'-regional-'+name+'.png')});
+ };
+ try{
+  await page.goto(options.url,{waitUntil:'domcontentloaded',timeout:240000});
+  if(options['rocket-arrival']){
+   await page.waitForFunction(()=>{
+    const main=document.querySelector('main.kingdom');if(main?.dataset.ready!=='true')return false;let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];
+    while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next)if(hook.memoizedState?.current?.renderer){globalThis.__blrWorld=hook.memoizedState.current;return true}fiber=fiber.return}return false;
+   },null,{timeout:240000});
+   const launch=await page.evaluate(()=>{
+    const world=globalThis.__blrWorld,index=world.transport.surfaces.findIndex(surface=>surface?.stop.city==='bengaluru');
+    world.goSharedPlanet(0);world.player.position.set(-26.5,.8,5);
+    if(!world.transport.start(index,'rocket'))return {started:false};
+    world.transport.arriveNow();return {started:true,index};
+   });
+   check('rocket arrival uses the normal station exit path',launch.started,launch);
+  }
+  await page.waitForFunction(()=>{
+   const main=document.querySelector('main.kingdom');if(main?.dataset.ready!=='true')return false;let fiber=main[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];
+   while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next)if(hook.memoizedState?.current?.renderer){globalThis.__blrWorld=hook.memoizedState.current;return !!globalThis.__blrWorld.transport.landscapes[globalThis.__blrWorld.transport.journey.current]?.city?.region}fiber=fiber.return}return false;
+  },null,{timeout:240000});
+  await page.locator('.bengaluru-map-credit').waitFor();
+  if(options['rocket-arrival']){
+   await page.waitForFunction(()=>{const world=globalThis.__blrWorld,index=world.transport.journey.current,city=world.transport.landscapes[index]?.city;return !!city?.region?.readyAt(world.player.position)&&!city.blocked(world.player.position,.225)&&!world.transport.groundBlocked(world.player.position,.225,index)},null,{timeout:20000});
+   const arrival=await page.evaluate(()=>{const world=globalThis.__blrWorld,position=world.player.position;return {position:position.toArray(),blocked:world.transport.groundBlocked(position,.225,world.transport.journey.current)}});
+   check('rocket exit is corrected before walking input',!arrival.blocked,arrival);
+  }
+  const state=await page.evaluate(()=>{const world=globalThis.__blrWorld,city=world.transport.landscapes[world.transport.journey.current].city;return {stats:city.region.stats(),projection:city.region.manifest.projection.kind,buildings:city.region.manifest.counts.building,player:world.player.name,canvases:document.querySelectorAll('.world canvas').length}});
+  check('whole-globe region uses the existing main character',state.projection==='whole-globe'&&state.buildings>600000&&state.player==='Courier'&&state.canvases===1,state);
+  check('regional arrival stays within resident budgets',state.stats.wanted<=12&&state.stats.bytes<=24*1048576,state.stats);
+  const topMenu=await page.locator('.topbar nav').evaluate(menu=>({background:getComputedStyle(menu).backgroundColor,backdrop:getComputedStyle(menu).backdropFilter}));
+  check('top menu is transparent like movement controls',topMenu.background==='rgba(0, 0, 0, 0)'&&topMenu.backdrop==='none',topMenu);
+  check('OSM attribution is visible',await page.locator('.bengaluru-map-credit').isVisible());
+  check('arrival has no automatic city popup',await page.locator('.bengaluru-controls').count()===0);
+  const arrivalMovement=await walkWithKeyboard();check('keyboard movement works from arrival',Math.max(...arrivalMovement)>.15,arrivalMovement);
+  const buttonDistances=[];
+  if(options.mobile){
+   const joystick=await page.locator('.touch-joystick').boundingBox();assert.ok(joystick,'mobile movement joystick must be visible');
+   const center={x:joystick.x+joystick.width/2,y:joystick.y+joystick.height/2};
+   for(const [horizontal,vertical] of [[0,-1],[0,1],[-1,0],[1,0]]){
+    const before=await page.evaluate(()=>globalThis.__blrWorld.player.position.toArray());
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,...center,radiusX:5,radiusY:5,force:1}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:1,x:center.x+horizontal*34,y:center.y+vertical*34,radiusX:5,radiusY:5,force:1}]});
+    await page.evaluate(()=>new Promise(resolve=>{let frames=0;const next=()=>{if(++frames>=24)resolve();else requestAnimationFrame(next)};requestAnimationFrame(next)}));
+    await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    buttonDistances.push(await page.evaluate(before=>{const position=globalThis.__blrWorld.player.position;return Math.hypot(position.x-before[0],position.y-before[1],position.z-before[2])},before));
+   }
+  }else for(const name of ['Move forward','Move backward','Move left','Move right']){
+    const before=await page.evaluate(()=>globalThis.__blrWorld.player.position.toArray());
+    for(let step=0;step<5;step++)await page.getByRole('button',{name,exact:true}).click();
+    buttonDistances.push(await page.evaluate(before=>{const position=globalThis.__blrWorld.player.position;return Math.hypot(position.x-before[0],position.y-before[1],position.z-before[2])},before));
+  }
+  check(options.mobile?'native touch joystick moves from arrival':'on-screen movement works from arrival',Math.max(...buttonDistances)>.1,buttonDistances);
+  await capture('arrival');
+  await page.locator('.world canvas').click({position:{x:viewport.width*.7,y:viewport.height*.6}});
+  check('selecting scenery does not open the city popup',await page.locator('.bengaluru-controls').count()===0);
+  await openCityControls();await page.getByRole('button',{name:'Close city controls',exact:true}).click();await page.locator('.bengaluru-controls').waitFor({state:'detached'});
+  check('city controls open only on request and can be closed',true);
+  await openCityControls();await page.keyboard.press('Escape');await page.locator('.bengaluru-controls').waitFor({state:'detached'});
+  const escapedMovement=await walkWithKeyboard();check('Escape closes city controls without pausing movement',Math.max(...escapedMovement)>.15,escapedMovement);
+  await openCityControls();
+  await page.locator('.bengaluru-places summary').click();await page.fill('#bengaluru-place','Whitefield');await page.getByRole('button',{name:'Go to mapped place',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.bengaluru-current')?.textContent==='Whitefield'||!!document.querySelector('.bengaluru-status'),null,{timeout:90000});
+  const focus=await page.evaluate(()=>{const world=globalThis.__blrWorld,city=world.transport.landscapes[world.transport.journey.current].city;return {label:document.querySelector('.bengaluru-current')?.textContent,message:document.querySelector('.bengaluru-status')?.textContent,ready:city.region.readyAt(world.player.position),blocked:city.blocked(world.player.position,.225),local:city.flatAt(world.player.position),stats:city.region.stats()}});
+  check('Whitefield focus waits for clear loaded ground',focus.label==='Whitefield'&&focus.ready&&!focus.blocked,focus);
+  await page.getByRole('button',{name:'Close city controls',exact:true}).click();
+  await page.waitForFunction(()=>{const world=globalThis.__blrWorld,target=world.player.getWorldPosition(world.player.position.clone()).addScaledVector(world.player.up,1.65);return world.player.visible&&world.camera.position.distanceTo(target)>=5},null,{timeout:15000});
+  check('Main retains a useful third-person camera distance',true);await capture('whitefield');
+  if(options.buildings)await checkBuildingViews(page,check,viewport);
+  const motion=await page.evaluate(()=>{const world=globalThis.__blrWorld,city=world.transport.landscapes[world.transport.journey.current].city,before=world.player.position.clone();for(let step=0;step<12;step++)world.transport.stepSurface(0,1,.08);return {distance:before.distanceTo(world.player.position),blocked:city.blocked(world.player.position,.225),finite:world.player.position.toArray().every(Number.isFinite)}});
+  check('mapped movement remains finite and collision-safe',motion.finite&&!motion.blocked,motion);
+  await page.waitForFunction(()=>globalThis.__blrWorld.angel.loaded,null,{timeout:120000});
+  await openCityControls();
+  await page.getByRole('button',{name:'Angel',exact:true}).click();await page.waitForFunction(()=>globalThis.__blrWorld.angel.controlled,null,{timeout:20000});
+  await page.getByRole('button',{name:'Close city controls',exact:true}).click();
+    const angel=await page.evaluate(()=>{const world=globalThis.__blrWorld;return {height:world.angel.root.userData.bodyHeight,phase:world.angel.locomotion.state.phase,stop:world.angel.flight.state.current,current:world.transport.journey.current,scale:world.angel.bodyScale,mainVisible:world.player.visible}});
+    check('existing angel is grounded at city scale',Math.abs(angel.height-1.35)<.01&&angel.phase==='grounded'&&angel.stop===angel.current&&!angel.mainVisible,angel);
+    await page.waitForFunction(()=>{const world=globalThis.__blrWorld,angel=world.angel,center=angel.root.getWorldPosition(angel.root.position.clone()),height=angel.root.userData.bodyHeight*world.scene.scale.x,top=center.clone().addScaledVector(angel.root.up,height*.65).project(world.camera),bottom=center.clone().addScaledVector(angel.root.up,-height*.6).project(world.camera);return angel.visual.visible&&Math.abs(top.y)<.95&&Math.abs(bottom.y)<.95},null,{timeout:15000});
+    check('Angel remains visible with head and feet in frame',true);await capture('angel');
+  await openCityControls();await page.getByRole('button',{name:'Main',exact:true}).click();await page.waitForFunction(()=>!globalThis.__blrWorld.angel.controlled);
+  await page.getByRole('button',{name:'View the whole Bengaluru globe',exact:true}).click();await page.waitForFunction(()=>document.querySelector('main.kingdom')?.dataset.observing==='true');await capture('globe');
+  check('no runtime page errors',report.errors.length===0,report.errors);
+  const shaderErrors=report.consoleErrors.filter(message=>/VALIDATE_STATUS|VALIDATE_FAILED|Error compiling|Shader Error|THREE.WebGLProgram: Shader Error/.test(message));check('no shader compilation failures',shaderErrors.length===0,shaderErrors);
+  const failedAssets=report.failedResources.filter(message=>/\/assets\/bengaluru-region-v1\//.test(message));check('regional assets load successfully',failedAssets.length===0,failedAssets);
+  const fallback=await context.newPage();await fallback.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl2'||type==='webgl'?null:original.call(this,type,...args)}});
+  await fallback.goto(new URL('/bengaluru',options.url).href,{waitUntil:'domcontentloaded',timeout:180000});await fallback.locator('.bengaluru-fallback img').waitFor({timeout:180000});
+  check('no-WebGL fallback uses the same geographic source',await fallback.locator('.bengaluru-fallback img').evaluate(image=>image.complete&&image.naturalWidth>0));await fallback.screenshot({path:path.join(output,label+'-regional-fallback.png')});await fallback.close();
+ }catch(error){await page.screenshot({path:path.join(output,label+'-regional-failure.png')}).catch(()=>{});throw error}
+ finally{await context.close()}
+}
+
 async function main(){
- const browser=await chromium.launch({channel:options.browser,headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+ const browser=await chromium.launch({channel:options.browser,headless:true,args:options.regional?[]:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
  const report={label,url:options.url,checks:[],errors:[],consoleErrors:[],failedResources:[]};
  const check=(name,condition,detail)=>{report.checks.push({name,pass:!!condition,detail});assert.ok(condition,name+(detail?' '+JSON.stringify(detail):''))};
+ if(options.regional){try{await checkRegional(browser,report,check)}finally{fs.writeFileSync(path.join(output,label+'-regional.json'),JSON.stringify(report,null,2));await browser.close()}console.log('BENGALURU_REGIONAL_'+label.toUpperCase()+'_OK '+report.checks.length+' checks');return}
  if(options.kingdom){
   try{await checkKingdom(browser,report,check)}
   finally{fs.writeFileSync(path.join(output,label+'-kingdom.json'),JSON.stringify(report,null,1));await browser.close()}

@@ -1,0 +1,128 @@
+{
+  "nodes": 77997868,
+  "ways": 11644237,
+  "relations": 47704,
+  "selected": 896789,
+  "sourceSha256": "842cea87cac1d3f8657466d248676b787915fe0e94a25da7a9aec137bae5d87f",
+  "skipped": [
+    {
+      "id": "relation/337204",
+      "reason": "missing way 66761294"
+    },
+    {
+      "id": "relation/2717907",
+      "reason": "missing way 139307504"
+    },
+    {
+      "id": "relation/2826093",
+      "reason": "missing way 102662422"
+    },
+    {
+      "id": "relation/2858525",
+      "reason": "missing way 41843450"
+    },
+    {
+      "id": "relation/3328743",
+      "reason": "missing way 1001021795"
+    },
+    {
+      "id": "relation/3552989",
+      "reason": "missing way 810387745"
+    },
+    {
+      "id": "relation/4071908",
+      "reason": "missing way 305378794"
+    },
+    {
+      "id": "relation/4071909",
+      "reason": "missing way 1461298443"
+    },
+    {
+      "id": "relation/4071910",
+      "reason": "missing way 110121245"
+    },
+    {
+      "id": "relation/4744530",
+      "reason": "missing way 200707246"
+    },
+    {
+      "id": "relation/5988801",
+      "reason": "missing way 305814039"
+    },
+    {
+      "id": "relation/5994095",
+      "reason": "missing way 399027120"
+    },
+    {
+      "id": "relation/6048888",
+      "reason": "missing way 300569435"
+    },
+    {
+      "id": "relation/6048889",
+      "reason": "missing way 51775854"
+    },
+    {
+      "id": "relation/6048894",
+      "reason": "missing way 203060277"
+    },
+    {
+      "id": "relation/6048895",
+      "reason": "missing way 169143586"
+    },
+    {
+      "id": "relation/9315353",
+      "reason": "missing way 306298698"
+    },
+    {
+      "id": "relation/13433633",
+      "reason": "missing way 135953136"
+    },
+    {
+      "id": "relation/13563877",
+      "reason": "missing way 203060277"
+    },
+    {
+      "id": "relation/18242286",
+      "reason": "missing way 319224254"
+    },
+    {
+      "id": "relation/18242326",
+      "reason": "missing way 374050255"
+    },
+    {
+      "id": "relation/18251239",
+      "reason": "missing way 1330746867"
+    },
+    {
+      "id": "relation/19059002",
+      "reason": "missing way 1382357528"
+    },
+    {
+      "id": "relation/19350195",
+      "reason": "missing way 832018550"
+    },
+    {
+      "id": "relation/19618485",
+      "reason": "missing way 1430943819"
+    },
+    {
+      "id": "relation/19618486",
+      "reason": "missing way 1388325315"
+    },
+    {
+      "id": "relation/19619039",
+      "reason": "missing way 1443780963"
+    },
+    {
+      "id": "relation/19700961",
+      "reason": "missing way 1547960303"
+    },
+    {
+      "id": "relation/19888265",
+      "reason": "missing way 202272002"
+    }
+  ],
+  "snapshotTimestamp": "2026-10-09T20:21:04.000Z",
+  "outputBytes": 40985863,
+  "snapshotSha256": "90d3714ebf768cac5a7c865d0d9110b6c859d6a34407f1262c269a7832a819b1"
+}

@@ -7,7 +7,8 @@ test('movement remains consistent across frame rates, slides against walls, and 
  const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[workshopSpawn.x,workshopSpawn.y,workshopSpawn.z]);
 });
 test('skating is faster than walking and remains frame-rate independent without tunneling through walls',()=>{
- assert.equal(movementSpeed('walk'),4);assert.equal(movementSpeed('skate'),9);assert.equal(movementSpeed('skate',true),14);assert.ok(movementSpeed('walk',true)>movementSpeed('walk'));
+ assert.equal(movementSpeed('walk'),2);assert.equal(movementSpeed('walk',true),2);assert.equal(movementSpeed('skate'),35);assert.equal(movementSpeed('skate',true),35);
+ assert.equal(movementSpeed('walk',false,'planet'),4);assert.equal(movementSpeed('walk',true,'planet'),6.5);assert.equal(movementSpeed('skate',false,'planet'),9);assert.equal(movementSpeed('skate',true,'planet'),14);
  for(const mode of ['walk','skate'])for(const boost of [false,true]){
   const speed=movementSpeed(mode,boost),travel=hz=>{const player=new T.Group();player.position.y=.8;for(let frame=0;frame<hz;frame++)moveCharacter(player,1,0,speed/hz,()=>false,()=>.8);return player.position.x};
   assert.ok(Math.abs(travel(30)-speed)<1e-8);assert.ok(Math.abs(travel(144)-speed)<1e-8);

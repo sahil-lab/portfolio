@@ -13,7 +13,8 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),zlib=require('node:zlib'),assert=require('node:assert/strict'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const {buildPlanet}=require('../app/bengaluru-pipeline.ts');
-const root=path.resolve(__dirname,'..'),configPath=path.join(root,'assets/bengaluru/planet-config.json'),outputDir=path.join(root,'public/assets/bengaluru-v1'),appManifest=path.join(root,'app/bengaluru-planet-manifest.json');
+const {values:options}=require('node:util').parseArgs({options:{config:{type:'string',default:'assets/bengaluru/planet-config.json'},output:{type:'string',default:'public/assets/bengaluru-v1'},manifest:{type:'string',default:'app/bengaluru-planet-manifest.json'},'install-staging':{type:'string'},check:{type:'boolean'},fetch:{type:'boolean'},stream:{type:'boolean'},help:{type:'boolean'}}});
+const root=path.resolve(__dirname,'..'),configPath=path.resolve(root,options.config),outputDir=path.resolve(root,options.output),appManifest=path.resolve(root,options.manifest);
 const sha256=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const config=JSON.parse(fs.readFileSync(configPath,'utf8'));
 
@@ -36,18 +37,42 @@ async function fetchSnapshot(){
 
 function loadSnapshot(){
  const file=path.join(root,config.snapshot),gz=fs.readFileSync(file),text=zlib.gunzipSync(gz).toString('utf8');
- return {snapshot:JSON.parse(text),input:{sha256:sha256(text),bytes:Buffer.byteLength(text),description:path.relative(root,file).replace(/\\/g,'/')+' (Overpass API JSON, out geom)'}};
+ const snapshot=JSON.parse(text),format=snapshot.provenance?.format==='osm-pbf'?' (OSM PBF normalized geometry)':' (Overpass API JSON, out geom)';
+ return {snapshot,input:{sha256:sha256(text),bytes:Buffer.byteLength(text),description:path.relative(root,file).replace(/\\/g,'/')+format}};
 }
 
-function build(){
- const {snapshot,input}=loadSnapshot(),started=performance.now(),result=buildPlanet(snapshot,config,input,sha256);
+function build(buildOptions){
+ const {snapshot,input}=loadSnapshot(),started=performance.now(),result=buildPlanet(snapshot,config,input,sha256,buildOptions);
  return {...result,ms:performance.now()-started};
 }
 
-function writeBuild(result){
- fs.rmSync(outputDir,{recursive:true,force:true});fs.mkdirSync(path.join(outputDir,'tiles'),{recursive:true});
- for(const [file,content] of result.files)fs.writeFileSync(path.join(outputDir,file),content);
- fs.writeFileSync(appManifest,JSON.stringify(result.manifest,null,0)+'\n');
+function installBuild(result,staging){
+ const relative=path.relative(root,outputDir);
+ assert.ok(relative.startsWith('public'+path.sep+'assets'+path.sep),'generated output must be under public/assets');
+ const backup=path.join(root,'outputs/geodata/bengaluru','previous-assets-'+Date.now());
+ let retainedOriginal=false;
+ if(fs.existsSync(outputDir)){
+  try{fs.renameSync(outputDir,backup)}catch(error){
+   if(!['EPERM','EBUSY','EXDEV'].includes(error.code))throw error;
+   fs.cpSync(outputDir,backup,{recursive:true,force:false,errorOnExist:true});retainedOriginal=true;
+  }
+ }
+ try{
+  fs.mkdirSync(path.dirname(outputDir),{recursive:true});
+  if(retainedOriginal){
+   const previous=JSON.parse(fs.readFileSync(path.join(backup,'manifest.json'),'utf8'));
+   fs.cpSync(staging,outputDir,{recursive:true,force:true});
+   const generated=new Set(result.manifest.tiles.flatMap(tile=>[tile.features,...tile.lods.map(lod=>lod.file)]));
+   for(const tile of previous.tiles)for(const file of [tile.features,...tile.lods.map(lod=>lod.file)])if(!generated.has(file))fs.rmSync(path.join(outputDir,file),{force:true});
+  }else{
+  try{fs.renameSync(staging,outputDir)}catch(error){
+   if(!['EPERM','EBUSY','EXDEV'].includes(error.code)||fs.existsSync(outputDir))throw error;
+   fs.cpSync(staging,outputDir,{recursive:true,force:false,errorOnExist:true});
+  }
+  }
+ }
+ catch(error){if(fs.existsSync(backup)){if(retainedOriginal)fs.cpSync(backup,outputDir,{recursive:true,force:true});else fs.renameSync(backup,outputDir)}throw error}
+ fs.writeFileSync(appManifest,JSON.stringify(result.manifest)+'\n');
 }
 
 function check(result){
@@ -55,7 +80,7 @@ function check(result){
   const disk=fs.readFileSync(path.join(outputDir,file));
   assert.equal(sha256(disk),sha256(typeof content==='string'?Buffer.from(content):content),`${file} differs from the published build`);
  }
- assert.equal(JSON.parse(fs.readFileSync(appManifest,'utf8')).source.inputSha256,result.manifest.source.inputSha256,'app manifest input hash differs');
+ assert.deepEqual(JSON.parse(fs.readFileSync(appManifest,'utf8')),result.manifest,'app manifest differs');
  for(const entry of fs.readdirSync(path.join(outputDir,'tiles')))assert.ok(result.files.has('tiles/'+entry),'stale published tile '+entry);
 }
 
@@ -68,9 +93,33 @@ function report(result){
 }
 
 async function main(){
- if(process.argv.includes('--fetch'))return fetchSnapshot();
- const result=build();
- if(process.argv.includes('--check')){check(result);console.log('BENGALURU_PLANET_CHECK_OK');return}
- writeBuild(result);report(result);console.log('BENGALURU_PLANET_BUILD_OK');
+ if(options.help){console.log('node scripts/build-bengaluru-planet.cjs [--config file] [--output public/assets/name] [--manifest app/name-manifest.json] [--stream] [--check] [--fetch]');return}
+ if(options.fetch)return fetchSnapshot();
+ if(options['install-staging']){
+  const staging=path.resolve(root,options['install-staging']),manifest=JSON.parse(fs.readFileSync(path.join(staging,'manifest.json'),'utf8'));
+  assert.ok(path.relative(path.join(root,'outputs/geodata/bengaluru'),staging).startsWith('build-'),'only a completed local build can be installed');
+  assert.deepEqual(manifest.aoi.bbox,config.bbox);assert.equal(manifest.projection.kind,config.projectionMode??'spherical-cap');
+  for(const tile of manifest.tiles){
+   for(const lod of tile.lods){const bytes=fs.readFileSync(path.join(staging,lod.file));assert.equal(bytes.length,lod.bytes,lod.file);assert.equal(sha256(bytes),lod.sha256,lod.file)}
+   assert.equal(JSON.parse(fs.readFileSync(path.join(staging,tile.features),'utf8')).length,tile.featureCount,tile.features);
+  }
+  for(const file of [manifest.fallback,manifest.sky])assert.ok(fs.statSync(path.join(staging,file)).size>0,file);
+  installBuild({manifest},staging);console.log('BENGALURU_PLANET_INSTALL_OK '+manifest.tiles.length+' verified tiles');return;
+ }
+ if(options.check&&!options.stream){const result=build();check(result);console.log('BENGALURU_PLANET_CHECK_OK');return}
+ const staging=options.check?null:path.join(root,'outputs/geodata/bengaluru','build-'+Date.now());
+ if(staging)fs.mkdirSync(path.join(staging,'tiles'),{recursive:true});
+ const expected=new Set();let reported=0;
+ const result=build({releaseSourceGeometry:true,writeFile:(file,content)=>{
+  expected.add(file);
+  if(options.check)assert.equal(sha256(fs.readFileSync(path.join(outputDir,file))),sha256(content),file+' differs from the published build');
+  else fs.writeFileSync(path.join(staging,file),content);
+ },onTile:(completed,total)=>{if(completed-reported>=100){reported=completed;console.log('BENGALURU_TILE_BUILD '+completed+'/'+total)}}});
+ if(options.check){
+  assert.deepEqual(JSON.parse(fs.readFileSync(appManifest,'utf8')),result.manifest,'app manifest differs');
+  for(const file of fs.readdirSync(path.join(outputDir,'tiles')))assert.ok(expected.has('tiles/'+file),'stale published tile '+file);
+  console.log('BENGALURU_PLANET_CHECK_OK');return;
+ }
+ installBuild(result,staging);report(result);console.log('BENGALURU_PLANET_BUILD_OK');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

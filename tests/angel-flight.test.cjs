@@ -26,7 +26,7 @@ test('routes reach every planet continuously and remain outside planetary cleara
  for(let destination=1;destination<transitStops.length;destination++){
   assert.ok(flight.navigate(destination));assert.equal(flight.state.destination,destination);
   const original=flight.state.position.clone();let maxStep=0;
-  for(let frame=0;frame<Math.ceil(angelFlightLimits.tripSeconds*60)+3;frame++){
+    for(let frame=0;frame<Math.ceil(flight.tripSeconds*60)+3;frame++){
    const before=flight.state.position.clone();flight.update(1/60);maxStep=Math.max(maxStep,before.distanceTo(flight.state.position));
    for(const surface of flight.surfaces)if(surface)assert.ok(flight.state.position.distanceTo(surface.center)>=flight.safeRadius(surface)-1e-6,'flight entered a planet');
   }

@@ -135,7 +135,7 @@ function createStars(radius:number,count=2200){
  return new T.Points(geometry,new T.PointsMaterial({color:0xdfe6ff,size:1.6,sizeAttenuation:false,depthWrite:false,transparent:true,opacity:.85}));
 }
 
-function createTreeGeometry(){
+export function createTreeGeometry(){
  const trunk=new T.CylinderGeometry(.32,.45,3.2,5),canopy=new T.ConeGeometry(2.7,6,6);trunk.translate(0,1.6,0);canopy.translate(0,6.1,0);
  const paint=(geometry:T.BufferGeometry,color:T.Color)=>{const count=geometry.attributes.position.count,colors=new Float32Array(count*3);for(let i=0;i<count;i++)colors.set([color.r,color.g,color.b],i*3);geometry.setAttribute('color',new T.BufferAttribute(colors,3))};
  paint(trunk,new T.Color(0x5a3e2b));paint(canopy,new T.Color(0x3f7a3c));

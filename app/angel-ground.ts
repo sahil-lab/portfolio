@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {planetPoint,planetUp,planetGeography,type PlanetSurface} from './planet-geography';
 import {motherboardBounds} from './world-config';
+import {cityPlanetFor} from './bengaluru-city-config';
+import {movementMetresPerSecond} from './character-controller';
 
 export type AngelContact={point:T.Vector3;normal:T.Vector3;stop:number};
 export type AngelGroundInput={x:number;z:number;yaw:number;run:boolean};
@@ -10,13 +12,17 @@ export type AngelGroundEnvironment={
  blocked?:(point:T.Vector3,radius:number,stop:number)=>boolean;
 };
 export function createAngelGround(options:AngelGroundEnvironment&{height:number;footOffset?:number}){
- const height=options.height,radius=Math.max(.3,height*.105),walkSpeed=height*.45,runSpeed=height;
+ const baseHeight=options.height;
+ const dimensions=(stop:number)=>{const city=cityPlanetFor(options.surfaces[stop]?.stop),scale=city?city.scale*1.8/baseHeight:1,height=baseHeight*scale;return {scale,height,radius:city?city.scale*.3:Math.max(.3,height*.105),walkSpeed:city?city.scale*movementMetresPerSecond.walk:stop===0?movementMetresPerSecond.walk:height*.45,runSpeed:city?city.scale*3:height}};
+ const {height}=dimensions(0);
  let footOffset=options.footOffset??height*.5;
  const vertical=new T.Vector3(0,1,0),state={active:false,current:0,position:new T.Vector3(),foot:new T.Vector3(),up:vertical.clone(),frame:new T.Quaternion(),facing:new T.Vector3(0,0,1),velocity:new T.Vector3(),speed:0,turnRate:0,distance:0,elapsed:0,pace:'idle' as 'idle'|'walk'|'run'};
  const desired=new T.Vector3(),previousVelocity=new T.Vector3(),movement=new T.Vector3(),candidate=new T.Vector3(),rotation=new T.Quaternion(),cross=new T.Vector3(),previous=new T.Vector3();
  function sample(position:T.Vector3,stop=state.current,previousHeight=state.foot.y):AngelContact|null{
+    const {height,radius}=dimensions(stop);
   const surface=options.surfaces[stop];
   if(surface){
+     if(surface.mappedContact){const contact=surface.mappedContact(position);return contact?{...contact,stop}:null}
    const direction=position.clone().sub(surface.center);if(direction.lengthSq()<.00001)return null;direction.normalize();
    const geography=planetGeography(surface,direction);if(geography.water)return null;
    const point=planetPoint(surface,direction),normal=planetUp(surface,point);
@@ -31,6 +37,7 @@ export function createAngelGround(options:AngelGroundEnvironment&{height:number;
   return {point:new T.Vector3(position.x,floor,position.z),normal,stop:0};
  }
  function clear(contact:AngelContact){
+    const {height,radius}=dimensions(contact.stop);
   if(options.blocked?.(contact.point,radius,contact.stop))return false;
   const frame=new T.Quaternion().setFromUnitVectors(vertical,contact.normal);
   for(let index=0;index<8;index++){
@@ -40,6 +47,7 @@ export function createAngelGround(options:AngelGroundEnvironment&{height:number;
   return true;
  }
  function findLanding(position:T.Vector3,stop:number){
+    const {height}=dimensions(stop);
   const initial=sample(position,stop,0);if(initial&&clear(initial))return initial;
   const surface=options.surfaces[stop],normal=surface?position.clone().sub(surface.center).normalize():vertical,frame=new T.Quaternion().setFromUnitVectors(vertical,normal);
   for(let ring=1;ring<=8;ring++)for(let index=0;index<16;index++){
@@ -51,9 +59,10 @@ export function createAngelGround(options:AngelGroundEnvironment&{height:number;
  function place(contact:AngelContact,facing=new T.Vector3(0,0,1)){
   state.active=true;state.current=contact.stop;state.foot.copy(contact.point);state.up.copy(contact.normal);state.frame.setFromUnitVectors(vertical,state.up);
   state.facing.copy(facing).projectOnPlane(state.up);if(state.facing.lengthSq()<.001)state.facing.set(0,0,1).applyQuaternion(state.frame);state.facing.normalize();
-  state.position.copy(state.foot).addScaledVector(state.up,footOffset);state.velocity.set(0,0,0);state.speed=0;state.turnRate=0;state.pace='idle';
+    state.position.copy(state.foot).addScaledVector(state.up,footOffset*dimensions(contact.stop).scale);state.velocity.set(0,0,0);state.speed=0;state.turnRate=0;state.pace='idle';
  }
  function update(dt:number,input:AngelGroundInput){
+    const {height,walkSpeed,runSpeed,scale}=dimensions(state.current);
   const delta=Number.isFinite(dt)?T.MathUtils.clamp(dt,0,.05):0;if(!state.active||delta===0)return;
   state.elapsed+=delta;previous.copy(state.foot);previousVelocity.copy(state.velocity);
   const horizontal=Number.isFinite(input.x)?input.x:0,forward=Number.isFinite(input.z)?input.z:0,yaw=Number.isFinite(input.yaw)?input.yaw:0,amount=Math.min(1,Math.hypot(horizontal,forward));
@@ -64,7 +73,7 @@ export function createAngelGround(options:AngelGroundEnvironment&{height:number;
    state.facing.applyAxisAngle(state.up,turn).normalize();state.turnRate=turn/delta;alignment=.25+.75*Math.max(0,state.facing.dot(desired));
    desired.copy(state.facing).multiplyScalar((input.run?runSpeed:walkSpeed)*amount*alignment);
   }else desired.set(0,0,0);
-  movement.copy(desired).sub(state.velocity);const acceleration=height*(amount>.01?1.65:2.5),change=movement.length();
+  movement.copy(desired).sub(state.velocity);const acceleration=(amount>.01&&!input.run?Math.min(height,walkSpeed/.45):height)*(amount>.01?1.65:2.5),change=movement.length();
   if(change>acceleration*delta)movement.multiplyScalar(acceleration*delta/change);state.velocity.add(movement).projectOnPlane(state.up);
   movement.copy(previousVelocity).add(state.velocity).multiplyScalar(delta*.5);const steps=Math.max(1,Math.ceil(movement.length()/.3));movement.divideScalar(steps);
   for(let index=0;index<steps;index++){
@@ -73,10 +82,10 @@ export function createAngelGround(options:AngelGroundEnvironment&{height:number;
    rotation.setFromUnitVectors(state.up,contact.normal);state.frame.premultiply(rotation).normalize();state.facing.applyQuaternion(rotation).normalize();state.velocity.applyQuaternion(rotation);movement.applyQuaternion(rotation);
    state.foot.copy(contact.point);state.up.copy(contact.normal);
   }
-  state.position.copy(state.foot).addScaledVector(state.up,footOffset);
+    state.position.copy(state.foot).addScaledVector(state.up,footOffset*scale);
   const distance=state.foot.distanceTo(previous);state.distance+=distance;state.speed=distance/delta;state.pace=state.speed<height*.012?'idle':input.run&&state.speed>walkSpeed*1.08?'run':'walk';
  }
- return {state,radius,walkSpeed,runSpeed,sample,clear,findLanding,place,update,
+ return {state,get radius(){return dimensions(state.current).radius},get walkSpeed(){return dimensions(state.current).walkSpeed},get runSpeed(){return dimensions(state.current).runSpeed},scaleAt:(stop:number)=>dimensions(stop).scale,sample,clear,findLanding,place,update,
   setFootOffset:(value:number)=>{if(Number.isFinite(value)&&value>0)footOffset=value},
   leave:()=>{state.active=false;state.velocity.set(0,0,0);state.speed=0;state.turnRate=0;state.pace='idle'},
  };

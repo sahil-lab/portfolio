@@ -106,12 +106,12 @@
 .kingdom[data-ready] .topbar .brandmark { width: 30px; height: 34px; }
 .kingdom .brand b { font-size: 15px; }
 .kingdom .brand small { font-size: 10px; }
-.kingdom[data-ready] .topbar nav { display: flex; width: max-content; gap: 3px; margin-left: auto; padding: 3px; border: 1px solid var(--hud-line); border-radius: 8px; background: #131b1ee6; box-shadow: 0 5px 16px #08161926; backdrop-filter: blur(8px); pointer-events: auto; }
+.kingdom[data-ready] .topbar nav { display: flex; width: max-content; gap: 3px; margin-left: auto; padding: 3px; border: 1px solid #ffffff80; border-radius: 8px; background: transparent; box-shadow: 0 1px 4px #0003; backdrop-filter: none; pointer-events: auto; }
 .kingdom[data-ready] .topbar nav .hud-category-trigger { display: flex; align-items: center; justify-content: center; gap: 0; min-width: 44px; width: 44px; height: 44px; padding: 0; background: transparent; border: 0; border-radius: 5px; color: var(--hud-white); font: 500 11px 'Space Grotesk', sans-serif; }
 .kingdom[data-ready] .topbar nav .hud-category-trigger>span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.kingdom[data-ready] .topbar nav .hud-category-trigger>svg:not(.hud-category-chevron) { width: 19px; height: 19px; }
+.kingdom[data-ready] .topbar nav .hud-category-trigger>svg:not(.hud-category-chevron) { width: 19px; height: 19px; filter: drop-shadow(0 1px 2px #0008); }
 .kingdom[data-ready] .topbar nav .hud-category-trigger .hud-category-chevron { display: none; }
-.kingdom[data-ready] .topbar .hud-category-trigger[aria-expanded=true] { background: var(--hud-mint); border-color: var(--hud-mint); color: var(--hud-ink); }
+.kingdom[data-ready] .topbar .hud-category-trigger[aria-expanded=true] { background: #ffffff1a; border-color: #ffffffc0; color: var(--hud-white); }
 .kingdom .hud-category-chevron { display: none; }
 .kingdom[data-ready] .location { top: auto; bottom: 38px; left: 26px; max-width: min(420px,calc(100vw - 52px)); }
 .kingdom[data-ready] .location h1 { margin: 8px 0 0; font-size: 26px; }
