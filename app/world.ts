@@ -69,6 +69,7 @@ import type {Exhibit} from './exhibit-state';
 import {studyCameraView} from './project-installations';
 import {cityArrivalCameraView,cityPlanetFor,cityWalkingSpeed,bengaluruRegionRadius,bengaluruRegionPosition} from './bengaluru-city-config';
 import type {FeatureRecord,PlanetManifest} from './bengaluru-pipeline';
+import {deviceLocationTarget} from './bengaluru-location';
 export {districts} from './world-config';
 export type WorldCallbacks={onPlace:(i:number)=>void;onReady:()=>void;onInteract:(i:number)=>void;onVoiceEnabled?:()=>void;onRadio?:()=>void;onCommons?:(inside:boolean)=>void;onCity?:(name:string|null)=>void;onInfo?:()=>void;onInside?:(i:number|null)=>void;onExhibit?:(i:number)=>void;onPrompt?:(s:string)=>void;onRoute?:(s:string)=>void;onNotice?:(s:string)=>void;onDelivery?:(s:DeliverySnapshot)=>void;onEncounter?:(e:Encounter|null)=>void;onSubtitle?:(s:string)=>void;onPauseToggle?:()=>void;onPerformance?:(s:string)=>void;onMachine?:(i:number)=>void;onMachineTick?:()=>void;onTransit?:(s:TransitStatus)=>void;onTransitOpen?:()=>void;onAngel?:(s:AngelFlightStatus)=>void;onResume?:(site:ResumeBookSiteId,page:number)=>void;onFriends?:(view:PlayView)=>void;onFriendsActivity?:(status:FriendsActivityStatus)=>void};
 export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProjectStudy?:(study:Exhibit|null)=>void;onBengaluru?:(manifest:PlanetManifest|null)=>void;onBengaluruSelect?:(feature:FeatureRecord|null)=>void},initialSettings:Settings=defaultSettings,initialDelivery:DeliverySnapshot|null=null,createCharacter:typeof createCourier=createCourier){
@@ -291,7 +292,7 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
   if(!shop||transport.groundBlocked(shop.approach,.45,destination)){callbacks.onNotice?.('The shop is not ready. You can retry from the World menu.');return false}
   player.position.copy(shop.approach);player.quaternion.copy(shop.rotation);player.userData.surfaceFrame=shop.rotation.clone();transport.stepSurface(0,0,0);resetCamera(aspect=>signatureShopCameraView(planet,aspect));input.state.clear();priorPosition.copy(player.position);callbacks.onNotice?.(shop.name);return true;
  }
- async function goBengaluru(featureId?:string){
+ async function goBengaluru(featureId?:string|{east:number;north:number}){
   const destination=transitStops.findIndex(stop=>stop.city==='bengaluru');
   if(disposed||paused||menuOpen||destination<0||transport.journey.mode||activities?.active)return false;
   const resumeAngel=angel.controlled;
@@ -312,7 +313,18 @@ export function createWorld(host:HTMLElement,callbacks:WorldCallbacks&{onProject
  queueMicrotask(()=>{if(!disposed)forgeFeed=watchForge(snapshot=>{if(disposed)return;chronicle.set(snapshot);transport.landscapes[1]?.setRepositories(snapshot)},{active:()=>!disposed&&!paused&&!document.hidden&&(transport.journey.current===0||transport.journey.current===1||observedPlanet===1)})});
  return {
   get renderReady(){return renderReady&&!contextLost&&!disposed},
+  bengaluruPosition:()=>{
+   if(disposed||transport.journey.mode||angel.controlled&&angel.flight.state.destination!==null)return null;
+   const index=angel.controlled?angel.flight.state.current:transport.journey.current,city=transport.landscapes[index]?.city;
+   if(!city?.region)return null;
+   const local=city.flatAt(angel.controlled?angel.root.position:player.position);
+   return {east:local.east,north:local.north,character:angel.controlled?'angel' as const:'main' as const};
+  },
   streetLife,goBengaluru,
+  goBengaluruLocation:(latitude:number,longitude:number)=>{
+   const destination=transitStops.findIndex(stop=>stop.city==='bengaluru'),manifest=transport.landscapes[destination]?.city?.region?.manifest;
+   const target=manifest?deviceLocationTarget(manifest,latitude,longitude):null;return target?goBengaluru(target):Promise.resolve(false);
+  },
   projectGallery,projectPages,goProjectBulletins:()=>{if(disposed||!renderReady||angel.controlled||activities?.active||paused||observedPlanet!==null||buildings.getInside()!==null||transport.journey.mode||transport.driving)return false;shopVisit++;commons.voice.cancel();transport.home();player.position.set(projectBulletinArrival.x,projectBulletinArrival.y,projectBulletinArrival.z);resetCamera(projectBulletinCameraView);input.state.clear();priorPosition.copy(player.position);return true},
   friends,activities,attachFriends:(client:FriendsClient|null)=>{friends.attach(client);activities!.attach(client)},setFriendsOverlay:(_value:boolean)=>{input.state.clear()},
   capital,civicLife,cityLights,goCapital:(kind:CapitalDestination='plaza')=>{if(angel.controlled||activities!.active||paused||buildings.getInside()!==null||transport.journey.mode||transport.driving)return false;commons.voice.cancel();transport.home();const destination=capital!.destination(kind);player.position.set(destination.x,destination.y,destination.z);resetCamera(capitalCameraView);input.state.clear();priorPosition.copy(player.position);return true},

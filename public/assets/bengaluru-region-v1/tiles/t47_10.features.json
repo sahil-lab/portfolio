@@ -1,1 +1,1 @@
-[{"index":0,"id":"way/1510346922","featureClass":"road","subtype":"residential","center":[23423.88,5423.97],"lonLat":[77.8066421,13.0283378],"bbox":[23318.76,5324.38,23580.31,5449.59],"tags":{"highway":"residential"}}]
+[{"index":0,"id":"way/1510346922","featureClass":"road","subtype":"residential","center":[23423.88,5423.97],"lonLat":[77.8066421,13.0283378],"bbox":[23318.76,5324.38,23580.31,5449.59],"tags":{"highway":"residential"},"widthM":6,"widthSource":"type-default"}]

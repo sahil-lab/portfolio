@@ -4,8 +4,8 @@
  * DOM or the network; the CLI in scripts/build-bengaluru-planet.cjs handles files.
  */
 import {createPlanetProjection,createWrappedPlanetProjection,type PlanetProjection,type Vec3} from './bengaluru-projection';
-import {buildFeatures,clipLineToRect,ringBounds,simplifyLine,simplifyRing,tileFor,tilesCovering,type FeatureClass,type HeightSource,type LandmarkSpec,type OsmSnapshot,type Polygon,type SourceFeature,type TileAddress} from './bengaluru-features';
-import {FlatMeshBuilder,featureColor,palette,placeTrees,surfaceLift,treeDensity,type MeshBuffers,type RGB} from './bengaluru-geometry';
+import {buildFeatures,ringBounds,simplifyLine,simplifyRing,tileFor,tilesCovering,type FeatureClass,type HeightSource,type LandmarkSpec,type OsmSnapshot,type Polygon,type SourceFeature,type TileAddress} from './bengaluru-features';
+import {FlatMeshBuilder,featureColor,featureRoofColor,featureRoofProfile,palette,placeTrees,surfaceLift,treeDensity,type MeshBuffers,type RGB} from './bengaluru-geometry';
 import {encodeGlb,type GlbMeshInput} from './bengaluru-glb';
 
 export type PlanetConfig={
@@ -31,10 +31,12 @@ export type FeatureRecord={
  index:number;id:string;name?:string;featureClass:FeatureClass;subtype:string;
  center:[number,number];lonLat:[number,number];bbox:[number,number,number,number];
  heightM?:number;minHeightM?:number;displayHeightM?:number;heightSource?:HeightSource;heightEstimated?:boolean;levels?:number;
+ widthM?:number;widthSource?:'osm-width'|'lane-estimate'|'type-default';
+ roofShape?:string;roofHeightM?:number;roofHeightSource?:'osm-roof-height'|'roof-levels'|'inferred';
  landmark?:string;rank?:number;areaM2?:number;tags:Record<string,string>;
 };
 export type TileLodRecord={level:0|1;file:string;bytes:number;sha256:string;triangles:number;vertices:number};
-export type TileRecord={id:string;ix:number;iy:number;bounds:[number,number,number,number];center:[number,number];radiusM:number;lods:TileLodRecord[];features:string;counts:Record<string,number>;trees:number;featureCount:number};
+export type TileRecord={id:string;ix:number;iy:number;bounds:[number,number,number,number];center:[number,number];radiusM:number;lods:TileLodRecord[];features:string;featuresSha256?:string;counts:Record<string,number>;trees:number;featureCount:number};
 export type LandmarkRecord={id:string;label:string;name?:string;featureClass:FeatureClass;tile:string;index:number;local:[number,number];lonLat:[number,number];heightM?:number;heightSource?:HeightSource;heightEstimated?:boolean};
 export type PlaceRecord={id:string;name:string;subtype:string;rank:number;local:[number,number];lonLat:[number,number]};
 export type NamedRecord={id:string;name:string;featureClass:FeatureClass;tile:string;index:number;local:[number,number]};
@@ -56,7 +58,7 @@ export type PlanetBuild={manifest:PlanetManifest;files:Map<string,Uint8Array|str
 export type Hasher=(bytes:Uint8Array)=>string;
 export type PlanetBuildOptions={writeFile?:(file:string,content:Uint8Array|string)=>void;onTile?:(completed:number,total:number)=>void;releaseSourceGeometry?:boolean};
 
-export const generatorId='bengaluru-planet-build/1';
+export const generatorId='bengaluru-planet-build/2';
 export const defaultPlanetConfig:PlanetConfig={
  name:'Bengaluru civic core',origin:{lon:77.5907,lat:12.9794,label:'Vidhana Soudha'},bbox:{south:12.964,west:77.578,north:12.99,east:77.608},
  capAngleDeg:110,tileSizeM:500,storeyHeightM:3,densifyM:40,landmarkHeightBoost:1.2,landmarks:[],lod1:{simplifyToleranceM:1.5,minBuildingAreaM2:25},
@@ -103,6 +105,8 @@ export function buildPlanet(snapshot:OsmSnapshot,config:PlanetConfig,input:Build
   const records:FeatureRecord[]=ordered.map((feature,index)=>{
    const bounds=featureBounds.get(feature.id)!,record:FeatureRecord={index,id:feature.id,name:feature.name,featureClass:feature.featureClass,subtype:feature.subtype,center:[round(feature.local[0]),round(feature.local[1])],lonLat:[round(feature.lonLat[0],7),round(feature.lonLat[1],7)],bbox:bounds.map(v=>round(v,2)) as [number,number,number,number],tags:feature.tags};
    if(feature.height){record.heightM=round(feature.height.heightM,2);record.minHeightM=round(feature.height.minHeightM,2);record.displayHeightM=round(feature.height.heightM*(feature.landmark?config.landmarkHeightBoost:1),2);record.heightSource=feature.height.source;record.heightEstimated=feature.height.estimated;if(feature.height.levels!==undefined)record.levels=feature.height.levels}
+  if(feature.lineStyle){record.widthM=round(feature.lineStyle.width,2);record.widthSource=feature.lineStyle.widthSource??'type-default'}
+  const roof=featureRoofProfile(feature);if(roof){record.roofShape=roof.shape;record.roofHeightM=roof.height;record.roofHeightSource=roof.source}
    if(feature.landmark)record.landmark=feature.landmark;if(feature.rank!==undefined)record.rank=feature.rank;if(feature.areaM2!==undefined)record.areaM2=round(feature.areaM2,1);
    return record;
   });
@@ -115,9 +119,9 @@ export function buildPlanet(snapshot:OsmSnapshot,config:PlanetConfig,input:Build
    const triangles=meshes.reduce((sum,mesh)=>sum+mesh.primitives.reduce((s,p)=>s+(p.mode===0?0:(p.indices?.length??0)/3),0),0),vertices=meshes.reduce((sum,mesh)=>sum+mesh.primitives.reduce((s,p)=>s+p.attributes.POSITION.array.length/3,0),0);
    lods.push({level,file,bytes:glb.byteLength,sha256:hash(glb),triangles,vertices});
   }
-  const featureFile=`tiles/${tile.id}.features.json`;writeFile(featureFile,JSON.stringify(records));
+  const featureFile=`tiles/${tile.id}.features.json`,featureJson=JSON.stringify(records);writeFile(featureFile,featureJson);
   const center:[number,number]=[(entry.clip[0]+entry.clip[2])/2,(entry.clip[1]+entry.clip[3])/2];
-  tileRecords.push({id:tile.id,ix:tile.ix,iy:tile.iy,bounds:entry.clip.map(v=>round(v,2)) as [number,number,number,number],center:[round(center[0]),round(center[1])],radiusM:round(Math.hypot(entry.clip[2]-entry.clip[0],entry.clip[3]-entry.clip[1])/2+60),lods,features:featureFile,counts,trees:entry.trees.length,featureCount:records.length});
+  tileRecords.push({id:tile.id,ix:tile.ix,iy:tile.iy,bounds:entry.clip.map(v=>round(v,2)) as [number,number,number,number],center:[round(center[0]),round(center[1])],radiusM:round(Math.hypot(entry.clip[2]-entry.clip[0],entry.clip[3]-entry.clip[1])/2+60),lods,features:featureFile,featuresSha256:hash(new TextEncoder().encode(featureJson)),counts,trees:entry.trees.length,featureCount:records.length});
   totalTrees+=entry.trees.length;
   for(const record of records){
    if(homeTileOf.get(record.id)!==tile.id)continue;
@@ -144,8 +148,26 @@ export function buildPlanet(snapshot:OsmSnapshot,config:PlanetConfig,input:Build
  if(wholeGlobe){manifest.projection.anchor=config.anchor??[0,0];manifest.projection.worldUnitsPerMetre=config.worldUnitsPerMetre??.75}
  writeFile(fallback,renderFallbackSvg(features,projection,manifest));
  writeFile(sky,renderSkySvg(features,projection,manifest));
+ writeFile('navigation-map.svg',renderNavigationSvg(features,manifest));
  writeFile('manifest.json',JSON.stringify(manifest));
  return {manifest,files,report:{tiles:tileRecords.length,bytes:totalBytes,features:features.length,trees:totalTrees,skipped:built.skipped}};
+}
+
+export function renderNavigationSvg(features:SourceFeature[],manifest:PlanetManifest,width=1800){
+ const [west,south,east,north]=manifest.aoi.localBounds,scale=width/(east-west),height=Math.round((north-south)*scale);
+ const point=([east,north]:readonly [number,number])=>round((east-west)*scale,2)+','+round((manifest.aoi.localBounds[3]-north)*scale,2);
+ const ring=(values:readonly [number,number][])=>'M'+values.map(point).join('L')+'Z';
+ const parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="North-up map of Bengaluru from OpenStreetMap"><rect width="${width}" height="${height}" fill="#e8ece8"/>`];
+ for(const feature of features.filter(feature=>feature.polygons&&(feature.featureClass==='park'||feature.featureClass==='water'))){
+  const paths=feature.polygons!.map(polygon=>ring(simplifyRing(polygon.outer,10))+polygon.holes.map(hole=>ring(simplifyRing(hole,10))).join('')).join('');
+  parts.push(`<path d="${paths}" fill="${feature.featureClass==='water'?'#76b6cc':'#afcba5'}" fill-rule="evenodd"/>`);
+ }
+ const roads=features.filter(feature=>feature.featureClass==='road'&&feature.line&&feature.lineStyle?.lod===1).sort((first,second)=>(first.lineStyle?.width??0)-(second.lineStyle?.width??0));
+ parts.push('<g fill="none" stroke-linecap="round" stroke-linejoin="round">');
+ for(const feature of roads){const major=(feature.lineStyle?.width??0)>=8;parts.push(`<path d="M${simplifyLine(feature.line!,12).map(point).join('L')}" stroke="${major?'#788a8e':'#bac4c5'}" stroke-width="${round(Math.max(major?.8:.45,(feature.lineStyle?.width??6)*scale),2)}"/>`)}
+ parts.push('</g>');
+ for(const feature of features.filter(feature=>feature.landmark&&feature.featureClass==='building'&&feature.polygons))parts.push(`<path d="${feature.polygons!.map(polygon=>ring(polygon.outer)+polygon.holes.map(ring).join('')).join('')}" fill="#a36955" fill-rule="evenodd"/>`);
+ parts.push('</svg>');return parts.join('');
 }
 
 function buildTileMeshes(features:SourceFeature[],trees:[number,number][],clip:[number,number,number,number],tile:TileAddress,level:0|1,config:PlanetConfig):GlbMeshInput[]{
@@ -158,7 +180,8 @@ function buildTileMeshes(features:SourceFeature[],trees:[number,number][],clip:[
     if(!feature.polygons||feature.hasParts||!feature.height)return;
     if(level===1&&(feature.areaM2??0)<config.lod1.minBuildingAreaM2)return;
     const top=feature.height.heightM*(feature.landmark?config.landmarkHeightBoost:1),base=feature.height.minHeightM;
-    for(const polygon of feature.polygons)buildings.addExtrusion(simplify?simplifyPolygon(polygon,simplify):polygon,base,top,color,index,densify);
+    const roof=featureRoofProfile(feature),drawnRoof=roof?{...roof,height:roof.height*(feature.landmark?config.landmarkHeightBoost:1)}:undefined;
+    for(const polygon of feature.polygons)buildings.addExtrusion(simplify?simplifyPolygon(polygon,simplify):polygon,base,top,color,index,densify,.8,featureRoofColor(feature),drawnRoof);
     return;
    }
    case 'park':case 'water':case 'road':case 'rail':{
@@ -168,7 +191,7 @@ function buildTileMeshes(features:SourceFeature[],trees:[number,number][],clip:[
     }
     else if(feature.line&&feature.lineStyle&&lodRoadFilter(feature,level)){
      const target=feature.featureClass==='water'?water:ground,lift=feature.featureClass==='water'?surfaceLift.water+.1:feature.featureClass==='rail'?surfaceLift.rail:surfaceLift.road;
-     for(const piece of clipLineToRect(feature.line,clip))target.addRibbon(piece,feature.lineStyle.width,lift,color,index,densify);
+    target.addRibbon(feature.line,feature.lineStyle.width,lift,color,index,densify,clip);
     }
     return;
    }
@@ -177,7 +200,7 @@ function buildTileMeshes(features:SourceFeature[],trees:[number,number][],clip:[
  });
  const meshes:GlbMeshInput[]=[];
  const translation:[number,number,number]=[origin[0],0,-origin[1]];
- const push=(name:keyof typeof materialIndex,buffers:MeshBuffers|null)=>{if(buffers)meshes.push({name,translation,primitives:[{attributes:{POSITION:{array:buffers.positions,type:'VEC3'},COLOR_0:{array:buffers.colors,type:'VEC4',normalized:true},_FEATUREID:{array:buffers.featureIds,type:'SCALAR'}},indices:buffers.indices,material:materialIndex[name]}],extras:{layer:name,lod:level}})};
+ const push=(name:keyof typeof materialIndex,buffers:MeshBuffers|null)=>{if(buffers)meshes.push({name,translation,primitives:[{attributes:{POSITION:{array:buffers.positions,type:'VEC3'},COLOR_0:{array:buffers.colors,type:'VEC4',normalized:true},_FEATUREID:{array:buffers.featureIds,type:'SCALAR'},...(name==='building'?{_SURFACE:{array:buffers.surfaceKinds,type:'SCALAR' as const}}:{})},indices:buffers.indices,material:materialIndex[name]}],extras:{layer:name,lod:level}})};
  push('building',buildings.build());push('ground',ground.build());push('water',water.build());
  if(level===0&&trees.length){
   const positions=new Float32Array(trees.length*3);trees.forEach(([e,n],i)=>{positions[i*3]=e-origin[0];positions[i*3+1]=0;positions[i*3+2]=origin[1]-n});

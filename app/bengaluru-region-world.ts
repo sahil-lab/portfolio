@@ -11,7 +11,7 @@ import {describeHeight} from './bengaluru-text';
 
 export type RegionalTile={record:TileRecord;level:TileLevel;scene:T.Object3D;features:FeatureRecord[];bytes:number};
 export type RegionPayload={city:CityPlanet;manifest:PlanetManifest;tiles:RegionalTile[];loadTile:(record:TileRecord,level:TileLevel,signal:AbortSignal)=>Promise<RegionalTile>};
-type RegionAsset={root:T.Group;record:TileRecord;level:TileLevel;bytes:number;triangles:number;cells:Map<string,number[]>;surfaces:Float32Array;features:FeatureRecord[]};
+type RegionAsset={root:T.Group;record:TileRecord;level:TileLevel;bytes:number;triangles:number;cells:Map<string,number[]>;surfaces:Float32Array;features:FeatureRecord[];cameraCanopies:T.Sphere[]};
 export type RegionControls={
  update(delta:number,observer:T.Group,active:boolean):void;
  dispose():void;
@@ -20,7 +20,7 @@ export type RegionControls={
  projectGround(direction:T.Vector3,target:T.Vector3,lift?:number):T.Vector3;
  sampleGround(position:T.Vector3):{point:T.Vector3;normal:T.Vector3}|null;
  cameraDistance(origin:T.Vector3,direction:T.Vector3,distance:number):number;
- focus(id:string,player:T.Group):Promise<boolean>;
+ focus(id:string|{east:number;north:number},player:T.Group):Promise<boolean>;
  select(ray:T.Raycaster):FeatureRecord|null;
  stats():ReturnType<ReturnType<typeof createTileManager>['stats']>;
  manifest:PlanetManifest;
@@ -28,13 +28,13 @@ export type RegionControls={
 
 export async function loadBengaluruRegion(surface:PlanetSurface,signal:AbortSignal,request:typeof fetch=fetch):Promise<RegionPayload|null>{
  const city=bengaluruRegionCity,loader=new GLTFLoader();
- const response=await request(city.assetBase+'manifest.json',{signal,credentials:'same-origin'});
+ const response=await request(city.assetBase+'manifest.json',{signal,credentials:'same-origin',cache:'no-cache'});
  if(!response.ok)throw new Error('Bengaluru manifest responded '+response.status);
  const manifest=await response.json() as PlanetManifest;
  if(manifest.projection.kind!=='whole-globe'||!manifest.tiles.length)throw new Error('Bengaluru regional manifest is invalid');
  const loadTile=async(record:TileRecord,level:TileLevel,abort:AbortSignal):Promise<RegionalTile>=>{
   const lod=record.lods.find(entry=>entry.level===level)??record.lods[0],options={signal:AbortSignal.any([abort,AbortSignal.timeout(30000)]),credentials:'same-origin' as const,cache:'force-cache' as const};
-  const [geometryResponse,featureResponse]=await Promise.all([request(city.assetBase+lod.file,options),request(city.assetBase+record.features,options)]);
+  const [geometryResponse,featureResponse]=await Promise.all([request(city.assetBase+lod.file+'?v='+lod.sha256,options),request(city.assetBase+record.features+'?v='+encodeURIComponent(record.featuresSha256??manifest.generator),options)]);
   if(!geometryResponse.ok||!featureResponse.ok)throw new Error('Bengaluru tile '+record.id+' is unavailable');
   const [buffer,features]=await Promise.all([geometryResponse.arrayBuffer(),featureResponse.json() as Promise<FeatureRecord[]>]);
   abort.throwIfAborted();
@@ -59,21 +59,30 @@ function insideTriangle(east:number,north:number,values:ArrayLike<number>,offset
  return !((first<0||second<0||third<0)&&(first>0||second>0||third>0));
 }
 
+const surfaceStride=11;
+function triangleHeight(east:number,north:number,values:Float32Array,offset:number){
+ const firstEast=values[offset],firstNorth=values[offset+1],secondEast=values[offset+2],secondNorth=values[offset+3],thirdEast=values[offset+4],thirdNorth=values[offset+5];
+ const denominator=(secondNorth-thirdNorth)*(firstEast-thirdEast)+(thirdEast-secondEast)*(firstNorth-thirdNorth);
+ const first=((secondNorth-thirdNorth)*(east-thirdEast)+(thirdEast-secondEast)*(north-thirdNorth))/denominator;
+ const second=((thirdNorth-firstNorth)*(east-thirdEast)+(firstEast-thirdEast)*(north-thirdNorth))/denominator;
+ return first*values[offset+7]+second*values[offset+9]+(1-first-second)*values[offset+10];
+}
+
 function facadeMaterial(){
  const material=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.82,metalness:0});
  material.userData.authoredArchitecture=true;
  material.onBeforeCompile=shader=>{
-  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 cityMeters;varying vec3 vCityMeters;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCityMeters=cityMeters;');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCityMeters;').replace('#include <color_fragment>',`#include <color_fragment>
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 cityMeters;attribute vec3 cityFacade;attribute float cityRoof;varying vec3 vCityMeters;varying vec3 vCityFacade;varying float vCityRoof;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCityMeters=cityMeters;vCityFacade=cityFacade;vCityRoof=cityRoof;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vCityMeters;varying vec3 vCityFacade;varying float vCityRoof;').replace('#include <color_fragment>',`#include <color_fragment>
    vec3 cityFace=normalize(cross(dFdx(vCityMeters),dFdy(vCityMeters)));
-   float cityWall=1.0-step(0.55,abs(cityFace.y));
-   float cityBay=fract((abs(cityFace.x)>abs(cityFace.z)?vCityMeters.z:vCityMeters.x)/3.2);
-   float cityFloor=fract(vCityMeters.y/3.0);
-   float cityWindow=step(0.22,cityBay)*(1.0-step(0.74,cityBay))*step(0.32,cityFloor)*(1.0-step(0.82,cityFloor))*cityWall*step(2.1,vCityMeters.y);
+   float cityWall=(1.0-step(0.55,abs(cityFace.y)))*(1.0-step(0.5,vCityRoof));
+   float cityBay=fract((abs(cityFace.x)>abs(cityFace.z)?vCityMeters.z:vCityMeters.x)/max(1.0,vCityFacade.y));
+   float cityFloor=fract((vCityMeters.y-vCityFacade.z)/max(1.0,vCityFacade.x));
+   float cityWindow=step(0.22,cityBay)*(1.0-step(0.74,cityBay))*step(0.26,cityFloor)*(1.0-step(0.79,cityFloor))*cityWall*step(vCityFacade.z+1.1,vCityMeters.y);
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.16,0.27,0.31),cityWindow*0.76);
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.72,0.78,0.75),cityWall*(1.0-step(0.035,cityFloor))*0.24);`);
  };
- material.customProgramCacheKey=()=>'bengaluru-regional-facades-1';return material;
+ material.customProgramCacheKey=()=>'bengaluru-regional-facades-2';return material;
 }
 
 export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurface,payload:RegionPayload){
@@ -82,6 +91,7 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
  materials.water.userData.surface='water';
  const treeGeometry=createTreeGeometry(),treeMaterial=new T.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.9});
  const direction=new T.Vector3(),point=new T.Vector3(),flat=new T.Vector3(),vertical=new T.Vector3(0,1,0);
+ const cameraRay=new T.Ray(),cameraHit=new T.Vector3();
  const projection=createWrappedPlanetProjection({localBounds:manifest.aoi.localBounds,anchor:manifest.projection.anchor,radius:surface.radius});
  const records=new Map(manifest.tiles.map(record=>[record.id,record])),attached=new Map<string,RegionAsset>();
  const waiters=new Map<string,{promise:Promise<boolean>;resolve:(ready:boolean)=>void}>();
@@ -93,7 +103,8 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
  const cellKey=(east:number,north:number)=>Math.floor(east/25)+','+Math.floor(north/25);
  const bake=(tile:RegionalTile):RegionAsset=>{
   const tileRoot=new T.Group();tileRoot.name='Bengaluru_Tile_'+tile.record.id;
-  const cells=new Map<string,number[]>(),surfaces:number[]=[];let triangles=0,extraBytes=0;
+  const underground=new Set(tile.features.filter(feature=>feature.tags?.location==='underground'||feature.subtype==='train_station'&&Number(feature.tags?.layer)<0).map(feature=>feature.index));
+  const cells=new Map<string,number[]>(),surfaces:number[]=[],cameraCanopies:T.Sphere[]=[];let triangles=0,extraBytes=0;
   const [west,south,east,north]=tile.record.bounds,width=east-west,depth=north-south;
   const groundGeometry=new T.PlaneGeometry(width,depth,Math.max(1,Math.ceil(width/25)),Math.max(1,Math.ceil(depth/25))),groundPositions=groundGeometry.attributes.position;
   for(let index=0;index<groundPositions.count;index++){toPlanet((west+east)/2+groundPositions.getX(index),(south+north)/2+groundPositions.getY(index),-.08,point);groundPositions.setXYZ(index,point.x,point.y,point.z)}
@@ -111,12 +122,13 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
      for(let index=0;index<total;index++){
       const source=Math.floor(index*positions.count/total);flat.fromBufferAttribute(positions,source).applyMatrix4(child.matrixWorld);toPlanet(flat.x,-flat.z,.025,point);
       direction.copy(point).sub(surface.center).normalize();quaternion.setFromUnitVectors(vertical,direction);scale.setScalar(city.scale*(.8+(source%7)*.04));matrix.compose(point,quaternion,scale);trees.setMatrixAt(index,matrix);
+      cameraCanopies.push((treeGeometry.userData.cameraCanopy as T.Sphere).clone().applyMatrix4(matrix));extraBytes+=128;
      }
      trees.computeBoundingSphere();trees.receiveShadow=true;tileRoot.add(trees);extraBytes+=trees.instanceMatrix.array.byteLength*2;
     }
     mesh.geometry.dispose();
    }else if(mesh.isMesh&&(child.name==='building'||child.name==='ground'||child.name==='water')){
-    const layer=child.name as keyof typeof materials,geometry=mesh.geometry,positions=geometry.attributes.position,featureIds=geometry.getAttribute('_featureid');
+    const layer=child.name as keyof typeof materials,geometry=mesh.geometry,positions=geometry.attributes.position,featureIds=geometry.getAttribute('_featureid'),surfaceKinds=geometry.getAttribute('_surface');
     const local=new Float32Array(positions.count*3);
     for(let index=0;index<positions.count;index++){
     flat.fromBufferAttribute(positions,index).applyMatrix4(child.matrixWorld);
@@ -125,44 +137,67 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
      toPlanet(flat.x,-flat.z,flat.y,point);positions.setXYZ(index,point.x,point.y,point.z);
     }
     positions.needsUpdate=true;
-    if(layer==='building'){geometry.setAttribute('cityMeters',new T.BufferAttribute(local,3));extraBytes+=local.byteLength*2}
+    if(layer==='building'){
+     const facade=new Float32Array(positions.count*3);
+     for(let vertex=0;vertex<positions.count;vertex++){
+      const feature=featureIds?tile.features[Math.round(featureIds.getX(vertex))]:undefined,base=feature?.minHeightM??0,span=(feature?.displayHeightM??feature?.heightM??8)-base;
+      facade[vertex*3]=Math.max(2,span/Math.max(1,feature?.levels??Math.round(span/3)));facade[vertex*3+1]=feature?.subtype==='office'?4.2:feature?.subtype==='house'?2.8:3.2;facade[vertex*3+2]=base;
+     }
+     geometry.setAttribute('cityMeters',new T.BufferAttribute(local,3));geometry.setAttribute('cityFacade',new T.BufferAttribute(facade,3));geometry.setAttribute('cityRoof',surfaceKinds??new T.BufferAttribute(new Uint8Array(positions.count),1));extraBytes+=(local.byteLength+facade.byteLength+(surfaceKinds?0:positions.count))*2;
+    }
+    if(layer==='building'&&geometry.index){
+     const original=geometry.index,kept:number[]=[];
+     for(let offset=0;offset<original.count;offset+=3){
+      const first=original.getX(offset),second=original.getX(offset+1),third=original.getX(offset+2);
+      if(featureIds&&underground.has(Math.round(featureIds.getX(first))))continue;
+      point.fromBufferAttribute(positions,first);direction.fromBufferAttribute(positions,second).sub(point);flat.fromBufferAttribute(positions,third).sub(point);
+      if(direction.cross(flat).lengthSq()>1e-12)kept.push(first,second,third);
+     }
+     if(kept.length!==original.count)geometry.setIndex(kept);
+    }
     const indices=geometry.index;
     const bottomVertices=new Map<string,number>(),baseCaps:number[]=[],roofFeatures:number[]=[];
     const vertexKey=(index:number)=>`${featureIds?.getX(index)??0}:${local[index*3]}:${local[index*3+2]}`;
-    if(layer==='building')for(let index=0;index<positions.count;index++){
+    if(layer==='building'&&!surfaceKinds)for(let index=0;index<positions.count;index++){
      const key=vertexKey(index),previous=bottomVertices.get(key);
      if(previous===undefined||local[index*3+1]<local[previous*3+1])bottomVertices.set(key,index);
     }
     for(let offset=0;offset<(indices?.count??positions.count);offset+=3){
      const first=indices?indices.getX(offset):offset,second=indices?indices.getX(offset+1):offset+1,third=indices?indices.getX(offset+2):offset+2;
      const firstHeight=local[first*3+1],secondHeight=local[second*3+1],thirdHeight=local[third*3+1];
-     if(Math.abs(firstHeight-secondHeight)>.02||Math.abs(firstHeight-thirdHeight)>.02)continue;
+    const faceKind=surfaceKinds?.getX(first);
+    if(layer==='building'&&surfaceKinds&&faceKind!==1){
+     if(faceKind===2&&indices){point.fromBufferAttribute(positions,first);direction.fromBufferAttribute(positions,second).sub(point);flat.fromBufferAttribute(positions,third).sub(point);if(direction.cross(flat).dot(point.sub(surface.center))>0){indices.setX(offset+1,third);indices.setX(offset+2,second)}}
+     continue;
+    }
+    if(!surfaceKinds&&(Math.abs(firstHeight-secondHeight)>.02||Math.abs(firstHeight-thirdHeight)>.02))continue;
      const area=(local[second*3]-local[first*3])*(local[third*3+2]-local[first*3+2])-(local[third*3]-local[first*3])*(local[second*3+2]-local[first*3+2]);
-     if(Math.abs(area)<.0001)continue;
     if(layer==='building'&&indices){
      point.fromBufferAttribute(positions,first);direction.fromBufferAttribute(positions,second).sub(point);flat.fromBufferAttribute(positions,third).sub(point);
      if(direction.cross(flat).dot(point.sub(surface.center))<0){indices.setX(offset+1,third);indices.setX(offset+2,second)}
-      const bottom=[first,second,third].map(vertex=>bottomVertices.get(vertexKey(vertex))!);
-      if(bottom.every(vertex=>local[vertex*3+1]<firstHeight-.02)){
+      const bottom=surfaceKinds?[]:[first,second,third].map(vertex=>bottomVertices.get(vertexKey(vertex))!);
+      if(bottom.length&&bottom.every(vertex=>local[vertex*3+1]<firstHeight-.02)){
        point.fromBufferAttribute(positions,bottom[0]);direction.fromBufferAttribute(positions,bottom[1]).sub(point);flat.fromBufferAttribute(positions,bottom[2]).sub(point);
        if(direction.cross(flat).dot(point.sub(surface.center))>0)baseCaps.push(bottom[0],bottom[2],bottom[1]);else baseCaps.push(...bottom);
       }
     }
-     const feature=featureIds?tile.features[Math.round(featureIds.getX(first))]:undefined,triangle=surfaces.length/9;
+     if(Math.abs(area)<.0001)continue;
+    const feature=featureIds?tile.features[Math.round(featureIds.getX(first))]:undefined,triangle=surfaces.length/surfaceStride;
     if(layer==='building')roofFeatures[triangle]=featureIds?Math.round(featureIds.getX(first)):0;
-     surfaces.push(local[first*3],local[first*3+2],local[second*3],local[second*3+2],local[third*3],local[third*3+2],feature?.minHeightM??0,firstHeight,layer==='building'?1:layer==='water'?2:0);
+    surfaces.push(local[first*3],local[first*3+2],local[second*3],local[second*3+2],local[third*3],local[third*3+2],feature?.minHeightM??0,firstHeight,layer==='building'?1:layer==='water'?2:0,secondHeight,thirdHeight);
      const minEast=Math.floor(Math.min(local[first*3],local[second*3],local[third*3])/25),maxEast=Math.floor(Math.max(local[first*3],local[second*3],local[third*3])/25),minNorth=Math.floor(Math.min(local[first*3+2],local[second*3+2],local[third*3+2])/25),maxNorth=Math.floor(Math.max(local[first*3+2],local[second*3+2],local[third*3+2])/25);
      for(let east=minEast;east<=maxEast;east++)for(let north=minNorth;north<=maxNorth;north++){const key=east+','+north,entries=cells.get(key);if(entries)entries.push(triangle);else cells.set(key,[triangle]);extraBytes+=8}
     }
     if(layer==='building'&&indices)for(let offset=0;offset<indices.count;offset+=3){
      const first=indices.getX(offset),second=indices.getX(offset+1),third=indices.getX(offset+2);
+    if(surfaceKinds&&surfaceKinds.getX(first)!==0)continue;
      if(Math.abs(local[first*3+1]-local[second*3+1])<=.02&&Math.abs(local[first*3+1]-local[third*3+1])<=.02)continue;
      const eastEdge=local[second*3]-local[first*3],heightEdge=local[second*3+1]-local[first*3+1],northEdge=local[second*3+2]-local[first*3+2];
      const eastOther=local[third*3]-local[first*3],heightOther=local[third*3+1]-local[first*3+1],northOther=local[third*3+2]-local[first*3+2];
      const normalEast=northEdge*heightOther-heightEdge*northOther,normalNorth=heightEdge*eastOther-eastEdge*heightOther,length=Math.hypot(normalEast,normalNorth);
      if(length<.0001)continue;
      const centerEast=(local[first*3]+local[second*3]+local[third*3])/3,centerNorth=(local[first*3+2]+local[second*3+2]+local[third*3+2])/3,id=featureIds?Math.round(featureIds.getX(first)):0;
-     const underRoof=(east:number,north:number)=>(cells.get(cellKey(east,north))??[]).some(triangle=>roofFeatures[triangle]===id&&insideTriangle(east,north,surfaces,triangle*9));
+    const underRoof=(east:number,north:number)=>(cells.get(cellKey(east,north))??[]).some(triangle=>roofFeatures[triangle]===id&&insideTriangle(east,north,surfaces,triangle*surfaceStride));
      for(const inset of [.02,.005,.1]){
       const east=normalEast/length*inset,north=normalNorth/length*inset,front=underRoof(centerEast+east,centerNorth+north),back=underRoof(centerEast-east,centerNorth-north);
       if(front===back)continue;
@@ -181,7 +216,7 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
    tile.scene.remove(child);
   }
   const surfaceBuffer=Float32Array.from(surfaces);
-  return {root:tileRoot,record:tile.record,level:tile.level,bytes:tile.bytes*2+extraBytes+surfaceBuffer.byteLength+JSON.stringify(tile.features).length*2,triangles,cells,surfaces:surfaceBuffer,features:tile.features};
+  return {root:tileRoot,record:tile.record,level:tile.level,bytes:tile.bytes*2+extraBytes+surfaceBuffer.byteLength+JSON.stringify(tile.features).length*2,triangles,cells,surfaces:surfaceBuffer,features:tile.features,cameraCanopies};
  };
  const release=(asset:RegionAsset)=>{asset.root.traverse(child=>{const mesh=child as T.Mesh;if((child as T.InstancedMesh).isInstancedMesh)(child as T.InstancedMesh).dispose();else if(mesh.isMesh)mesh.geometry.dispose()});asset.root.clear();asset.cells.clear()};
  const initial:{tile:TileRecord;level:TileLevel;asset:RegionAsset}[]=[];
@@ -205,7 +240,7 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
  const releaseFocusPins=()=>{for(const id of focusPins)manager.releaseRequest(id);focusPins.clear()};
  const surfaceAt=(east:number,north:number,ceiling=Infinity,roofs=false)=>{
   let height=0,water=false;
-  for(const asset of attached.values())for(const triangle of asset.cells.get(cellKey(east,north))??[]){const offset=triangle*9,values=asset.surfaces;if(!insideTriangle(east,north,values,offset))continue;const kind=values[offset+8],top=values[offset+7];if(kind===2)water=true;else if((kind===0||roofs)&&top<=ceiling+.12)height=Math.max(height,top)}
+  for(const asset of attached.values())for(const triangle of asset.cells.get(cellKey(east,north))??[]){const offset=triangle*surfaceStride,values=asset.surfaces;if(!insideTriangle(east,north,values,offset))continue;const kind=values[offset+8],top=triangleHeight(east,north,values,offset);if(kind===2)water=true;else if((kind===0||roofs)&&top<=ceiling+.12)height=Math.max(height,top)}
   return {height,water:water&&height<.05};
  };
  const readyAt=(position:T.Vector3)=>{const local=flatAt(position),record=recordAt(local.east,local.north);return !record||attached.get(record.id)?.level===0};
@@ -214,7 +249,7 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
   if(requireLoaded&&!readyAt(position))return true;
   const reach=padding/city.scale;
   for(const [east,north] of [[local.east,local.north],[local.east+reach,local.north],[local.east-reach,local.north],[local.east,local.north+reach],[local.east,local.north-reach]]){
-   for(const asset of attached.values())for(const triangle of asset.cells.get(cellKey(east,north))??[]){const offset=triangle*9,values=asset.surfaces;if(values[offset+8]!==1||!insideTriangle(east,north,values,offset))continue;if(elevation+bodyHeight>values[offset+6]+.03&&elevation<values[offset+7]-.03)return true}
+  for(const asset of attached.values())for(const triangle of asset.cells.get(cellKey(east,north))??[]){const offset=triangle*surfaceStride,values=asset.surfaces;if(values[offset+8]!==1||!insideTriangle(east,north,values,offset))continue;if(elevation+bodyHeight>values[offset+6]+.03&&elevation<triangleHeight(east,north,values,offset)-.03)return true}
    if(bodyHeight>0&&surfaceAt(east,north).water)return true;
   }
   return false;
@@ -258,24 +293,31 @@ export function* buildBengaluruRegionWorld(parent:T.Object3D,surface:PlanetSurfa
    if(floor.water)return null;const normal=position.clone().sub(surface.center).normalize();return {point:normal.clone().multiplyScalar(surface.radius+floor.height*city.scale).add(surface.center),normal};
   },
   cameraDistance(origin,heading,distance){
+    cameraRay.set(origin,heading);
+    for(const asset of attached.values())for(const canopy of asset.cameraCanopies){
+     if(canopy.containsPoint(origin)){distance=Math.min(distance,.3);continue}
+     if(cameraRay.intersectSphere(canopy,cameraHit))distance=Math.min(distance,Math.max(.3,origin.distanceTo(cameraHit)-.18));
+    }
    const probe=new T.Vector3(),step=Math.max(.08,city.scale*.2);
    for(let travelled=step;travelled<=distance;travelled+=step){probe.copy(origin).addScaledVector(heading,travelled);if(probe.distanceTo(surface.center)<surface.radius+.03||collides(probe,.1,0,false))return Math.max(.3,travelled-step)}return distance;
   },
   async focus(id,player){
-   const destination=manifest.landmarks.find(entry=>entry.id===id)??manifest.places.find(entry=>entry.id===id)??manifest.named.find(entry=>entry.id===id);if(!destination||disposed)return false;
+    const coordinate=typeof id==='string'?null:id;
+    if(coordinate&&(!Number.isFinite(coordinate.east)||!Number.isFinite(coordinate.north)||coordinate.east<manifest.aoi.localBounds[0]||coordinate.east>manifest.aoi.localBounds[2]||coordinate.north<manifest.aoi.localBounds[1]||coordinate.north>manifest.aoi.localBounds[3]))return false;
+    const destination=coordinate?{local:[coordinate.east,coordinate.north]}:manifest.landmarks.find(entry=>entry.id===id)??manifest.places.find(entry=>entry.id===id)??manifest.named.find(entry=>entry.id===id);if(!destination||disposed)return false;
     const epoch=++focusEpoch,start=player.position.clone();for(const waiting of waiters.values())waiting.resolve(false);waiters.clear();
   releaseFocusPins();
   try{
     let east=destination.local[0],north=destination.local[1];
     if(!await ensureNeighborhood(east,north)||disposed||epoch!==focusEpoch)return false;
-    const feature=[...attached.values()].flatMap(asset=>asset.features).find(entry=>entry.id===id);
+    const feature=coordinate?undefined:[...attached.values()].flatMap(asset=>asset.features).find(entry=>entry.id===id);
     if(feature?.featureClass==='water'){east=feature.bbox[0]-10;north=(feature.bbox[1]+feature.bbox[3])/2;if(!await ensureNeighborhood(east,north))return false}
     if(disposed||epoch!==focusEpoch||player.position.distanceToSquared(start)>.04)return false;
     let arrival:T.Vector3|undefined,fallback:T.Vector3|undefined;
     for(let radius=0;radius<=180&&!arrival;radius+=6)for(let angle=0;angle<(radius?16:1);angle++){
      const candidateEast=east+Math.cos(angle*Math.PI/8)*radius,candidateNorth=north+Math.sin(angle*Math.PI/8)*radius,floor=surfaceAt(candidateEast,candidateNorth),candidate=toPlanet(candidateEast,candidateNorth,floor.height+.025/city.scale);
      if(!readyAt(candidate)||collides(candidate,city.scale*.3))continue;
-    fallback??=candidate;if(floor.height>=.05||feature?.featureClass==='park'){arrival=candidate;break}
+    fallback??=candidate;if(coordinate||floor.height>=.05||feature?.featureClass==='park'){arrival=candidate;break}
     }
     arrival??=fallback;if(!arrival)return false;
     player.position.copy(arrival);player.up.copy(arrival).sub(surface.center).normalize();player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(vertical,player.up);player.quaternion.copy(player.userData.surfaceFrame);return true;

@@ -168,7 +168,7 @@ function loadSkyTexture(city:CityPlanet,width=1536){
  if(!pending){
   pending=(async()=>{
    if(typeof Image==='undefined'||typeof document==='undefined')return null;
-   const image=new Image();image.decoding='async';image.src=city.assetBase+cityPlanetManifest.sky;
+    const image=new Image();image.decoding='async';image.src=city.assetBase+cityPlanetManifest.sky+'?v='+encodeURIComponent(cityPlanetManifest.generator+':'+cityPlanetManifest.source.inputSha256);
    try{await image.decode()}catch{return null}
    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=width/2;
    const context=canvas.getContext('2d');if(!context||typeof context.drawImage!=='function')return null;

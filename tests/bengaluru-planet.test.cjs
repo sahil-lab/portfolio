@@ -51,6 +51,38 @@ test('whole-globe projection covers every hemisphere while retaining source coor
  assert.throws(()=>createWrappedPlanetProjection({localBounds:[0,0,0,1]}),RangeError);
 });
 
+test('Bengaluru navigation maps live source coordinates north-up and resolves current places without stale selections',()=>{
+ const {mapPoint,mapCoordinates,createBengaluruLocator}=require('../app/bengaluru-location.ts');
+ const bounds=[-1000,-2000,20000,10000];assert.deepEqual(mapPoint(bounds,-1000,10000),{x:0,y:0});assert.deepEqual(mapPoint(bounds,20000,-2000),{x:1,y:1});
+ for(const [east,north] of [[620,-150],[17250,-1077],[-999,9999]]){const point=mapPoint(bounds,east,north),back=mapCoordinates(bounds,point.x,point.y);assert.ok(Math.abs(back.east-east)<1e-8&&Math.abs(back.north-north)<1e-8)}
+ const manifest={name:'Bengaluru',origin,aoi:{localBounds:bounds},places:[{name:'Bengaluru',local:[0,0],rank:0},{name:'Central Bengaluru',local:[0,0],rank:2},{name:'Whitefield',local:[17250,-1077],rank:2}],landmarks:[{label:'Vidhana Soudha',local:[0,0],featureClass:'building'},{label:'Cubbon Park',local:[620,-150],featureClass:'park'}]};
+ const locate=createBengaluruLocator(manifest),arrival=locate({east:620,north:-150,character:'main'});assert.equal(arrival.label,'Near Cubbon Park');assert.equal(arrival.character,'main');
+ const moved=locate({east:17260,north:-1080,character:'main'});assert.equal(moved.label,'Whitefield');assert.equal(moved.nearby,null);assert.notEqual(moved.mapX,arrival.mapX);
+ const angel=locate({east:5,north:0,character:'angel'});assert.equal(angel.label,'Near Vidhana Soudha');assert.equal(angel.character,'angel');assert.ok(Math.abs(angel.latitude-origin.lat)<.0001);
+ assert.equal(locate({east:60000,north:60000,character:'main'}).label,'Bengaluru');assert.equal(locate({east:NaN,north:0,character:'main'}),null);
+ const {renderNavigationSvg}=require('../app/bengaluru-pipeline.ts'),image=renderNavigationSvg([{featureClass:'road',subtype:'primary',line:[[-1000,10000],[20000,-2000]],lineStyle:{width:12,lod:1},tags:{}}],manifest,210);
+ assert.match(image,/viewBox="0 0 210 120"/);assert.match(image,/M0,0L210,120/);assert.match(image,/North-up map of Bengaluru/);
+});
+
+test('map raster tiles stay bounded and stable during movement and geolocation rejects unmapped coordinates',()=>{
+ const {visibleMapTiles,deviceLocationTarget}=require('../app/bengaluru-location.ts'),catalog=require('../app/bengaluru-map-raster-manifest.json'),manifest=require('../app/bengaluru-region-manifest.json');
+ const size={width:1000,height:920.6},view={x:300,y:300,width:62.5,height:39.0625},first=visibleMapTiles(catalog,view,size,180),moved=visibleMapTiles(catalog,{...view,x:300.1},size,180);
+ assert.ok(first.length>0&&first.length<=16);assert.deepEqual(first.map(tile=>tile.key),moved.map(tile=>tile.key),'small moves reuse tile images');
+ assert.ok(first.every(tile=>tile.href.endsWith('.webp')&&tile.x>=0&&tile.y>=0&&tile.x+tile.width<=size.width+.001&&tile.y+tile.height<=size.height+.001));
+ assert.ok(visibleMapTiles(catalog,{x:0,y:0,width:1000,height:920.6},size,820).length<=16);
+ const target=deviceLocationTarget(manifest,12.9704,77.7535);assert.ok(target&&target.east>17000);
+ for(const [latitude,longitude] of [[NaN,77.6],[90,77.6],[12.9,180],[13.2,77.6],[12.7,77.6]])assert.equal(deviceLocationTarget(manifest,latitude,longitude),null);
+});
+
+test('device location requests fresh permission-based coordinates and reports denied or unmapped locations',async()=>{
+ const {requestBengaluruDeviceLocation}=require('../app/bengaluru-location.ts'),manifest=require('../app/bengaluru-region-manifest.json');let calls=0;
+ const position=await requestBengaluruDeviceLocation(manifest,{getCurrentPosition(success,_error,options){calls++;assert.deepEqual(options,{enableHighAccuracy:true,maximumAge:0,timeout:15000});success({coords:{latitude:12.9704,longitude:77.7535,accuracy:24.6}})}});
+ assert.equal(calls,1);assert.deepEqual(position,{latitude:12.9704,longitude:77.7535,accuracy:25});
+ await assert.rejects(requestBengaluruDeviceLocation(manifest,undefined),/HTTPS or localhost/);
+ for(const [code,message] of [[1,/permission was denied/],[2,/could not determine/],[3,/timed out/]])await assert.rejects(requestBengaluruDeviceLocation(manifest,{getCurrentPosition(_success,error){error({code})}}),message);
+ await assert.rejects(requestBengaluruDeviceLocation(manifest,{getCurrentPosition(success){success({coords:{latitude:51.5,longitude:-.1,accuracy:10}})}}),/outside the mapped Bengaluru area/);
+});
+
 test('densification is deterministic, bounded and symmetric so shared edges match',()=>{
  const line=[[0,0],[100,0],[100,95]],out=densifyPolyline(line,40);
  assert.equal(out.length,1+3+3);for(let i=1;i<out.length;i++)assert.ok(Math.hypot(out[i][0]-out[i-1][0],out[i][1]-out[i-1][1])<=40+1e-9);
@@ -87,6 +119,18 @@ test('classification maps OSM tags to planet classes without inventing geometry'
  assert.equal(F.classify({tourism:'museum',name:'Museum'},'node',false).featureClass,'poi');assert.equal(F.classify({tourism:'museum'},'node',false),null);
  assert.equal(F.classify({tourism:'museum',name:'Museum grounds'},'way',true).subtype,'grounds');
  assert.equal(F.classify({railway:'rail'},'way',false).featureClass,'rail');assert.equal(F.classify(undefined,'way',true),null);
+});
+
+test('road widths prefer mapped carriageways and keep lane estimates distinct from measurements',()=>{
+ const style=tags=>F.classify({highway:'primary',...tags},'way',false).lineStyle;
+ assert.deepEqual(style({width:'7.5 m',lanes:'4'}),{width:7.5,lod:1,widthSource:'osm-width'});
+ assert.deepEqual(style({width:'12','width:carriageway':'6'}),{width:6,lod:1,widthSource:'osm-width'});
+ assert.ok(Math.abs(style({width:'20 ft'}).width-6.096)<1e-9);
+ assert.deepEqual(style({lanes:'4'}),{width:13.5,lod:1,widthSource:'lane-estimate'});
+ for(const tags of [{width:'unknown'},{width:'9999'},{lanes:'2;4'},{lanes:'0'},{lanes:'-2'},{lanes:'100'}])assert.deepEqual(style(tags),{width:12,lod:1});
+ assert.deepEqual(F.classify({highway:'footway',lanes:'2'},'way',false).lineStyle,{width:2,lod:0});
+ const tags={name:'Mapped street',highway:'primary',width:'7',lanes:'2',oneway:'yes',surface:'asphalt',bridge:'yes',layer:'1',sidewalk:'both','roof:shape':'gabled','roof:colour':'red','building:material':'brick'};
+ assert.deepEqual(F.curateTags({...tags,unrelated:'discard'}),tags);
 });
 
 test('multipolygon assembly chains members, orients rings and nests courtyards by containment',()=>{
@@ -171,6 +215,50 @@ test('extrusions face outward and up, overlays are gridded and ribbons meet at t
  const a=new G.FlatMeshBuilder(0,0),b=new G.FlatMeshBuilder(0,0);a.addRibbon(left,8,1.3,[1,1,1],0,40);b.addRibbon(right,8,1.3,[1,1,1],0,40);
  const endA=a.build().positions,endB=b.build().positions,pts=p=>{const out=[];for(let i=0;i<p.length;i+=3)out.push(p.slice(i,i+3).map(v=>+v.toFixed(6)).join(','));return out};
  const shared=pts(endA).filter(v=>pts(endB).includes(v));assert.equal(shared.length,2,'both ribbon ends share the two border vertices');
+});
+
+test('street ribbons preserve width through uneven bends and meet at clipped tile boundaries',()=>{
+ const line=[[0,0],[10,0],[10,100]],builder=new G.FlatMeshBuilder();builder.addRibbon(line,4,.06,[80,85,90],0,1000);
+ const positions=builder.build().positions,points=[];for(let index=0;index<positions.length;index+=3)points.push([positions[index],-positions[index+2]]);
+ assert.ok(points.some(([east,north])=>Math.abs(east-8)<1e-6&&Math.abs(north-2)<1e-6));
+ assert.ok(points.some(([east,north])=>Math.abs(east-12)<1e-6&&Math.abs(north+2)<1e-6));
+ const boundaryLine=[[-20,-10],[10,5],[15,80]],boundaries=[[-50,-50,10,100],[10,-50,50,100]],seams=[];
+ for(const clip of boundaries){
+  const mesh=new G.FlatMeshBuilder();mesh.addRibbon(boundaryLine,7,.06,[80,85,90],0,40,clip);const built=mesh.build(),seam=[];
+  for(let index=0;index<built.positions.length;index+=3){const east=built.positions[index],north=-built.positions[index+2];assert.ok(east>=clip[0]-1e-5&&east<=clip[2]+1e-5&&north>=clip[1]-1e-5&&north<=clip[3]+1e-5);if(Math.abs(east-10)<1e-5)seam.push(north.toFixed(4))}
+  seams.push([...new Set(seam)].sort());
+ }
+ assert.deepEqual(seams[0],seams[1]);assert.ok(seams[0].length>=2);
+ const road=surface=>G.featureColor({id:'way/street',featureClass:'road',subtype:'primary',tags:{surface}});
+ assert.ok(road('asphalt').every(channel=>channel<100));assert.notDeepEqual(road('concrete'),road('asphalt'));assert.notDeepEqual(road('gravel'),road('asphalt'));
+});
+
+test('mapped facade and roof colors override generic landmark styling without coloring the walls as roofs',()=>{
+ const feature={id:'relation/446900',featureClass:'building',subtype:'yes',landmark:'Karnataka High Court',tags:{'building:colour':'red','roof:colour':'#da635d','building:material':'brick'}};
+ assert.deepEqual(G.featureColor(feature),[255,0,0]);assert.deepEqual(G.featureRoofColor(feature),[218,99,93]);
+ assert.deepEqual(G.mappedColor('light_grey'),[211,211,211]);assert.deepEqual(G.mappedColor('#abc'),[170,187,204]);assert.equal(G.mappedColor('not a color'),undefined);
+ const builder=new G.FlatMeshBuilder();builder.addExtrusion({outer:[[0,0],[10,0],[10,10],[0,10]],holes:[]},0,12,[230,220,210],0,40,.8,[80,85,90]);
+ const built=builder.build(),roofColors=new Set(),wallColors=new Set();
+ for(let offset=0;offset<built.indices.length;offset+=3){const vertices=[built.indices[offset],built.indices[offset+1],built.indices[offset+2]],normal=faceNormal(built.positions,...vertices);const target=normal[1]>.01?roofColors:wallColors;for(const vertex of vertices)target.add(Array.from(built.colors.slice(vertex*4,vertex*4+3)).join(','))}
+ assert.equal(roofColors.size,1);for(const color of roofColors)assert.equal(wallColors.has(color),false,'roof color must not leak down wall vertices');
+});
+
+test('mapped roof profiles form ridges and domes within their source heights and preserve courtyards',()=>{
+ const polygon={outer:[[-10,-10],[10,-10],[10,10],[-10,10]],holes:[]};
+ for(const shape of ['gabled','hipped','pyramidal','skillion','dome','onion','round','cone']){
+  const feature={height:{heightM:16,minHeightM:2},polygons:[polygon],tags:{'roof:shape':shape,'roof:height':'6'}};
+  const roof=G.featureRoofProfile(feature);assert.equal(roof.source,'osm-roof-height');assert.equal(roof.height,6);
+  const builder=new G.FlatMeshBuilder();builder.addExtrusion(polygon,2,16,[210,210,200],0,40,.8,[140,140,140],roof);const built=builder.build(),heights=[];
+  for(let vertex=0;vertex<built.vertexCount;vertex++){const height=built.positions[vertex*3+1];assert.ok(height>=2&&height<=16.001);if(built.surfaceKinds[vertex]===1)heights.push(height)}
+  assert.ok(Math.min(...heights)<=10.01,shape+' reaches its eaves');assert.ok(Math.max(...heights)>15.9,shape+' reaches its mapped peak');assert.ok(new Set(heights.map(height=>height.toFixed(2))).size>3,shape+' must not be a flat box');assert.ok(built.surfaceKinds.includes(2),'base is closed');
+  if(shape==='gabled'){
+   const T=require('three'),geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(built.positions,3));geometry.setIndex(new T.BufferAttribute(built.indices,1));const mesh=new T.Mesh(geometry,new T.MeshBasicMaterial());mesh.updateMatrixWorld(true);
+   assert.ok(new T.Raycaster(new T.Vector3(-12,14,0),new T.Vector3(1,0,0),0,5).intersectObject(mesh,false).length>0,'gable end is closed above the eaves');geometry.dispose();mesh.material.dispose();
+  }
+ }
+ const roof=G.featureRoofProfile({height:{heightM:46,minHeightM:38},polygons:[polygon],tags:{'roof:shape':'dome','roof:height':'15'}});assert.equal(roof.height,8,'inconsistent source roof height cannot extend below a raised part');
+ const courtyard={...polygon,holes:[[[-2,-2],[-2,2],[2,2],[2,-2]]]},builder=new G.FlatMeshBuilder();builder.addExtrusion(courtyard,0,12,[210,210,200],0,40,.8,[140,140,140],{shape:'hipped',height:4,across:false,source:'inferred'});const built=builder.build();
+ for(let offset=0;offset<built.indices.length;offset+=3){const vertices=[built.indices[offset],built.indices[offset+1],built.indices[offset+2]];if(built.surfaceKinds[vertices[0]]===0)continue;const east=vertices.reduce((sum,vertex)=>sum+built.positions[vertex*3],0)/3,north=-vertices.reduce((sum,vertex)=>sum+built.positions[vertex*3+2],0)/3;assert.ok(!(Math.abs(east)<1.99&&Math.abs(north)<1.99),'roof and base leave the courtyard open')}
 });
 
 test('tree placement is deterministic, inside the polygon and capped',()=>{
@@ -529,7 +617,7 @@ test('regional city loads a bounded arrival and focuses the existing character o
  const {createPlanetSurface}=require('../app/planet-geography.ts');
  const surface=createPlanetSurface({id:'bengaluru',city:'bengaluru',name:'Bengaluru',theme:'garden',color:'#b7ab8e',subtitle:'',...bengaluruRegionPosition,radius},radius);
  const base=path.resolve(__dirname,'../public/assets/bengaluru-region-v1');let requests=0,advance=()=>{};
- const request=async url=>{requests++;await new Promise(resolve=>setImmediate(()=>{advance();resolve()}));const bytes=fs.readFileSync(path.join(base,String(url).replace(city.assetBase,'')));return {ok:true,status:200,json:async()=>JSON.parse(bytes.toString()),arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
+ const request=async url=>{requests++;await new Promise(resolve=>setImmediate(()=>{advance();resolve()}));const bytes=fs.readFileSync(path.join(base,new URL(String(url),'https://fixtures.invalid').pathname.replace(city.assetBase,'')));return {ok:true,status:200,json:async()=>JSON.parse(bytes.toString()),arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
  const payload=await loadBengaluruRegion(surface,new AbortController().signal,request);
  assert.ok(payload.tiles.length<=9);assert.ok(requests<=19,'arrival does not fetch the whole city');
  const generator=buildBengaluruRegionWorld(new T.Scene(),surface,payload);let result=generator.next();while(!result.done)result=generator.next();const world=result.value;
@@ -537,30 +625,37 @@ test('regional city loads a bounded arrival and focuses the existing character o
   assert.ok(world.bakedTiles<=9);assert.ok(world.bytes<=24*1048576);assert.ok(world.triangles>1000);
   const assertBuildings=()=>{
   let checkedBuildings=0;
+  let checkedUnderground=false;
   world.root.traverse(mesh=>{
    if(mesh.name!=='Bengaluru_building')return;
-   const geometry=mesh.geometry,positions=geometry.attributes.position,local=geometry.attributes.cityMeters,ids=geometry.getAttribute('_featureid'),indices=geometry.index,buildings=new Map(),bottomHeights=new Map();
+    const geometry=mesh.geometry,positions=geometry.attributes.position,local=geometry.attributes.cityMeters,ids=geometry.getAttribute('_featureid'),roles=geometry.getAttribute('_surface'),indices=geometry.index,buildings=new Map(),bottomHeights=new Map();
+    const records=JSON.parse(fs.readFileSync(path.join(base,world.region.manifest.tiles.find(tile=>tile.id===mesh.userData.cityTile).features),'utf8'));
+    const underground=records.find(feature=>feature.id==='way/323961213');
+    if(underground){checkedUnderground=true;assert.equal(underground.tags.layer,'-1');assert.ok(Array.from(indices.array).every(vertex=>Math.round(ids.getX(vertex))!==underground.index),'mapped underground station must not render above the street')}
    for(let vertex=0;vertex<positions.count;vertex++){const id=Math.round(ids.getX(vertex));bottomHeights.set(id,Math.min(bottomHeights.get(id)??Infinity,local.getY(vertex)))}
    for(let offset=0;offset<indices.count;offset+=3){
     const vertices=[indices.getX(offset),indices.getX(offset+1),indices.getX(offset+2)],id=Math.round(ids.getX(vertices[0])),entry=buildings.get(id)??{roofs:0,walls:0,bases:0};buildings.set(id,entry);
     const heights=vertices.map(vertex=>local.getY(vertex));
-    if(Math.max(...heights)-Math.min(...heights)<.02){
-     const isBase=Math.abs(heights[0]-bottomHeights.get(id))<.02;
+    if(roles?roles.getX(vertices[0])!==0:Math.max(...heights)-Math.min(...heights)<.02){
+     const isBase=roles?roles.getX(vertices[0])===2:Math.abs(heights[0]-bottomHeights.get(id))<.02;
      if(isBase)entry.bases++;else entry.roofs++;
      const normal=faceNormal(positions.array,...vertices),point=new T.Vector3().fromBufferAttribute(positions,vertices[0]).sub(surface.center);
     const facing=new T.Vector3(...normal).dot(point);
      assert.ok(isBase?facing<0:facing>0,'building cap faces outward: '+JSON.stringify({tile:mesh.userData.cityTile,id,isBase,facing,normal,vertices:vertices.map(vertex=>[local.getX(vertex),local.getY(vertex),local.getZ(vertex)])}));
     }else entry.walls++;
    }
-   for(const [id,entry] of buildings){assert.ok(entry.roofs>0&&entry.bases===entry.roofs&&entry.walls>=6,'building has a roof, base and enclosing walls: '+JSON.stringify({tile:mesh.userData.cityTile,id,...entry}));checkedBuildings++}
+  for(const [id,entry] of buildings){const record=records[id],roofOnly=record.roofShape&&record.roofHeightM>=(record.displayHeightM??record.heightM)-record.minHeightM-.02;assert.ok(entry.roofs>0&&entry.bases>0&&(entry.walls>=6||roofOnly),'building has a roof, base and enclosing walls: '+JSON.stringify({tile:mesh.userData.cityTile,id,...entry}));checkedBuildings++}
   });
   assert.ok(checkedBuildings>50,'validate real buildings across the arrival tiles');
+  return checkedUnderground;
   };
-  assertBuildings();
+  assert.equal(assertBuildings(),true,'verify the source-tagged underground civic station');
   const groundMesh=world.root.getObjectByName('Bengaluru_Base'),groundPoint=new T.Vector3().fromBufferAttribute(groundMesh.geometry.attributes.position,0);
   assert.ok(Math.abs(groundPoint.distanceTo(surface.center)-(radius-.08*city.scale))<.01,'resident ground follows the sphere at street scale');
   const treeMesh=world.root.getObjectByName('Bengaluru_Trees'),treeMatrix=new T.Matrix4();treeMesh.getMatrixAt(0,treeMatrix);
   assert.ok(Math.abs(new T.Vector3().setFromMatrixPosition(treeMatrix).distanceTo(surface.center)-(radius+.025*city.scale))<.01,'trees meet the park surface instead of floating');
+  const canopy=new T.Vector3(0,6.1,0).applyMatrix4(treeMatrix),side=new T.Vector3(1,0,0).transformDirection(treeMatrix),cameraOrigin=canopy.clone().addScaledVector(side,6);
+  assert.ok(world.region.cameraDistance(cameraOrigin,side.clone().negate(),12)<6,'camera clearance stops before entering a rendered tree canopy');
   const lawn=world.toPlanet(city.anchor.east+190,city.anchor.north),building=world.toPlanet(442.33,425.58);
   assert.equal(world.region.readyAt(lawn),true);assert.equal(world.blocked(lawn,.225),false);assert.equal(world.blocked(building,.225),true);
   const rocketSpawn=new T.Vector3(surface.stop.x+13.8,surface.stop.y,surface.stop.z+2),originalSpawn=rocketSpawn.toArray();
@@ -575,18 +670,24 @@ test('regional city loads a bounded arrival and focuses the existing character o
   const whitefield=world.region.manifest.places.find(place=>place.id==='node/377219489');assert.ok(whitefield);
   const player=new T.Group();player.position.copy(lawn);
   advance=()=>world.region.update(.2,player,true);
+  const beforeInvalid=player.position.toArray(),beforeRequests=requests;
+  assert.equal(await world.region.focus({east:Infinity,north:0},player),false);assert.equal(await world.region.focus({east:world.region.manifest.aoi.localBounds[2]+100,north:0},player),false);
+  assert.deepEqual(player.position.toArray(),beforeInvalid);assert.equal(requests,beforeRequests,'invalid coordinates must not start tile requests');
+  assert.equal(await world.region.focus({east:city.anchor.east+190,north:city.anchor.north},player),true);
+  const deviceArrival=world.flatAt(player.position);assert.ok(Math.hypot(deviceArrival.east-city.anchor.east-190,deviceArrival.north-city.anchor.north)<.01,'clear device coordinates retain their exact map position');assert.equal(world.blocked(player.position,.225),false);
   assert.equal(await world.region.focus(whitefield.id,player),true);
   assert.equal(world.region.readyAt(player.position),true,'focus waits for collision-ready geometry');assert.equal(world.blocked(player.position,.225),false,'focus never leaves the character inside a building or water');
   assertBuildings();
+  const regressionRecords=JSON.parse(fs.readFileSync(path.join(base,world.region.manifest.tiles.find(tile=>tile.id==='t35_-2').features),'utf8')),regressionId=regressionRecords.findIndex(feature=>feature.id==='way/346553834');assert.ok(regressionId>=0);
   let checkedWalls=0;
   world.root.traverse(mesh=>{
    if(mesh.name!=='Bengaluru_building'||mesh.userData.cityTile!=='t35_-2')return;
    const geometry=mesh.geometry,positions=geometry.attributes.position,local=geometry.attributes.cityMeters,ids=geometry.getAttribute('_featureid'),indices=geometry.index,vertices=[];
-   for(let vertex=0;vertex<positions.count;vertex++)if(Math.round(ids.getX(vertex))===691)vertices.push(vertex);
-   assert.equal(vertices.length,8,'the close-up regression uses the mapped four-wall building');
+  for(let vertex=0;vertex<positions.count;vertex++)if(Math.round(ids.getX(vertex))===regressionId)vertices.push(vertex);
+  assert.equal(new Set(vertices.map(vertex=>[positions.getX(vertex),positions.getY(vertex),positions.getZ(vertex)].join(','))).size,8,'the close-up regression uses the mapped four-wall building');
    const center=vertices.reduce((total,vertex)=>total.add(new T.Vector3().fromBufferAttribute(positions,vertex)),new T.Vector3()).divideScalar(vertices.length);
    for(let offset=0;offset<indices.count;offset+=3){
-    const first=indices.getX(offset),second=indices.getX(offset+1),third=indices.getX(offset+2);if(Math.round(ids.getX(first))!==691)continue;
+    const first=indices.getX(offset),second=indices.getX(offset+1),third=indices.getX(offset+2);if(Math.round(ids.getX(first))!==regressionId)continue;
     const heights=[first,second,third].map(vertex=>local.getY(vertex));if(Math.max(...heights)-Math.min(...heights)<.02)continue;
     const outward=[first,second,third].reduce((total,vertex)=>total.add(new T.Vector3().fromBufferAttribute(positions,vertex)),new T.Vector3()).divideScalar(3).sub(center);
     assert.ok(new T.Vector3(...faceNormal(positions.array,first,second,third)).dot(outward)>0,'mapped building walls face outward, not into the building');checkedWalls++;
@@ -619,6 +720,23 @@ test('regional walls enclose concave footprints while courtyard walls face their
   const roofOrigin=world.toPlanet(20,5,20),floorOrigin=world.toPlanet(20,5,0);
   assert.ok(new T.Raycaster(roofOrigin,surface.center.clone().sub(roofOrigin).normalize(),0,20).intersectObject(building,false).length>0,'solid roof is visible from above');
   assert.ok(new T.Raycaster(floorOrigin,floorOrigin.clone().sub(surface.center).normalize(),0,20).intersectObject(building,false).length>0,'solid base is visible from below');
+ }finally{world.region.dispose()}
+});
+
+test('regional sloped roofs provide matching landing heights and keep facade storeys separate from roof faces',()=>{
+ const T=require('three'),{buildBengaluruRegionWorld}=require('../app/bengaluru-region-world.ts'),{createPlanetSurface}=require('../app/planet-geography.ts');
+ const {bengaluruRegionCity:city,bengaluruRegionRadius:radius,bengaluruRegionPosition}=require('../app/bengaluru-city-config.ts'),manifest=require('../app/bengaluru-region-manifest.json');
+ const surface=createPlanetSurface({id:'bengaluru',city:'bengaluru',name:'Bengaluru',theme:'garden',color:'#b7ab8e',subtitle:'',...bengaluruRegionPosition,radius},radius),builder=new G.FlatMeshBuilder();
+ builder.addExtrusion({outer:[[-10,-10],[10,-10],[10,10],[-10,10]],holes:[]},0,16,[200,190,180],0,40,.8,[120,130,140],{shape:'gabled',height:6,across:false,source:'osm-roof-height'});
+ const buffers=builder.build(),geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(buffers.positions,3));geometry.setAttribute('color',new T.BufferAttribute(buffers.colors,4,true));geometry.setAttribute('_featureid',new T.BufferAttribute(buffers.featureIds,1));geometry.setAttribute('_surface',new T.BufferAttribute(buffers.surfaceKinds,1));geometry.setIndex(new T.BufferAttribute(buffers.indices,1));
+ const scene=new T.Group(),mesh=new T.Mesh(geometry,new T.MeshStandardMaterial());mesh.name='building';scene.add(mesh);
+ const record={...manifest.tiles[0],id:'t0_0',ix:0,iy:0,bounds:[0,0,500,500],center:[250,250],featureCount:1},feature={index:0,id:'way/roof-fixture',featureClass:'building',minHeightM:0,heightM:16,displayHeightM:16,levels:4,tags:{}};
+ const payload={city,manifest:{...manifest,tiles:[record],landmarks:[],places:[]},tiles:[{record,level:0,scene,features:[feature],bytes:buffers.positions.byteLength+buffers.indices.byteLength}],loadTile:async()=>{throw new Error('fixture must not fetch')}};
+ const generator=buildBengaluruRegionWorld(new T.Scene(),surface,payload);let result=generator.next();while(!result.done)result=generator.next();const world=result.value;
+ try{
+  const contact=world.region.sampleGround(world.toPlanet(1,5,20));assert.ok(contact);assert.ok(Math.abs((contact.point.distanceTo(surface.center)-radius)/city.scale-13)<.02,'landing follows the slope instead of a flat roof box');
+  assert.equal(world.blocked(world.toPlanet(1,5,12),0),true);assert.equal(world.blocked(world.toPlanet(1,5,14),0),false);
+  const rendered=world.root.getObjectByName('Bengaluru_building');assert.equal(rendered.geometry.getAttribute('cityFacade').getX(0),4);assert.ok(Array.from(rendered.geometry.getAttribute('cityRoof').array).includes(1));
  }finally{world.region.dispose()}
 });
 

@@ -36,6 +36,7 @@ import { Cpu, FolderCode, Info, Volume2, VolumeX, Maximize, Map, ArrowUpRight, C
 import type {createWorld} from './world';
 import type {FeatureRecord,PlanetManifest} from './bengaluru-pipeline';
 import {BengaluruControls} from './bengaluru-controls';
+import {BengaluruMap} from './bengaluru-map';
 import {districts} from './world-config';
 import {DeliveryRound} from './delivery-state';
 import {encounters,type Encounter} from './encounter-config';
@@ -48,6 +49,7 @@ export default function Home({initialBengaluru=false}:{initialBengaluru?:boolean
  const [bengaluru,setBengaluru]=useState<PlanetManifest|null>(null),[visitingCity,setVisitingCity]=useState(false),[cityFailed,setCityFailed]=useState(false);
  const [bengaluruSelection,setBengaluruSelection]=useState<FeatureRecord|null>(null);
  const [bengaluruToolsOpen,setBengaluruToolsOpen]=useState(false);
+ const [bengaluruMapExpanded,setBengaluruMapExpanded]=useState(false);
  const [radioOpen,setRadioOpen]=useState(false),[radioVisited,setRadioVisited]=useState(false);
  const [friendsClient]=useState(()=>new FriendsClient());const [friendsOpen,setFriendsOpen]=useState(false),[friendsVisited,setFriendsVisited]=useState(false);
  const [friendsView,setFriendsView]=useState<PlayView>('lobby'),[friendsActivity,setFriendsActivity]=useState<FriendsActivityStatus>({active:false,kind:null,cabin:false,planet:0});
@@ -67,6 +69,7 @@ export default function Home({initialBengaluru=false}:{initialBengaluru?:boolean
  const [settings,setSettings]=useState<Settings>(defaultSettings);const [paused,setPaused]=useState(false);const [performanceText,setPerformanceText]=useState('Measuring…');const [saveError,setSaveError]=useState(false);
  const [delivery,setDelivery]=useState(()=>new DeliveryRound().snapshot);const [encounter,setEncounter]=useState<Encounter|null>(null);const [subtitle,setSubtitle]=useState('');
  const host=useRef<HTMLDivElement>(null);const game=useRef<ReturnType<typeof createWorld>|null>(null);const [place,setPlace]=useState(0);const [ready,setReady]=useState(false);
+ const readCityPosition=()=>game.current?.bengaluruPosition()??null;
  // WebGL initialization is an external operation; report its synchronous failure so HTML access remains available.
  // oxlint-disable-next-line react/react-compiler
  useEffect(()=>{
@@ -85,7 +88,12 @@ export default function Home({initialBengaluru=false}:{initialBengaluru?:boolean
   return()=>{active=false};
  },[ready,initialBengaluru]);
  const visitCity=async(id?:string)=>{setVisitingCity(true);try{return await game.current?.goBengaluru(id)??false}finally{setVisitingCity(false)}};
- useEffect(()=>{game.current?.pause(panel!==null||machine!==null||readingResume!==null||friendsOpen||radioOpen);game.current?.setFriendsOverlay(friendsOpen)},[panel,machine,readingResume,friendsOpen,radioOpen,ready]);
+ const visitDeviceLocation=async(latitude:number,longitude:number,accuracy:number)=>{
+  setBengaluruMapExpanded(false);await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+  const moved=await game.current?.goBengaluruLocation(latitude,longitude)??false;
+  if(moved)setNotice('Arrived near your device location'+(accuracy?' (accuracy '+accuracy+' m).':'.'));return moved;
+ };
+ useEffect(()=>{game.current?.pause(panel!==null||machine!==null||readingResume!==null||friendsOpen||radioOpen||bengaluruMapExpanded);game.current?.setFriendsOverlay(friendsOpen)},[panel,machine,readingResume,friendsOpen,radioOpen,bengaluruMapExpanded,ready]);
  useEffect(()=>{game.current?.attachFriends(friendsClient);return()=>game.current?.attachFriends(null)},[ready,friendsClient]);
  useEffect(()=>()=>friendsClient.dispose(),[friendsClient]);
  useEffect(()=>{if(!ready)return;let active=true;queueMicrotask(()=>{const query=new URLSearchParams(location.search);if(active&&(query.has('room')||query.has('friends'))){game.current?.goFriendsStation('lobby');setFriendsVisited(true);setFriendsOpen(true)}});return()=>{active=false}},[ready]);
@@ -98,10 +106,11 @@ export default function Home({initialBengaluru=false}:{initialBengaluru?:boolean
  const openPanel=(value:NonNullable<typeof panel>)=>{setCategory(null);setPanel(value)};
  const revealFriends=(view:PlayView)=>{setCategory(null);setFriendsView(view);setFriendsVisited(true);setFriendsOpen(true)};
  const openFriends=()=>{if(!friendsActivity.active)game.current?.goFriendsStation('lobby');revealFriends(friendsActivity.kind==='race'?'race':friendsActivity.kind==='ship'?'ship':'lobby')};
- const controlsDisabled=!ready||paused||panel!==null||machine!==null||readingResume!==null||friendsOpen||radioOpen||friendsActivity.active;
+ const controlsDisabled=!ready||paused||panel!==null||machine!==null||readingResume!==null||friendsOpen||radioOpen||friendsActivity.active||bengaluruMapExpanded;
  const nearbyAction=prompt.match(/^E\s*\u00b7\s*(.+)$/)?.[1];
  return <main className="kingdom" data-ready={ready} data-shared-activity={friendsActivity.kind??undefined} data-angel={angel.controlled} data-controls-open={category??undefined} data-atlas-open={showAtlas} data-neighborhood={!angel.controlled&&place===0&&!inCommons&&inside===null&&transit.current===0&&!transit.mode} data-observing={observing!==null} data-interior={inside!==null} data-satellite={angel.controlled?angel.current>0:transit.current>0||!!transit.mode}><div className="world" ref={host}/><div className="vignette"/>
- {(initialBengaluru||bengaluru)&&observing===null&&<BengaluruControls open={bengaluruToolsOpen} close={()=>setBengaluruToolsOpen(false)} manifest={bengaluru} selection={bengaluruSelection} busy={visitingCity||!ready} disabled={controlsDisabled} angel={angel.controlled} failed={cityFailed} visit={visitCity} changeCharacter={value=>game.current?.angelMode(value)} overview={()=>{if(!game.current||angel.controlled)return;const destination=transitStops.findIndex(stop=>stop.city==='bengaluru');game.current.observePlanet(destination);setObserving(destination);setBengaluruToolsOpen(false);setCategory(null)}}/>}
+ {(initialBengaluru||bengaluru)&&observing===null&&<BengaluruControls open={bengaluruToolsOpen} close={()=>setBengaluruToolsOpen(false)} manifest={bengaluru} selection={bengaluruSelection} busy={visitingCity||!ready} disabled={controlsDisabled} angel={angel.controlled} failed={cityFailed} visit={visitCity} readPosition={readCityPosition} changeCharacter={value=>game.current?.angelMode(value)} overview={()=>{if(!game.current||angel.controlled)return;const destination=transitStops.findIndex(stop=>stop.city==='bengaluru');game.current.observePlanet(destination);setObserving(destination);setBengaluruToolsOpen(false);setCategory(null)}}/>}
+ {bengaluru&&observing===null&&!bengaluruToolsOpen&&(!angel.controlled||angel.destination===null)&&(bengaluruMapExpanded||!controlsDisabled&&category===null)&&<BengaluruMap manifest={bengaluru} readPosition={readCityPosition} expanded={bengaluruMapExpanded} onExpandedChange={setBengaluruMapExpanded} onDeviceLocation={visitDeviceLocation}/>}
  {bengaluru&&(!bengaluruToolsOpen||observing!==null)&&<a className="bengaluru-map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Map data: OpenStreetMap contributors / ODbL</a>}
  {readingResume&&<ResumeBookReader onPanelClose={()=>setReadingResume(null)} initialPage={readingResume.page} close={()=>setReadingResume(null)} turn={page=>game.current?.resumeBooks.books.find(book=>book.site.id===readingResume.site)?.setSpread(page===3?1:0)}/>}
  {radioVisited&&<RadioTuner panelOpen={radioOpen} onPanelClose={()=>setRadioOpen(false)} loading={radioOpen?<output className="world-notice">Opening radio...</output>:null} open={radioOpen} close={()=>setRadioOpen(false)} reopen={()=>setRadioOpen(true)} muted={settings.muted} masterVolume={settings.volume} paused={paused} enableSound={()=>{setSettings(value=>({...value,muted:false}));game.current?.sound(true)}} onPlayback={state=>game.current?.radioState(state)}/>}

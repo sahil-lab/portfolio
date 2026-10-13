@@ -19,7 +19,7 @@ export type HeightSource='osm-height'|'building-levels'|'type-default'|'default'
 export type HeightInfo={heightM:number;minHeightM:number;levels?:number;source:HeightSource;estimated:boolean};
 export type Ring=[number,number][];
 export type Polygon={outer:Ring;holes:Ring[]};
-export type LineStyle={width:number;lod:0|1};
+export type LineStyle={width:number;lod:0|1;widthSource?:'osm-width'|'lane-estimate'};
 
 export type SourceFeature={
  id:string;osmType:'node'|'way'|'relation';osmId:number;
@@ -106,7 +106,12 @@ export function classify(tags:Record<string,string>|undefined,element:'node'|'wa
  if(!isNo(tags.building))return {featureClass:'building',subtype:tags.building,areaOnly:true};
  if(tags.highway){
   if(tags.area==='yes'&&closed&&['pedestrian','footway','service','living_street','residential','unclassified'].includes(tags.highway))return {featureClass:'road',subtype:'plaza',areaOnly:true};
-  const style=roadStyles[tags.highway];return style?{featureClass:'road',subtype:tags.highway,lineStyle:style}:null;
+  const style=roadStyles[tags.highway];if(!style)return null;
+  const specified=parseOsmHeight(tags['width:carriageway'])??parseOsmHeight(tags.width);
+  const lanes=/^(?:[1-9]|1[0-2])$/.test(tags.lanes??'')?Number(tags.lanes):0;
+  const motorRoad=!['footway','path','cycleway','steps','bridleway','pedestrian'].includes(tags.highway);
+  const lineStyle:LineStyle=specified!==undefined&&specified>=.3&&specified<=80?{...style,width:specified,widthSource:'osm-width'}:lanes&&motorRoad?{...style,width:lanes*3.25+.5,widthSource:'lane-estimate'}:style;
+  return {featureClass:'road',subtype:tags.highway,lineStyle};
  }
  if(tags.railway){const style=railStyles[tags.railway];return style&&tags.service!=='yard'?{featureClass:'rail',subtype:tags.railway,lineStyle:style}:null}
  const isWaterArea=tags.natural==='water'||(tags.water!==undefined&&tags.water!=='no')||['reservoir','basin'].includes(tags.landuse??'')||['riverbank','dock'].includes(tags.waterway??'');
@@ -207,7 +212,7 @@ export function assemblePolygons(ways:Ring[]):{polygons:Polygon[];unclosed:numbe
 }
 
 const geometryToLonLat=(geometry:(OsmCoordinate|null)[]|undefined)=>(geometry??[]).filter((p):p is OsmCoordinate=>!!p).map(p=>[p.lon,p.lat] as [number,number]);
-const curatedTagKeys=['name','name:kn','building','building:part','building:levels','height','min_height','amenity','tourism','leisure','landuse','natural','highway','railway','waterway','water','place','historic','wikidata','wikipedia','addr:street'];
+const curatedTagKeys=['name','name:kn','building','building:part','building:levels','building:min_level','building:colour','building:material','roof:shape','roof:height','roof:levels','roof:colour','roof:material','roof:direction','roof:orientation','height','min_height','amenity','tourism','leisure','landuse','natural','highway','width','width:carriageway','lanes','lanes:forward','lanes:backward','oneway','surface','bridge','tunnel','layer','sidewalk','cycleway','railway','waterway','water','place','historic','wikidata','wikipedia','addr:street'];
 export const curateTags=(tags:Record<string,string>)=>Object.fromEntries(curatedTagKeys.filter(key=>tags[key]!==undefined).map(key=>[key,tags[key]]));
 
 const lineLength=(line:Ring)=>{let total=0;for(let i=1;i<line.length;i++)total+=Math.hypot(line[i][0]-line[i-1][0],line[i][1]-line[i-1][1]);return total};

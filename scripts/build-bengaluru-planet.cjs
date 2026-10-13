@@ -12,8 +12,9 @@
  */
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),zlib=require('node:zlib'),assert=require('node:assert/strict'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
-const {buildPlanet}=require('../app/bengaluru-pipeline.ts');
-const {values:options}=require('node:util').parseArgs({options:{config:{type:'string',default:'assets/bengaluru/planet-config.json'},output:{type:'string',default:'public/assets/bengaluru-v1'},manifest:{type:'string',default:'app/bengaluru-planet-manifest.json'},'install-staging':{type:'string'},check:{type:'boolean'},fetch:{type:'boolean'},stream:{type:'boolean'},help:{type:'boolean'}}});
+const {buildPlanet,renderNavigationSvg}=require('../app/bengaluru-pipeline.ts');
+const {buildFeatures}=require('../app/bengaluru-features.ts');
+const {values:options}=require('node:util').parseArgs({options:{config:{type:'string',default:'assets/bengaluru/planet-config.json'},output:{type:'string',default:'public/assets/bengaluru-v1'},manifest:{type:'string',default:'app/bengaluru-planet-manifest.json'},'install-staging':{type:'string'},navigation:{type:'boolean'},'navigation-raster':{type:'boolean'},check:{type:'boolean'},fetch:{type:'boolean'},stream:{type:'boolean'},help:{type:'boolean'}}});
 const root=path.resolve(__dirname,'..'),configPath=path.resolve(root,options.config),outputDir=path.resolve(root,options.output),appManifest=path.resolve(root,options.manifest);
 const sha256=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const config=JSON.parse(fs.readFileSync(configPath,'utf8'));
@@ -93,8 +94,33 @@ function report(result){
 }
 
 async function main(){
- if(options.help){console.log('node scripts/build-bengaluru-planet.cjs [--config file] [--output public/assets/name] [--manifest app/name-manifest.json] [--stream] [--check] [--fetch]');return}
+ if(options.help){console.log('node scripts/build-bengaluru-planet.cjs [--config file] [--output public/assets/name] [--manifest app/name-manifest.json] [--navigation] [--navigation-raster] [--stream] [--check] [--fetch]');return}
  if(options.fetch)return fetchSnapshot();
+ if(options['navigation-raster']){
+  assert.equal(config.projectionMode,'whole-globe','raster navigation must use the regional config');
+  const sharp=require('sharp'),svg=fs.readFileSync(path.join(outputDir,'navigation-map.svg')),sourceSha256=sha256(svg),revision=sourceSha256.slice(0,16),folder=path.join(outputDir,'navigation-raster',revision),tileSize=512,levels=[],tiles=[];
+  fs.mkdirSync(folder,{recursive:true});
+  for(const width of [1800,3600,7200]){
+   const {data,info}=await sharp(svg,{density:72*width/1800,limitInputPixels:100000000}).resize({width}).modulate({saturation:.45}).linear(1.12,-15.3).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+   const columns=Math.ceil(info.width/tileSize),rows=Math.ceil(info.height/tileSize);levels.push({width:info.width,height:info.height,columns,rows});
+   const directory=path.join(folder,String(width));fs.mkdirSync(directory,{recursive:true});
+   for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
+    const left=column*tileSize,top=row*tileSize,region={left,top,width:Math.min(tileSize,info.width-left),height:Math.min(tileSize,info.height-top)},file=width+'/'+column+'-'+row+'.webp',destination=path.join(folder,file);
+    await sharp(data,{raw:info}).extract(region).webp({lossless:true,effort:3}).toFile(destination);const bytes=fs.readFileSync(destination);tiles.push({file,bytes:bytes.length,sha256:sha256(bytes)});
+   }
+   console.log('BENGALURU_MAP_RASTER_LEVEL '+width+' '+columns+'x'+rows);
+  }
+  const catalog={version:1,sourceSha256,base:'/'+path.relative(path.join(root,'public'),folder).replace(/\\/g,'/')+'/',tileSize,levels};
+  fs.writeFileSync(path.join(folder,'tile-index.json'),JSON.stringify({...catalog,tiles})+'\n');fs.writeFileSync(path.join(root,'app/bengaluru-map-raster-manifest.json'),JSON.stringify(catalog)+'\n');
+  console.log('BENGALURU_MAP_RASTER_OK '+JSON.stringify({tiles:tiles.length,bytes:tiles.reduce((total,tile)=>total+tile.bytes,0),catalog}));return;
+ }
+ if(options.navigation){
+  const {snapshot,input}=loadSnapshot(),manifest=JSON.parse(fs.readFileSync(appManifest,'utf8'));assert.equal(manifest.source.inputSha256,input.sha256);assert.deepEqual(manifest.aoi.bbox,config.bbox);
+  const features=buildFeatures(snapshot,config.origin,{storeyHeightM:config.storeyHeightM,landmarks:config.landmarks,bbox:config.bbox}).features;
+  const svg=renderNavigationSvg(features,manifest),file=path.join(outputDir,'navigation-map.svg');
+  if(options.check)assert.equal(fs.readFileSync(file,'utf8'),svg);else fs.writeFileSync(file,svg);
+  console.log('BENGALURU_NAVIGATION_MAP_OK '+JSON.stringify({file,bytes:Buffer.byteLength(svg),sha256:sha256(svg)}));return;
+ }
  if(options['install-staging']){
   const staging=path.resolve(root,options['install-staging']),manifest=JSON.parse(fs.readFileSync(path.join(staging,'manifest.json'),'utf8'));
   assert.ok(path.relative(path.join(root,'outputs/geodata/bengaluru'),staging).startsWith('build-'),'only a completed local build can be installed');

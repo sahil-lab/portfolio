@@ -9,7 +9,7 @@
   "tileSizeM": 500,
   "storeyHeightM": 3,
   "densifyM": 40,
-  "landmarkHeightBoost": 1.2,
+  "landmarkHeightBoost": 1,
   "worldUnitsPerMetre": 0.75,
   "landmarks": [
     {"label": "Vidhana Soudha", "id": "relation/5284317"},
