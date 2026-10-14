@@ -1,8 +1,62 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const packageRoot=(process.env.PATH??'').split(path.delimiter).map(directory=>path.resolve(directory,'..','playwright')).find(directory=>fs.existsSync(path.join(directory,'package.json')));
-const {chromium}=require(packageRoot??'playwright');
+const {chromium}=require(process.argv.find(argument=>argument.startsWith('--playwright='))?.slice(13)??packageRoot??'playwright');
+
+async function checkSavedLocation(){
+ const url=process.argv.find(argument=>argument.startsWith('--url='))?.slice(6)??'http://127.0.0.1:4398/',mobile=process.argv.includes('--mobile');
+ const output=path.resolve(process.argv.find(argument=>argument.startsWith('--output='))?.slice(9)??'outputs/playtest/location-restore');fs.mkdirSync(output,{recursive:true});
+ const browser=await chromium.launch({channel:'chrome',headless:true}),checks=[],errors=[];
+ let context,page;
+ const options={viewport:mobile?{width:390,height:844}:{width:1280,height:800},deviceScaleFactor:1,isMobile:mobile,hasTouch:mobile};
+ async function open(storageState){
+  context=await browser.newContext({...options,...(storageState?{storageState}:{})});
+  await context.addInitScript(()=>{
+   const key='living-computer-kingdom:v1';if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({version:1,settings:{muted:true,quality:'low',worldLighting:'day',projectPreviews:false}}));
+   Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,error){error?.({code:1})}}});
+  });
+  page=await context.newPage();page.setDefaultTimeout(180000);page.on('pageerror',error=>errors.push(error.message));await page.goto(url,{waitUntil:'domcontentloaded'});await ready();
+ }
+ async function ready(){
+  await page.waitForFunction(()=>document.querySelector('main.kingdom')?.dataset.ready==='true');
+  await page.waitForFunction(()=>{
+   const main=document.querySelector('main.kingdom');let fiber=main?.[Object.keys(main).find(key=>key.startsWith('__reactFiber'))];
+   while(fiber){for(let hook=fiber.memoizedState;hook;hook=hook.next){const world=hook.memoizedState?.current;if(world?.renderer&&world?.checkpointLocation){globalThis.__locationCheck=world;return world.renderReady}}fiber=fiber.return}return false;
+  });
+  await page.locator('.kingdom-loader').waitFor({state:'detached'});
+ }
+ async function frameCount(count=4){await page.evaluate(count=>new Promise(resolve=>{const next=()=>{if(--count>0)requestAnimationFrame(next);else resolve()};requestAnimationFrame(next)}),count)}
+ async function snapshot(label){
+  await frameCount();
+  const state=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+   const world=__locationCheck,actor=world.angel.controlled?world.angel.root:world.player,canvas=world.renderer.domElement,probe=document.createElement('canvas');probe.width=96;probe.height=64;const painter=probe.getContext('2d');painter.drawImage(canvas,0,0,96,64);const pixels=painter.getImageData(0,0,96,64).data,colors=new Set();for(let index=0;index<pixels.length;index+=4)colors.add([pixels[index]>>4,pixels[index+1]>>4,pixels[index+2]>>4].join(','));
+   resolve({position:actor.position.toArray(),rotation:actor.quaternion.toArray(),up:actor.up.toArray(),world:world.angel.controlled?world.angel.flight.state.current:world.transport.journey.current,angel:world.angel.controlled,phase:world.angel.locomotion.state.phase,restored:world.restoredLocation,saved:JSON.parse(localStorage.getItem('living-computer-kingdom:recovery:v1')),colors:colors.size,canvasCount:document.querySelectorAll('.world canvas').length,viewport:[innerWidth,innerHeight]});
+  })));
+  assert.ok(state.colors>20,label+': blank world');assert.equal(state.canvasCount,1);assert.deepEqual(state.viewport,[options.viewport.width,options.viewport.height]);
+  await page.screenshot({path:path.join(output,label+'.png')});checks.push({label,...state});console.log('LOCATION_CHECK '+label+' '+JSON.stringify({world:state.world,position:state.position,angel:state.angel,restored:state.restored}));return state;
+ }
+ function matches(actual,expected,label){assert.equal(actual.world,expected.world,label+': wrong world');assert.equal(actual.angel,expected.angel,label+': wrong character');assert.ok(Math.hypot(...actual.position.map((value,index)=>value-expected.position[index]))<.03,label+': position was not restored')}
+ async function reload(expected,label){await page.reload({waitUntil:'domcontentloaded'});await ready();const state=await snapshot(label);assert.equal(state.restored,true,label);matches(state,expected,label);return state}
+ try{
+  await open();const fresh=await snapshot('fresh-plaza');assert.equal(fresh.restored,false);assert.equal(fresh.world,0);
+  assert.equal(await page.evaluate(()=>__locationCheck.goCommonsVenue('kettle')),true);await frameCount();
+  await page.waitForFunction(()=>{const saved=JSON.parse(localStorage.getItem('living-computer-kingdom:recovery:v1'));return saved?.location.position.every((value,index)=>Math.abs(value-__locationCheck.player.position.toArray()[index])<.01)});
+  const before=await snapshot('autosaved-mainland');assert.equal(before.saved.location.world,0);matches({...before,position:before.saved.location.position},before,'automatic checkpoint');
+  await page.evaluate(()=>{__locationCheck.player.position.x+=.1});const latest=await snapshot('immediate-reload-position');await reload(latest,'mainland-reload');
+  const storageState=await context.storageState();await context.close();await open(storageState);const reopened=await snapshot('reopened-browser');assert.equal(reopened.restored,true);matches(reopened,latest,'new browser session');
+  if(!mobile){
+   assert.equal(await page.evaluate(()=>__locationCheck.goSignatureShop('copper')),true);const planet=await snapshot('planet-before');await reload(planet,'planet-reload');
+   assert.equal(await page.evaluate(()=>__locationCheck.goBengaluru({east:17663.385,north:-984.036})),true);const city=await snapshot('bengaluru-before');const cityReload=await reload(city,'bengaluru-reload');
+   await page.goto(new URL('/bengaluru',url).href,{waitUntil:'domcontentloaded'});await ready();const route=await snapshot('bengaluru-route-reload');matches(route,cityReload,'Bengaluru route must not reset saved coordinates');
+   await page.evaluate(()=>__locationCheck.angel.ready);assert.equal(await page.evaluate(()=>__locationCheck.angelMode(true)),true);assert.equal(await page.evaluate(()=>__locationCheck.angelTakeoff()),true);
+   await page.waitForFunction(()=>__locationCheck.angel.locomotion.state.phase==='flying');const angel=await snapshot('angel-before');await reload(angel,'angel-reload');
+  }
+  await page.evaluate(()=>localStorage.clear());await frameCount(4);await page.reload({waitUntil:'domcontentloaded'});await ready();const cleared=await snapshot('cleared-data-plaza');assert.equal(cleared.restored,false);matches(cleared,fresh,'cleared browser data');
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify({checkedAt:new Date().toISOString(),url,mobile,checks,errors},null,2)+'\n');console.log('LOCATION_RESTORE_VERIFIED '+checks.length+' checks');
+ }finally{await context?.close();await browser.close()}
+}
 
 async function main(){
+ if(process.argv.includes('--location'))return checkSavedLocation();
  const browser=await chromium.launch({channel:'msedge',headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  try{
   const context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1});

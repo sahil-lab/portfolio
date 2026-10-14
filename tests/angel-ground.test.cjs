@@ -6,6 +6,16 @@ const {createPlanetSurface,planetPoint}=require('../app/planet-geography.ts');
 const {transitStops}=require('../app/transit-config.ts');
 const height=23.625,input={x:0,z:1,yaw:0,run:false},surfaces=transitStops.map((stop,index)=>index?createPlanetSurface(stop,stop.radius):null);
 function create(options={}){return createAngelGround({height,surfaces,...options})}
+test('saved angel positions restore grounded and airborne control without resuming an old flight route',()=>{
+ const motion=createAngelLocomotion({height,surfaces,start:new T.Vector3(150,105,103)});motion.control(true);
+ assert.equal(motion.restorePosition(new T.Vector3(173,128,119),0,false,.8),true);
+ assert.deepEqual(motion.flight.state.position.toArray(),[173,128,119]);assert.equal(motion.state.phase,'flying');assert.equal(motion.flight.state.roaming,false);assert.equal(motion.flight.state.destination,null);
+ motion.update(1/60,{x:0,z:0,lift:0,boost:false,yaw:.8,pitch:0});assert.deepEqual(motion.flight.state.position.toArray(),[173,128,119]);
+ assert.equal(motion.restorePosition(new T.Vector3(150,100,103),0,true,.6),true);assert.equal(motion.state.phase,'grounded');assert.equal(motion.ground.state.active,true);
+ assert.ok(Math.abs(motion.ground.state.facing.x-Math.sin(.6))<1e-12);
+ const before=motion.flight.state.position.clone();motion.update(1/60,{x:0,z:0,lift:0,boost:false,yaw:.6,pitch:0});assert.ok(before.distanceTo(motion.flight.state.position)<1e-8);
+ assert.equal(motion.restorePosition(new T.Vector3(),surfaces.length,false,0),false);
+});
 test('angel walks, accelerates into a run and brakes to planted rest without moving on paused time',()=>{
  const ground=create(),contact=ground.findLanding(new T.Vector3(150,100,103),0);assert.ok(contact);ground.place(contact);
  assert.equal(ground.walkSpeed,2,'mainland walking is two metres per second');

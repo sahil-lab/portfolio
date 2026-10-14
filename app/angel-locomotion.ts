@@ -67,7 +67,16 @@ export function createAngelLocomotion(options:AngelGroundEnvironment&{height:num
   transition=null;pendingDestination=null;pendingRoam=false;contact=landing;flight.setRoaming(false);ground.place(landing);flight.state.position.copy(ground.state.position);flight.state.current=stop;flight.state.destination=null;flight.state.velocity.set(0,0,0);flight.state.speed=0;
   state.phase='grounded';state.frame.copy(ground.state.frame);state.up.copy(ground.state.up);return true;
  }
- return {state,flight,ground,update,land,takeoff,control,navigate,roam,canLand,placeAt,
+ function restorePosition(position:T.Vector3,stop:number,grounded:boolean,yaw:number){
+  if(!Number.isInteger(stop)||stop<0||stop>=options.surfaces.length||!position.toArray().every(Number.isFinite)||!Number.isFinite(yaw))return false;
+  if(grounded){if(!placeAt(position,stop))return false;ground.state.facing.set(Math.sin(yaw),0,Math.cos(yaw)).applyQuaternion(state.frame)}
+  else{
+   transition=null;pendingDestination=null;pendingRoam=false;contact=null;ground.leave();flight.setRoaming(false);
+   flight.state.position.copy(position);flight.state.current=stop;state.phase='flying';state.frame.identity();state.up.copy(vertical);
+  }
+  flight.state.yaw=yaw;flight.state.velocity.set(0,0,0);flight.state.speed=0;flight.state.bank=0;state.landing=0;state.progress=0;return true;
+ }
+ return {state,flight,ground,update,land,takeoff,control,navigate,roam,canLand,placeAt,restorePosition,
   setGroundMode:(mode:'walk'|'run')=>{state.groundMode=mode},
   setFootOffset:(value:number)=>{footOffset=value;ground.setFootOffset(value)},
  };

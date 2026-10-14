@@ -46,6 +46,29 @@ without pausing exploration. Blocking sheets, category menus, observation and
 Angel control hide the dock; the normal contextual command returns afterward.
 Buttons remain at least 44px, with wrapping labels and scrollable phone layouts.
 
+## Returning To Your Last Location
+
+The world records the active character's location and camera locally, at most
+once per second and again when the page is hidden or closed. Reloading or
+reopening the site restores that location before the loading screen clears,
+including planet surfaces, Bengaluru, and grounded or flying Angel mode. The
+record has no time expiry and is separate from settings and delivery progress.
+
+With no saved location, reloads start at Sahil Plaza. Clearing this site's
+browser storage removes the saved location; clearing only the visited-page
+history does not necessarily clear site storage. An already-open page will not
+silently recreate a location record after that storage is cleared. Fresh direct
+destination links still work when there is no prior saved location.
+
+Transit journeys, rover rides, moving lifts, project interiors, and shared
+activities retain the last resumable exploration checkpoint. If a destination
+cannot load, its saved position is kept for a later retry. A mapped position
+that is no longer clear uses nearby safe ground.
+
+The player-controls harness's `--location` mode checks autosave, immediate
+reload, browser-session reopening, planet and Bengaluru restoration, Angel
+mode, and cleared-data reloads. Add `--mobile` for the phone lifecycle checks.
+
 Implementation: `app/hud-category.tsx` reuses the installed Base UI popover through `components/ui/popover.tsx`. `app/hud-controls.css` styles portalled contents independently of `.kingdom` and overrides the old distributed HUD layout. The existing control callbacks, restrictions and modal content remain in `app/page.tsx`.
 
 Run with Node 22.13+ and the local app running:

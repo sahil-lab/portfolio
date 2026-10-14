@@ -34,6 +34,7 @@ export function createGameCamera(camera:T.PerspectiveCamera,scene:T.Scene,player
     get yaw(){return easedYaw},
     get stableYaw(){return stableYaw},
     get mode(){return mode},
+    snapshot:(stable=false)=>({yaw:stable?stableYaw:easedYaw,pitch:stable?stablePitch:easedPitch,zoom,focusHeight}),
     resetClipping:()=>updateNear(0,true),
     setMode:(value:CameraMode)=>{responsiveView=null;yaw=easedYaw;mode=value;pitch=mode==='first-person'?0:mode==='close'?.3:.42;stablePitch=pitch;stableYaw=yaw;zoom=mode==='far'?46:24;zoomLimit=160;eased=zoom;distance=zoom;focusHeight=1.5;easedYaw=yaw;easedPitch=pitch},
     rotate:(x:number,y:number,stable:boolean)=>{if(stable)return;if(x||y)responsiveView=null;yaw-=x*.005;pitch=T.MathUtils.clamp(pitch+y*.004,mode==='first-person'?-1.35:.16,mode==='first-person'?1.35:1.15)},

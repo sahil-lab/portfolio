@@ -2,9 +2,52 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,f);
 const T=require('three');const {moveCharacter,movementSpeed}=require('../app/character-controller.ts');const {createTraversal}=require('../app/traversal.ts');const {parseSave,validateDelivery,defaultSettings}=require('../app/persistence.ts');const {DeliveryRound}=require('../app/delivery-state.ts');const {createGameCamera}=require('../app/game-camera.ts');
 const {workshopSpawn}=require('../app/world-config.ts');
+const {parseRecovery,loadRecovery,writeRecovery,clearRecovery,createLocationCheckpoint,RECOVERY_KEY,SAVE_KEY}=require('../app/persistence.ts');
+const {transitStops}=require('../app/transit-config.ts');
+const recoveryLocation={world:0,position:[150,.8,287.4],rotation:[0,0,0,1],up:[0,1,0],view:{yaw:.3,pitch:.4,zoom:50,focusHeight:6.5}};
+test('last location never expires and includes every registered world',()=>{
+ for(let world=0;world<transitStops.length;world++){
+  const location={...recoveryLocation,world},raw=JSON.stringify({version:1,savedAt:1,location});
+  assert.deepEqual(parseRecovery(raw,Date.now()),{...location,surfaceFrame:undefined});
+ }
+ assert.equal(parseRecovery(JSON.stringify({version:1,savedAt:1,location:{...recoveryLocation,world:transitStops.length}})),null);
+ assert.equal(parseRecovery(JSON.stringify({version:1,savedAt:1,location:{...recoveryLocation,position:[Infinity,0,0]}})),null);
+ assert.equal(parseRecovery('{broken'),null);assert.equal(parseRecovery(null),null);
+});
+test('saved angel state is validated without accepting corrupt movement or camera data',()=>{
+ const angel={grounded:false,yaw:.7,groundMode:'walk',view:{yaw:.4,pitch:.2,zoom:1.1}},raw=value=>JSON.stringify({version:1,savedAt:1,location:{...recoveryLocation,angel:value}});
+ assert.deepEqual(parseRecovery(raw(angel)).angel,angel);
+ for(const value of [{...angel,grounded:'yes'},{...angel,yaw:Infinity},{...angel,groundMode:'unknown'},{...angel,view:{...angel.view,zoom:100}}])assert.equal(parseRecovery(raw(value)),null);
+});
+test('last location persists in local storage and clearing it leaves settings intact',()=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),values=new Map([[SAVE_KEY,'settings remain']]);
+ Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)}});
+ try{
+  assert.equal(loadRecovery(),null);assert.equal(writeRecovery(recoveryLocation,1),true);assert.ok(values.has(RECOVERY_KEY));assert.deepEqual(loadRecovery(),{...recoveryLocation,surfaceFrame:undefined});
+  const latest={...recoveryLocation,position:[151,.8,291]};assert.equal(writeRecovery(latest),true);assert.deepEqual(loadRecovery().position,latest.position);
+  clearRecovery();assert.equal(loadRecovery(),null);assert.equal(values.get(SAVE_KEY),'settings remain');
+ }finally{if(previous)Object.defineProperty(globalThis,'localStorage',previous);else delete globalThis.localStorage}
+});
 test('movement remains consistent across frame rates, slides against walls, and recovers invalid positions',()=>{
  const travel=hz=>{const p=new T.Group();p.position.set(0,.8,0);for(let i=0;i<hz;i++)moveCharacter(p,1,0,5.5/hz,()=>false,()=>.8);return p.position.x};assert.ok(Math.abs(travel(30)-travel(144))<1e-8);
  const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[workshopSpawn.x,workshopSpawn.y,workshopSpawn.z]);
+});
+test('location checkpoints skip unfinished startup and do not recreate cleared site data',()=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),values=new Map();let location=null,writes=0;
+ Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:key=>values.get(key)??null,setItem:(key,value)=>{writes++;values.set(key,value)},removeItem:key=>values.delete(key)}});
+ try{
+  const checkpoint=createLocationCheckpoint(()=>location);assert.equal(checkpoint(),false);assert.equal(writes,0);
+  location=recoveryLocation;assert.equal(checkpoint(),true);assert.equal(checkpoint(),true);assert.equal(writes,1);
+  location={...recoveryLocation,position:[175,.8,302]};assert.equal(checkpoint(),true);assert.equal(writes,2);
+  values.clear();assert.equal(checkpoint(),false);assert.equal(loadRecovery(),null);assert.equal(writes,2);
+  const fresh=createLocationCheckpoint(()=>recoveryLocation);assert.equal(fresh(),true);assert.ok(loadRecovery());
+ }finally{if(previous)Object.defineProperty(globalThis,'localStorage',previous);else delete globalThis.localStorage}
+});
+test('camera snapshots restore the recorded heading, pitch, zoom and focus',()=>{
+ const scene=new T.Scene(),player=new T.Group(),camera=new T.PerspectiveCamera(50,1,.1,1000);scene.add(player);
+ const rig=createGameCamera(camera,scene,player);rig.reset({yaw:.73,pitch:.41,zoom:73,focusHeight:5.8});
+ const saved=rig.snapshot();rig.reset();rig.reset(saved);assert.deepEqual(rig.snapshot(),saved);
+ assert.deepEqual(rig.snapshot(true),saved);
 });
 test('skating is faster than walking and remains frame-rate independent without tunneling through walls',()=>{
  assert.equal(movementSpeed('walk'),2);assert.equal(movementSpeed('walk',true),2);assert.equal(movementSpeed('skate'),35);assert.equal(movementSpeed('skate',true),35);

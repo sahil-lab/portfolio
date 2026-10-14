@@ -6,7 +6,7 @@ import {createAngelLocomotion} from './angel-locomotion';
 import {createAngelRig} from './angel-rig';
 import {assetManifest} from './asset-manifest';
 import type {AngelGroundEnvironment} from './angel-ground';
-import type {Settings} from './persistence';
+import type {Settings,RecoveryLocation} from './persistence';
 import {mappedCameraView} from './game-camera';
 
 export const angelAsset=assetManifest.angel.url;
@@ -94,6 +94,12 @@ export function createFlyingAngel(scene:T.Scene,camera:T.PerspectiveCamera,optio
   snapCamera=false;camera.up.copy(locomotion.state.up);camera.lookAt(target);camera.updateMatrixWorld(true);
  }
  return {root,visual,ready,flight,locomotion,height,update,updateCamera,snapshot,control,shadows,get rig(){return rig},get bodyScale(){return bodyScale},
+  locationSnapshot:()=>({grounded:locomotion.state.phase==='grounded',yaw:flight.state.yaw,groundMode:locomotion.state.groundMode,view:{yaw:lookYaw,pitch:lookPitch,zoom}}),
+  restoreLocation:(position:T.Vector3,stop:number,location:NonNullable<RecoveryLocation['angel']>)=>{
+   if(!loaded||disposed||!control(true))return false;
+   if(!locomotion.restorePosition(position,stop,location.grounded,location.yaw)){control(false);return false}
+   lookYaw=location.view.yaw;lookPitch=location.view.pitch;zoom=location.view.zoom;locomotion.setGroundMode(location.groundMode);snapCamera=true;update(0,true);publish(true);return true;
+  },
   placeAt:(position:T.Vector3,stop:number)=>{if(!loaded||disposed)return false;const placed=locomotion.placeAt(position,stop);if(placed){snapCamera=true;update(0,true);publish(true)}return placed},
   get loaded(){return loaded&&!disposed},get controlled(){return flight.state.controlled},get wings(){return wings},
   look:(horizontal:number,vertical:number,stable:boolean)=>{if(stable)return;lookYaw-=horizontal*.004;lookPitch=T.MathUtils.clamp(lookPitch+vertical*.0035,-1.20,1.15)},
