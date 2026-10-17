@@ -67,6 +67,35 @@ Scene-authoring exports retain the unwrapped city coordinates. The runtime
 projection is included in the application source rather than baked into every
 exported model.
 
+## Curved Mainland Visibility
+
+The mainland projection updates automatic level-of-detail groups using the
+logical camera before projecting it onto the globe. The renderer must not
+repeat that decision with the curved camera against flat-map group positions:
+that could hide both a nearby detailed building and its skyline fallback.
+Removing a projected group restores its original automatic-update policy.
+
+Roads, curbs, block paving and garden paving use contiguous spans of at most
+24 logical units per axis. Their footprint, elevation and materials are
+retained, and they still share a small box geometry and instanced draw groups.
+Long corner-only road boxes otherwise cut underneath the curved surface.
+Collision and saved-location coordinates are unchanged.
+
+Regression tests cover logical-camera LOD selection, restoration on removal,
+paving footprint preservation and curved-surface clearance. Two unrelated
+city-suite assertions also fail on the prior commit: indexed planted-court
+geometry and the original planet-height constraint. They are not suppressed
+or changed by this visibility fix.
+
+The fixed production build passed TypeScript, scoped lint and output checks.
+The focused suite recorded 67 passes and those same two baseline failures.
+Browser verification passed ten desktop/mobile visibility checks, fourteen
+saved-location movement/reload checkpoints and eleven navigation checkpoints
+covering mainland orbit, walking, city arrival and satellite return. Hiding
+the roads changed 169,678 desktop pixels and 97,238 mobile pixels; restoring
+them restored the original frame exactly. These are visibility checks, not
+a frame-rate improvement claim.
+
 ## Returning To Your Last Location
 
 The world records the active character's location and camera locally, at most

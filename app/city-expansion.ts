@@ -18,6 +18,14 @@ import {clearArchitectureShells} from './architecture-shells';
 
 type Lot={address:string;x:number;z:number;scale:number;variant:number;yaw:number;width:number;depth:number;height:number};
 type Skin={geometry:T.BufferGeometry;material:T.Material};
+type PavingPlacement={x:number;y:number;z:number;sx:number;sy:number;sz:number};
+export function segmentCityPaving(placements:readonly PavingPlacement[]):PavingPlacement[]{
+  return placements.flatMap(placement=>{
+    const columns=Math.max(1,Math.ceil(placement.sx/24)),rows=Math.max(1,Math.ceil(placement.sz/24)),width=placement.sx/columns,depth=placement.sz/rows,segments:PavingPlacement[]=[];
+    for(let column=0;column<columns;column++)for(let row=0;row<rows;row++)segments.push({...placement,x:placement.x-placement.sx/2+(column+.5)*width,z:placement.z-placement.sz/2+(row+.5)*depth,sx:width,sz:depth});
+    return segments;
+  });
+}
 function bakeModel(root:T.Object3D):Skin[]{
   completeArchitectureAttributes(root);
   root.updateMatrixWorld(true);const groups=new Map<T.Material,T.BufferGeometry[]>(),originals=new Set<T.BufferGeometry>();
@@ -69,7 +77,7 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
       for(let x=west+8;x<east-8;x+=18)dashes.push({x,y:.018,z,sx:5,sy:.016,sz:.17});
     }
   }
-  instances(root,'City_ConnectedStreets',cube,asphalt,roadSites);instances(root,'City_ContinuousCurbs',cube,pearl,curbs);instances(root,'City_LaneMarkings',cube,inlay,dashes);
+  instances(root,'City_ConnectedStreets',cube,asphalt,segmentCityPaving(roadSites));instances(root,'City_ContinuousCurbs',cube,pearl,segmentCityPaving(curbs));instances(root,'City_LaneMarkings',cube,inlay,dashes);
   const pedestrians:{x:number;z:number;phase:number;variant:number}[]=[];
   for(let column=0;column<10;column++)for(let row=0;row<25;row++){
     const centerX=-450+column*100,centerZ=-1121+row*100;
@@ -111,8 +119,8 @@ export function createCityExpansion(parent:T.Object3D,prepare?:(root:T.Object3D)
     }
     const lawnPlacements=lawnAreas.map(area=>({x:(area.minX+area.maxX)/2,y:area.height,z:(area.minZ+area.maxZ)/2,sx:area.maxX-area.minX,sy:.06,sz:area.maxZ-area.minZ}));
     for(const group of [near,middle]){
-      instances(group,'City_BlockWalk',cube,pavement,[{x:0,y:-.1,z:0,sx:85,sy:.18,sz:85}]);
-      instances(group,'City_PocketGarden',cube,lawn,lawnPlacements);
+      instances(group,'City_BlockWalk',cube,pavement,segmentCityPaving([{x:0,y:-.1,z:0,sx:85,sy:.18,sz:85}]));
+      instances(group,'City_PocketGarden',cube,lawn,segmentCityPaving(lawnPlacements));
       const shapes=group===near?treeShapes.full:treeShapes.distant;
       instances(group,'City_LayeredLeafCanopies',shapes.crown,treeMaterials.leaf,trees,group===near);
       instances(group,'City_BranchingStreetTrunks',shapes.wood,treeMaterials.wood,trees,group===near);

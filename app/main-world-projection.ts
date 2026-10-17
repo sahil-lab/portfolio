@@ -101,6 +101,7 @@ export function createMainWorldProjection(scene:T.Scene,camera:T.PerspectiveCame
  const map={value:new T.Vector3(scene.scale.x,mainWorldOrigin.z*scene.scale.x,mainWorldRadius*scene.scale.x)},variants=new Map<T.Material,Map<string,T.Material>>(),owned=new Set<T.Material>(),registrations=new Map<T.Object3D,Registration>(),nodes=new Map<T.Object3D,{added:(event:{child:T.Object3D})=>void;removed:()=>void;transition:boolean;rigid?:T.Object3D}>(),geometryCache=new WeakMap<T.BufferGeometry,T.BufferGeometry>(),geometries=new Set<T.BufferGeometry>(),anchors=new Map<T.Object3D,{value:T.Vector4}>(),flatAnchor={value:new T.Vector4(0,0,0,0)};
  const logicalCamera=camera.clone(),cameraPosition=new T.Vector3(),cameraRotation=new T.Quaternion(),cameraUp=new T.Vector3();let viewWrapped=false;
  const lights=new Map<T.Object3D,T.Vector3>();
+ const lods=new Map<T.LOD,boolean>();
  const originalMaterials=new WeakMap<T.Material,T.Material>(),shadowMaterials=new Map<T.Material,{depth:T.MeshDepthMaterial;distance:T.MeshDistanceMaterial}>();
  function materialFor(source:T.Material,transition:boolean,rigid?:T.Object3D){
   source=originalMaterials.get(source)??source;
@@ -117,6 +118,7 @@ export function createMainWorldProjection(scene:T.Scene,camera:T.PerspectiveCame
  }
  function remove(root:T.Object3D){
   root.traverse(object=>{
+   const lod=object as T.LOD,automatic=lods.get(lod);if(automatic!==undefined){lod.autoUpdate=automatic;lods.delete(lod)}
    const listeners=nodes.get(object);if(listeners){object.removeEventListener('childadded',listeners.added);object.removeEventListener('removed',listeners.removed);nodes.delete(object)}
    const entry=registrations.get(object);if(!entry)return;
    entry.object.material=entry.material;entry.object.customDepthMaterial=entry.depth;entry.object.customDistanceMaterial=entry.distance;
@@ -128,6 +130,7 @@ export function createMainWorldProjection(scene:T.Scene,camera:T.PerspectiveCame
  function register(root:T.Object3D,transition=false,rigid?:T.Object3D){
   if(root.userData.mainWorldNative)return;
   const previous=nodes.get(root);if(previous&&(previous.transition!==transition||previous.rigid!==rigid))remove(root);
+  const lod=root as T.LOD;if(lod.isLOD&&!lods.has(lod)){lods.set(lod,lod.autoUpdate);lod.autoUpdate=false}
   if(!nodes.has(root)){
   const added=(event:{child:T.Object3D})=>register(event.child,transition,rigid),removed=()=>remove(root);nodes.set(root,{added,removed,transition,rigid});root.addEventListener('childadded',added);root.addEventListener('removed',removed);
   }
@@ -165,6 +168,7 @@ export function createMainWorldProjection(scene:T.Scene,camera:T.PerspectiveCame
  }
  function updateBounds(){
   const scale=scene.scale.x;map.value.set(scale,mainWorldOrigin.z*scale,mainWorldRadius*scale);scene.updateMatrixWorld(true);
+  const lodCamera=viewWrapped?logicalCamera:camera;lodCamera.updateMatrixWorld(true);for(const [lod,automatic] of lods)if(automatic)lod.update(lodCamera);
   const world=new T.Sphere(),logical=new T.Vector3(),warped=new T.Vector3(),inverse=new T.Matrix4();
   for(const [root,anchor] of anchors){logical.setFromMatrixPosition(root.matrixWorld);anchor.value.set(logical.x,logical.y,logical.z,1)}
   for(const entry of registrations.values()){

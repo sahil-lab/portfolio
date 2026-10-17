@@ -16,6 +16,21 @@ test('outer neighborhoods have continuous ground while the historic channel stay
   assert.equal(traversal.height(47,0,.8),null);assert.equal(traversal.height(75,0,.8),.8);disposeScene(scene);
 });
 
+test('city paving retains its footprint while short spans stay above the curved substrate',()=>{
+ const {segmentCityPaving}=require('../app/city-expansion.ts'),{wrapMainWorldPoint,mainWorldOrigin,mainWorldRadius}=require('../app/main-world-surface.ts'),center=mainWorldOrigin.clone().add(new T.Vector3(0,-mainWorldRadius,0));
+ for(const placement of [{x:-400,y:-.055,z:79,sx:11,sy:.12,sz:2500},{x:0,y:-.05,z:1129,sx:1050,sy:.13,sz:11},{x:-405.8,y:.01,z:79,sx:.3,sy:.2,sz:2500},{x:-450,y:-.1,z:1129,sx:85,sy:.18,sz:85},{x:0,y:.02,z:79,sx:13,sy:.06,sz:66}]){
+  const before={...placement},segments=segmentCityPaving([placement]),bounds=new T.Box3();let area=0;
+  assert.equal(segments.length,Math.ceil(placement.sx/24)*Math.ceil(placement.sz/24));
+  for(const part of segments){
+   assert.ok(part.sx<=24&&part.sz<=24);assert.equal(part.y,placement.y);assert.equal(part.sy,placement.sy);area+=part.sx*part.sz;
+   bounds.expandByPoint(new T.Vector3(part.x-part.sx/2,part.y,part.z-part.sz/2));bounds.expandByPoint(new T.Vector3(part.x+part.sx/2,part.y,part.z+part.sz/2));
+   const corners=[[-1,-1],[-1,1],[1,-1],[1,1]].map(([horizontal,forward])=>wrapMainWorldPoint(new T.Vector3(part.x+horizontal*part.sx/2,part.y+part.sy/2,part.z+forward*part.sz/2)));
+   for(const indices of [[0,1,2],[1,2,3]]){const centroid=indices.reduce((sum,index)=>sum.add(corners[index]),new T.Vector3()).divideScalar(3);assert.ok(centroid.distanceTo(center)>mainWorldRadius-.3,'paving triangle cuts below the curved surface')}
+  }
+  assert.ok(Math.abs(area-placement.sx*placement.sz)<1e-7);assert.ok(Math.abs(bounds.min.x-(placement.x-placement.sx/2))<1e-8);assert.ok(Math.abs(bounds.max.x-(placement.x+placement.sx/2))<1e-8);assert.ok(Math.abs(bounds.min.z-(placement.z-placement.sz/2))<1e-8);assert.ok(Math.abs(bounds.max.z-(placement.z+placement.sz/2))<1e-8);assert.deepEqual(placement,before);
+ }
+});
+
 test('the landmark quarter has sculpted destination buildings, clear arrival and animated residents and traffic',()=>{
   global.document={createElement:()=>({width:0,height:0,getContext:()=>({font:'',fillRect(){},fillText(){},measureText(text){return {width:text.length*55}}})})};
   const {createCityLandmarks}=require('../app/city-landmarks.ts'),{cityArrival}=require('../app/world-config.ts');

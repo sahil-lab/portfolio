@@ -80,6 +80,16 @@ test('roofscape camera and shadow culling use the curved bounds instead of the f
  projection.dispose();roofs.batches[0].mesh.geometry.dispose();geometry.dispose();material.dispose();
 });
 
+test('wrapped LOD groups keep logical camera distances and restore their update policy on removal',()=>{
+ const {createMainWorldProjection}=require('../app/main-world-projection.ts'),scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,18000),lod=new T.LOD(),manual=new T.LOD();
+ const near=new T.Group(),middle=new T.Group(),far=new T.Group();lod.addLevel(near,0);lod.addLevel(middle,250);lod.addLevel(far,720);lod.position.set(-450,0,1079);manual.autoUpdate=false;scene.add(lod,manual);scene.scale.setScalar(2);
+ const projection=createMainWorldProjection(scene,camera);projection.register(scene);camera.position.set(-800,20,2350);camera.updateMatrixWorld(true);projection.updateBounds();
+ assert.equal(lod.getCurrentLevel(),0);projection.projectCamera(new T.Vector3(-400,.8,1129));assert.ok(camera.position.distanceTo(lod.getWorldPosition(new T.Vector3()))>720);
+ if(lod.autoUpdate)lod.update(camera);assert.equal(lod.getCurrentLevel(),0,'render-camera projection must not replace nearby detail with the far level');assert.equal(near.visible,true);
+ projection.restoreCamera();camera.position.set(0,2000,9000);camera.updateMatrixWorld(true);projection.updateBounds();assert.equal(lod.getCurrentLevel(),2,'ordinary distance-based simplification remains active');
+ projection.remove(scene);assert.equal(lod.autoUpdate,true);assert.equal(manual.autoUpdate,false);projection.dispose();
+});
+
 test('rigid characters retain their proportions across the spherical map',()=>{
  const {wrapMainWorldRigidPoint}=require('../app/main-world-surface.ts');
  for(const values of [[52,.8,201],[500,.8,1300],[5000,.8,-6000]]){
