@@ -13,6 +13,7 @@ import {planetPoint,type PlanetSurface} from './planet-geography';
 import {describeHeight} from './bengaluru-text';
 import {disposeScene} from './scene-resources';
 import {loadBengaluruRegion,buildBengaluruRegionWorld,type RegionPayload,type RegionControls} from './bengaluru-region-world';
+import {createWorkScheduler} from './work-scheduler';
 
 export const cityPlanetManifest=manifestJson as unknown as PlanetManifest;
 export type CityPlanetTile={record:TileRecord;scene:T.Object3D};
@@ -162,6 +163,7 @@ export function* buildCityPlanetWorld(parent:T.Object3D,surface:PlanetSurface,pa
 export type CityPlanetWorld=ReturnType<typeof buildCityPlanetWorld> extends Generator<string,infer Result>?Result:never;
 
 const skyTextures=new Map<string,Promise<T.CanvasTexture|null>>();
+const skyWork=createWorkScheduler();
 /** Rasterises the build-time sky SVG once per city; skipped outside browsers so Node stays deterministic. */
 function loadSkyTexture(city:CityPlanet,width=1536){
  let pending=skyTextures.get(city.id);
@@ -170,10 +172,12 @@ function loadSkyTexture(city:CityPlanet,width=1536){
    if(typeof Image==='undefined'||typeof document==='undefined')return null;
     const image=new Image();image.decoding='async';image.src=city.assetBase+cityPlanetManifest.sky+'?v='+encodeURIComponent(cityPlanetManifest.generator+':'+cityPlanetManifest.source.inputSha256);
    try{await image.decode()}catch{return null}
+    return skyWork.run(()=>{
    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=width/2;
    const context=canvas.getContext('2d');if(!context||typeof context.drawImage!=='function')return null;
    context.drawImage(image,0,0,canvas.width,canvas.height);
    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;return texture;
+    });
   })();
   skyTextures.set(city.id,pending);
  }

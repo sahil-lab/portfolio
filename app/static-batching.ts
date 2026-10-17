@@ -24,6 +24,52 @@ export function mergeIndexedGeometries(geometries:T.BufferGeometry[]){
   return mergeGeometries(geometries);
 }
 
+export function batchStaticDraws(root:T.Object3D,enabled:boolean){
+  if(!enabled)return {batches:0,meshes:0};
+  const parents:T.Object3D[]=[];root.traverse(object=>{if(object.children.some(child=>child.name==='SceneryBatch'))parents.push(object)});
+  const retired=new Set<T.BufferGeometry>();
+  let batches=0,meshes=0;
+  for(const parent of parents){
+    if((parent as T.Scene).isScene)continue;
+    const groups=new Map<string,T.Mesh<T.BufferGeometry,T.Material>[]>();
+    for(const child of parent.children){
+      const mesh=child as T.Mesh<T.BufferGeometry,T.Material>,material=mesh.material;
+      if(!mesh.isMesh||mesh.name!=='SceneryBatch'||mesh.matrixAutoUpdate||mesh.children.length||!mesh.visible||!mesh.frustumCulled||mesh.matrix.determinant()<=0||Array.isArray(material)||!(material as T.MeshStandardMaterial)?.isMeshStandardMaterial||material.transparent||(material as T.MeshPhysicalMaterial).transmission>0)continue;
+      if(mesh.customDepthMaterial||mesh.customDistanceMaterial||['onBeforeRender','onBeforeShadow','onAfterRender','onAfterShadow'].some(key=>Object.hasOwn(mesh,key))||Object.hasOwn(material,'onBeforeCompile'))continue;
+      const geometry=mesh.geometry;
+      if(geometry.drawRange.start!==0||geometry.drawRange.count!==Infinity||Object.keys(geometry.morphAttributes).length)continue;
+      const attributes=Object.entries(geometry.attributes);
+      if(attributes.some(([,attribute])=>'data' in attribute||attribute.usage!==T.StaticDrawUsage))continue;
+      if(geometry.index&&geometry.index.usage!==T.StaticDrawUsage)continue;
+      const layout=attributes.map(([name,attribute])=>[name,attribute.itemSize,attribute.normalized,attribute.array.constructor.name,'gpuType' in attribute?attribute.gpuType:T.FloatType].join(':')).sort().join(',');
+      const key=[material.uuid,layout,!!geometry.index,mesh.castShadow,mesh.receiveShadow,mesh.renderOrder,mesh.layers.mask].join('/');
+      const group=groups.get(key)??[];group.push(mesh);groups.set(key,group);
+    }
+    for(const group of groups.values()){
+      if(group.length<3)continue;
+      for(let start=0;start<group.length;start+=128){
+        const sources=group.slice(start,start+128);if(sources.length<3)continue;
+        const unique=[...new Set(sources.map(source=>source.geometry))],vertices=unique.reduce((sum,geometry)=>sum+geometry.attributes.position.count,0),indices=unique.reduce((sum,geometry)=>sum+(geometry.index?.count??0),0);
+        const batch=new T.BatchedMesh(sources.length,vertices,indices,sources[0].material),ids=new Map<T.BufferGeometry,number>();
+        for(const geometry of unique)ids.set(geometry,batch.addGeometry(geometry));
+        for(const source of sources){const instance=batch.addInstance(ids.get(source.geometry)!);batch.setMatrixAt(instance,source.matrix)}
+        batch.name='SceneryMultiDraw';batch.castShadow=sources[0].castShadow;batch.receiveShadow=sources[0].receiveShadow;batch.renderOrder=sources[0].renderOrder;batch.layers.mask=sources[0].layers.mask;batch.sortObjects=false;
+        batch.computeBoundingBox();batch.computeBoundingSphere();parent.add(batch);batch.updateMatrix();batch.matrixAutoUpdate=false;cacheStaticTransforms(batch);
+        for(const source of sources){retired.add(source.geometry);source.removeFromParent()}
+        batches++;meshes+=sources.length;
+      }
+    }
+  }
+  if(retired.size){
+    let owner=root;while(owner.parent)owner=owner.parent;
+    const active=new Set<T.BufferGeometry>(),attributes=new Set<T.BufferAttribute|T.InterleavedBuffer>();
+    const buffer=(attribute:T.BufferAttribute|T.InterleavedBufferAttribute)=>'data' in attribute?attribute.data:attribute;
+    owner.traverse(object=>{const geometry=(object as T.Mesh).geometry;if(!geometry)return;active.add(geometry);for(const attribute of Object.values(geometry.attributes))attributes.add(buffer(attribute));if(geometry.index)attributes.add(geometry.index)});
+    for(const geometry of retired)if(!active.has(geometry)&&!Object.values(geometry.attributes).some(attribute=>attributes.has(buffer(attribute)))&&(!geometry.index||!attributes.has(geometry.index)))geometry.dispose();
+  }
+  return {batches,meshes};
+}
+
 export function textureKey(texture:T.Texture|null){
   if(!texture)return '';
   if(texture.userData.blenderSceneFinish!=='premium-surface-v1'&&texture.userData.blenderSceneFinish!=='surface-normal-v1'&&!texture.userData.authoredSurface)return texture.uuid;

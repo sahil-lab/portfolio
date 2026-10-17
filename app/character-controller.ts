@@ -16,6 +16,6 @@ export function moveCharacter(player:Group,x:number,z:number,distance:number,blo
       const floor=height(a,b,player.position.y);if(floor!==null&&Math.abs(floor-player.position.y)<.45)player.position.set(a,floor,b);
     }
   }
-  if(x||z)player.rotation.y=Math.atan2(x,z);
+  if(x||z)player.rotation.set(0,Math.atan2(x,z),0);
   if(!Number.isFinite(player.position.lengthSq())||player.position.y< -8)player.position.copy(new Vector3(workshopSpawn.x,workshopSpawn.y,workshopSpawn.z));
 }

@@ -9,6 +9,7 @@ import {addShopArchitecture} from './shop-architecture';
 import {createKettleSteam} from './kettle-steam';
 import {worldKitGeometry,completeKitColors} from './world-kit';
 import {createGroundCoverWindow} from './ground-cover';
+import {wrapText} from './text-fit';
 
 export const commonsSpawn={x:0,y:.8,z:98};
 export function commonsArrival(aspect:number){
@@ -199,9 +200,9 @@ export function createCreativePlaza(scene:T.Scene,player:T.Group,callbacks:{noti
     pixel(21,26,7,speaker.mouth===2?4:speaker.mouth===1?2:1,'#5c3651');if(speaker.mouth){pixel(22,26,5,1,'#fff1db');if(speaker.mouth===2)pixel(23,29,4,1,'#e999a8')}
     pixel(16,33,16,2,'#f8eac2');pixel(21,35,6,3,'#638b9e');
     context.fillStyle='#b0f5df';context.font='900 48px "Trebuchet MS", sans-serif';context.textAlign='center';context.fillText('PIXEL',384,691);
-    context.fillStyle='#f0f8ef';context.font='700 30px "Trebuchet MS", sans-serif';let line='',row=0;
+    context.fillStyle='#f0f8ef';context.font='700 30px "Trebuchet MS", sans-serif';
     const text=voice.text,excerpt=text.length>180?text.slice(0,177)+'...':text;
-    for(const word of excerpt.split(' ')){const next=line?line+' '+word:word;if(line&&context.measureText(next).width>650){context.fillText(line,384,758+row++*42,650);line=word}else line=next}if(line)context.fillText(line,384,758+row*42,650);
+    wrapText(context,excerpt,650).forEach((line,row)=>context.fillText(line,384,758+row*42,650));
     context.fillStyle=voice.speech.snapshot.listening?'#ffcf83':'#99b9c9';context.font='900 22px "Trebuchet MS", sans-serif';context.fillText(voice.status,384,984,650);texture.needsUpdate=true;
   }
   paintPortrait(false);

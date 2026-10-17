@@ -23,9 +23,10 @@ export function createVisibleGeometry(parent:T.Object3D,parts:VisibleGeometryPar
   const mesh=new T.Mesh(geometry,material);mesh.name='City_VisibleSilhouettes';mesh.castShadow=mesh.receiveShadow=true;root.add(mesh);cacheStaticTransforms(mesh);
   const clip=new T.Matrix4(),frustum=new T.Frustum();
   function select(camera:T.Camera,shadow=false){
-   clip.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(mesh.matrixWorld);frustum.setFromProjectionMatrix(clip);
+    const project=mesh.userData.mainWorldBounds as ((bounds:T.Box3)=>T.Box3)|undefined;
+    clip.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);if(!project)clip.multiply(mesh.matrixWorld);frustum.setFromProjectionMatrix(clip);
    const selection=selections[shadow?1:0];let changed=false;
-   for(let index=0;index<ranges.length;index++){const range=ranges[index],shown=range.state.visible&&(!shadow||range.state.castShadow)&&frustum.intersectsBox(range.bounds);range.shown=shown;if(selection.shown[index]!==Number(shown)){selection.shown[index]=Number(shown);changed=true}}
+  for(let index=0;index<ranges.length;index++){const range=ranges[index],shown=range.state.visible&&(!shadow||range.state.castShadow)&&frustum.intersectsBox(project?project(range.bounds):range.bounds);range.shown=shown;if(selection.shown[index]!==Number(shown)){selection.shown[index]=Number(shown);changed=true}}
    if(changed){
     let count=0;for(let index=0;index<ranges.length;index++)if(selection.shown[index]){const range=ranges[index];indices.array.set(range.indices,selection.start+count);count+=range.count}
     selection.count=count;if(count){indices.addUpdateRange(selection.start,count);indices.needsUpdate=true}

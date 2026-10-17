@@ -10,7 +10,7 @@ global.document={createElement:()=>{
 
 test('comic bubbles use bold fitted uppercase text and retain depth-tested readable colors',()=>{
   for(const style of ['speech','thought','burst'])for(const text of ['Hi!','Hello!','Good morning!','HOT DOGS']){
-    draws.length=0;const {sprite}=createSpeechBubble(text,{style});
+    draws.length=0;const bubble=createSpeechBubble(text,{style});bubble.update(.04,true,false);const {sprite}=bubble;
     assert.equal(draws.map(draw=>draw.text).join(' '),text.toUpperCase());
     for(const draw of draws){
       assert.match(draw.font,/^900 /);assert.equal(draw.color,'#17212b');
@@ -58,10 +58,20 @@ test('animation clamps long frames and does not recreate textures',()=>{
   disposeScene(bubble.sprite);assert.deepEqual([textures,materials],[1,1]);
 });
 
+test('hidden bubbles draw nothing until they first show, and draw exactly once',()=>{
+  draws.length=0;const bubble=createSpeechBubble('Hello there!');
+  assert.equal(draws.length,0);assert.equal(bubble.sprite.material.map.image.width,768);
+  bubble.update(.04,false,false);assert.equal(draws.length,0);
+  bubble.update(.04,true,false);assert.equal(draws.map(draw=>draw.text).join(' '),'HELLO THERE!');
+  const drawn=draws.length;for(let frame=0;frame<5;frame++)bubble.update(.04,true,false);assert.equal(draws.length,drawn);
+  draws.length=0;bubble.update(.2,false,false);bubble.update(.2,false,false);bubble.setText('Later text.');assert.equal(draws.length,0);
+  bubble.update(.04,true,false);assert.equal(draws.map(draw=>draw.text).join(' '),'LATER TEXT.');disposeScene(bubble.sprite);
+});
+
 test('long random conversations fit every comic shape and replacing text releases the old texture',()=>{
   const {createDialogueDeck}=require('../app/resident-dialogue.ts'),deck=createDialogueDeck('copper',()=>.2);
   for(const style of ['speech','thought','burst']){
-    const bubble=createSpeechBubble('A starting line.',{style,width:4.6});let disposed=0;const previous=bubble.sprite.material.map;previous.addEventListener('dispose',()=>disposed++);
+    const bubble=createSpeechBubble('A starting line.',{style,width:4.6});bubble.update(.04,true,false);let disposed=0;const previous=bubble.sprite.material.map;previous.addEventListener('dispose',()=>disposed++);
     for(let index=0;index<deck.size;index++){
       draws.length=0;const text=deck.next();bubble.setText(text);assert.equal(draws.map(draw=>draw.text).join(' '),text.toUpperCase());
       for(const draw of draws){assert.ok(draw.width<=(style==='speech'?554:478));assert.ok(draw.y>65&&draw.y<260);assert.ok(parseFloat(draw.font.split(' ')[1])>=36)}

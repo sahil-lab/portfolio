@@ -1,11 +1,34 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{disposeScene}=require('../app/scene-resources.ts'),{createCityLightResponse}=require('../app/world-lighting.ts'),{createKingdomPresentation,kingdomOcclusion,presentationPixelRatio,presentationPixelBudget}=require('../app/kingdom-presentation.ts');
+test('shared preparation keeps experimental multi-draw off by default and requires explicit support and opt-in',async()=>{
+ for(const supported of [false,true])for(const experimentalMultiDraw of [undefined,false,true]){
+  const scene=new T.Scene(),root=new T.Group(),material=new T.MeshStandardMaterial();scene.add(root);
+  for(let index=0;index<4;index++){const mesh=new T.Mesh(new T.BoxGeometry(1+index*.1,1,1),material);mesh.name='SceneryBatch';mesh.position.x=index*3;mesh.updateMatrix();mesh.matrixAutoUpdate=false;root.add(mesh)}
+  const renderer={extensions:{has:name=>name==='WEBGL_multi_draw'&&supported},info:{autoReset:true},domElement:new EventTarget(),properties:{get:()=>({currentProgram:{isReady:()=>true}})},getRenderTarget:()=>null,setRenderTarget(){},compile:()=>new Set([material])};
+  const presentation=createKingdomPresentation(renderer,scene,new T.PerspectiveCamera(),{experimentalMultiDraw});await presentation.prepare(scene);
+  const enabled=supported&&experimentalMultiDraw===true;assert.equal(root.children.length,enabled?1:4);assert.equal(root.children.some(object=>object.isBatchedMesh),enabled);
+  await presentation.finishPreparation();presentation.dispose();disposeScene(scene);
+ }
+});
 test('world construction yields between visible stages and retains the final result',async()=>{
  const {runCreationStages}=require('../app/work-scheduler.ts'),events=[];
  function* stages(){events.push('ground');yield;events.push('city');yield Promise.resolve();events.push('ready');return 42}
  const result=await runCreationStages(stages(),{onStage:()=>events.push('paint'),yieldControl:async()=>{events.push('yield')}});
  assert.equal(result,42);assert.deepEqual(events,['ground','paint','yield','city','paint','yield','ready']);
+});
+test('startup waits until after an animation frame and cancels either pending boundary',async context=>{
+ const {afterBrowserPaint}=require('../app/work-scheduler.ts'),previousFrame=global.requestAnimationFrame,previousCancel=global.cancelAnimationFrame,frames=new Map(),timers=new Map();let next=0,finished=false;
+ global.requestAnimationFrame=callback=>{frames.set(++next,callback);return next};global.cancelAnimationFrame=id=>frames.delete(id);
+ context.mock.method(global,'setTimeout',callback=>{timers.set(++next,callback);return next});context.mock.method(global,'clearTimeout',id=>timers.delete(id));
+ const flush=queue=>{const [id,callback]=queue.entries().next().value;queue.delete(id);callback()};
+ try{
+  const pending=afterBrowserPaint().then(()=>{finished=true});assert.equal(frames.size,1);assert.equal(timers.size,0);flush(frames);await Promise.resolve();assert.equal(finished,false);assert.equal(timers.size,1);flush(timers);await pending;assert.equal(finished,true);
+  for(const afterFrame of [false,true]){const controller=new AbortController(),work=afterBrowserPaint(controller.signal),rejected=assert.rejects(work,{name:'AbortError'});if(afterFrame)flush(frames);controller.abort();await rejected;assert.equal(frames.size,0);assert.equal(timers.size,0)}
+  finished=false;const committed=afterBrowserPaint(undefined,2).then(()=>{finished=true});flush(frames);assert.equal(frames.size,1);assert.equal(timers.size,0);await Promise.resolve();assert.equal(finished,false);flush(frames);assert.equal(timers.size,1);flush(timers);await committed;assert.equal(finished,true);
+  const cancelled=new AbortController(),secondFrame=afterBrowserPaint(cancelled.signal,2),rejected=assert.rejects(secondFrame,{name:'AbortError'});flush(frames);cancelled.abort();await rejected;assert.equal(frames.size,0);assert.equal(timers.size,0);
+  const controller=new AbortController();controller.abort();await assert.rejects(afterBrowserPaint(controller.signal),{name:'AbortError'});assert.equal(frames.size,0);
+ }finally{if(previousFrame===undefined)delete global.requestAnimationFrame;else global.requestAnimationFrame=previousFrame;if(previousCancel===undefined)delete global.cancelAnimationFrame;else global.cancelAnimationFrame=previousCancel}
 });
 test('cancelling construction releases partial work without waiting for pending assets',async()=>{
  const {runCreationStages}=require('../app/work-scheduler.ts'),controller=new AbortController();let released=false,continued=false;
@@ -32,6 +55,30 @@ test('model work uses bounded idle time, keeps priority and cancels queued work'
   const available=scheduler.run(()=>ran.push('available'));flush({didTimeout:false,timeRemaining:()=>6});await available;assert.deepEqual(ran,['urgent','normal','available']);
   const pending=scheduler.run(()=>ran.push('cancelled')),rejected=assert.rejects(pending,{name:'AbortError'});scheduler.dispose();await rejected;assert.equal(callbacks.size,0);assert.equal(scheduler.pending,0);
  }finally{scheduler.dispose();if(previousIdle===undefined)delete global.requestIdleCallback;else global.requestIdleCallback=previousIdle;if(previousCancel===undefined)delete global.cancelIdleCallback;else global.cancelIdleCallback=previousCancel}
+});
+
+test('loader handoff holds queued model work until every owner releases it',async()=>{
+ const {createWorkScheduler,holdBackgroundWork}=require('../app/work-scheduler.ts'),previousIdle=global.requestIdleCallback,previousCancel=global.cancelIdleCallback,callbacks=new Map(),ran=[];let next=0;
+ global.requestIdleCallback=callback=>{callbacks.set(++next,callback);return next};global.cancelIdleCallback=id=>callbacks.delete(id);
+ const scheduler=createWorkScheduler(),cancelled=createWorkScheduler(),normal=scheduler.run(()=>ran.push('normal'),2),release=holdBackgroundWork(),releaseNested=holdBackgroundWork();
+ const flush=()=>{const [id,callback]=callbacks.entries().next().value;callbacks.delete(id);callback({didTimeout:true,timeRemaining:()=>0})};
+ try{
+  flush();assert.equal(callbacks.size,0);assert.deepEqual(ran,[]);
+  const urgent=scheduler.run(()=>ran.push('urgent'),0),pending=cancelled.run(()=>ran.push('cancelled')),rejected=assert.rejects(pending,{name:'AbortError'});cancelled.dispose();await rejected;
+  release();release();assert.equal(callbacks.size,0);assert.equal(scheduler.pending,2);
+  releaseNested();releaseNested();assert.equal(callbacks.size,1);flush();assert.deepEqual(ran,['urgent']);flush();await Promise.all([normal,urgent]);assert.deepEqual(ran,['urgent','normal']);assert.equal(callbacks.size,0);
+ }finally{scheduler.dispose();cancelled.dispose();release();releaseNested();if(previousIdle===undefined)delete global.requestIdleCallback;else global.requestIdleCallback=previousIdle;if(previousCancel===undefined)delete global.cancelIdleCallback;else global.cancelIdleCallback=previousCancel}
+});
+
+test('city sky rasterization waits for loader handoff without changing texture quality',async()=>{
+ const {applyCityPlanetTexture}=require('../app/bengaluru-city-planet.ts'),{holdBackgroundWork}=require('../app/work-scheduler.ts'),previousImage=global.Image,previousDocument=global.document,release=holdBackgroundWork();let draws=0;
+ const canvas={width:0,height:0,getContext:()=>({drawImage:()=>draws++})},mesh=new T.Mesh(new T.SphereGeometry());
+ global.Image=class {async decode(){}};global.document={createElement:name=>{assert.equal(name,'canvas');return canvas}};
+ try{
+  const pending=applyCityPlanetTexture(mesh,{id:'loading-handoff-test',assetBase:'/fixture/',ground:'#123456',projection:'whole-globe'});
+  await Promise.resolve();await Promise.resolve();assert.equal(draws,0);assert.equal(mesh.material.map,null);
+  release();assert.equal(await pending,true);assert.equal(draws,1);assert.deepEqual([canvas.width,canvas.height],[1536,768]);assert.equal(mesh.material.map.colorSpace,T.SRGBColorSpace);assert.equal(mesh.material.map.anisotropy,4);
+ }finally{release();mesh.material.map?.dispose();mesh.material.dispose();mesh.geometry.dispose();if(previousImage===undefined)delete global.Image;else global.Image=previousImage;if(previousDocument===undefined)delete global.document;else global.document=previousDocument}
 });
 
 test('unloaded glass materials leave the lighting registry and shader textures are disposed once',()=>{

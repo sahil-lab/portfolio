@@ -3,6 +3,7 @@ import {cityBlock,cityMaterials,createCityBuilding} from './city-architecture';
 import {createCuteResident} from './cute-resident';
 import {createReadableDisplay} from './readable-display';
 import {createTransitModels} from './transit-models';
+import {fitSingleLine} from './text-fit';
 import {batchScenery} from './static-batching';
 import {createResidentInstances} from './resident-instances';
 import {createCanopyAsset,createCanopyMaterials} from './canopy-grove';
@@ -33,7 +34,7 @@ export function createCityLandmarks(parent:T.Object3D){
   function sign(name:string,text:string,x:number,y:number,z:number,width:number,color:string,group:T.Object3D=root){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=256;const context=canvas.getContext('2d')!;
     context.fillStyle=color;context.fillRect(0,0,1024,256);context.fillStyle='#fff9ea';context.textAlign='center';context.textBaseline='middle';
-    let size=118;do{context.font=`800 ${size}px "Space Grotesk", sans-serif`;if(context.measureText(text).width<940)break;size-=2}while(size>24);
+    fitSingleLine(context,text,{font:size=>`800 ${size}px "Space Grotesk", sans-serif`,maxWidth:940,maxSize:118,minSize:26,strict:true});
     context.fillText(text,512,130);const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
     box(name+'_Housing',x,y,z,width+.22,width/4+.22,.24,finish.pearl,group);
     return createReadableDisplay(group,name,texture,width,width/4,.24,new T.Vector3(x,y,z));

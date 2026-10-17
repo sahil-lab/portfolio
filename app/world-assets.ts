@@ -2,6 +2,7 @@ import {GLTFLoader,type GLTF} from 'three/addons/loaders/GLTFLoader.js';
 import {assetManifest,type WorldAssetId} from './asset-manifest';
 import {createAssetManager} from './asset-manager';
 import {disposeScene} from './scene-resources';
+import {installImageRelease,cpuCopiesRetained} from './gpu-residency';
 import {diagnosticError,recordDiagnostic} from './client-diagnostics';
 
 export function createWorldAssets(dependencies:{fetch?:typeof fetch;parse?:(data:ArrayBuffer,url:string)=>Promise<GLTF>}={}){
@@ -38,7 +39,7 @@ export function createWorldAssets(dependencies:{fetch?:typeof fetch;parse?:(data
           if(disposed)throw new DOMException('World assets disposed','AbortError');
           const gltf=await (dependencies.parse??((buffer,url)=>new GLTFLoader().parseAsync(buffer,new URL(url,location.href).href.replace(/[^/]+$/,''))))(data,url);
           if(disposed){disposeScene(gltf.scene);throw new DOMException('World assets disposed','AbortError')}
-          gltf.scene.userData.assetUrl=url;return gltf.scene;
+          gltf.scene.userData.assetUrl=url;if(!cpuCopiesRetained())installImageRelease(gltf.scene);return gltf.scene;
         });
         parsing=pending.then(()=>{},()=>{});const scene=await pending;recordDiagnostic('asset_ready',{resource:url,phase:id,durationMs:Math.round(performance.now()-started),bytes:data.byteLength});return scene;
       }catch(error){recordDiagnostic(error instanceof Error&&error.name==='AbortError'?'asset_cancelled':'asset_failed',{resource:url,phase:id,durationMs:Math.round(performance.now()-started),...diagnosticError(error)});if(disposed)throw new DOMException('World assets disposed','AbortError');if(error instanceof Error&&error.name==='AbortError')throw error;failure=error}

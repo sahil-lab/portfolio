@@ -1,12 +1,19 @@
 import * as T from 'three';
+import {fitWrappedText} from './text-fit';
 
 export type SpeechBubbleStyle='speech'|'thought'|'burst';
 type BubbleOptions={style?:SpeechBubbleStyle;width?:number;height?:number;phase?:number};
 const ink='#17212b';
 const colors:Record<SpeechBubbleStyle,string>={speech:'#ff91b1',thought:'#73e4df',burst:'#ffe36b'};
 
+/** The canvas is created immediately, but nothing is drawn until the bubble first shows: an undrawn canvas has no backing store, and most bubbles stay hidden. */
 function bubbleTexture(text:string,style:SpeechBubbleStyle){
   const canvas=document.createElement('canvas');canvas.width=768;canvas.height=384;
+  const texture=new T.CanvasTexture(canvas);texture.name='ComicSpeech: '+text;
+  texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
+  let drawn=false;
+  function draw(){
+  if(drawn)return;drawn=true;
   const context=canvas.getContext('2d')!;
   function contour(){
     context.beginPath();
@@ -47,30 +54,23 @@ function bubbleTexture(text:string,style:SpeechBubbleStyle){
     context.strokeStyle='#fff9ef';context.lineWidth=9;context.stroke();
   }
   const maximumWidth=style==='speech'?554:478,maximumHeight=170;
-  let fontSize=120,lines:string[]=[];
-  for(;fontSize>=18;fontSize-=2){
-    context.font=`900 ${fontSize}px "Trebuchet MS", sans-serif`;lines=[];let line='';
-    for(const word of text.toUpperCase().trim().split(/\s+/)){
-      const next=line?line+' '+word:word;
-      if(line&&context.measureText(next).width>maximumWidth){lines.push(line);line=word}else line=next;
-    }
-    if(line)lines.push(line);
-    if(lines.length*fontSize*1.06<=maximumHeight&&lines.every(value=>context.measureText(value).width<=maximumWidth))break;
-  }
+  const {fontSize,lines}=fitWrappedText(context,text.toUpperCase(),{font:size=>`900 ${size}px "Trebuchet MS", sans-serif`,maxWidth:maximumWidth,maxHeight:maximumHeight,lineHeight:1.06,maxSize:120,minSize:18});
   context.fillStyle=ink;context.textAlign='center';context.textBaseline='middle';
   lines.forEach((line,index)=>context.fillText(line,384,163+(index-(lines.length-1)/2)*fontSize*1.06));
-  const texture=new T.CanvasTexture(canvas);texture.name='ComicSpeech: '+text;
-  texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;
-  return texture;
+  texture.needsUpdate=true;
+  }
+  return {texture,draw};
 }
 
 export function createSpeechBubble(text:string,{style='speech',width=3.4,height=1.85,phase=0}:BubbleOptions={}){
-  const material=new T.SpriteMaterial({map:bubbleTexture(text,style),transparent:true,depthTest:true,depthWrite:false,toneMapped:false});
+  let art=bubbleTexture(text,style);
+  const material=new T.SpriteMaterial({map:art.texture,transparent:true,depthTest:true,depthWrite:false,toneMapped:false});
   const sprite=new T.Sprite(material);sprite.name='SpeechBubble: '+text;sprite.userData.bubbleStyle=style;
   sprite.userData.text=text;
   sprite.center.set(.5,0);sprite.scale.set(width,width/2,1);sprite.position.y=height;sprite.visible=false;
   let progress=0,age=0,showing=false;
   function update(dt:number,show:boolean,reducedMotion:boolean){
+    if(show)art.draw();
     const step=Number.isFinite(dt)?T.MathUtils.clamp(dt,0,.1):0;
     if(show&&!showing)age=0;else age+=step;
     showing=show;
@@ -83,5 +83,5 @@ export function createSpeechBubble(text:string,{style='speech',width=3.4,height=
     material.rotation=reducedMotion?0:Math.sin(age*10)*.055*Math.max(0,1-age/.55);
     material.opacity=progress*progress*(3-2*progress);
   }
-  return {sprite,update,setText:(value:string)=>{if(value===text)return;const previous=material.map;material.map=bubbleTexture(value,style);text=value;sprite.name='SpeechBubble: '+value;sprite.userData.text=value;previous?.dispose()},get text(){return text}};
+  return {sprite,update,setText:(value:string)=>{if(value===text)return;const previous=material.map;art=bubbleTexture(value,style);if(showing||progress>0)art.draw();material.map=art.texture;text=value;sprite.name='SpeechBubble: '+value;sprite.userData.text=value;previous?.dispose()},get text(){return text}};
 }

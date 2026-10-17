@@ -32,6 +32,16 @@ test('movement remains consistent across frame rates, slides against walls, and 
  const travel=hz=>{const p=new T.Group();p.position.set(0,.8,0);for(let i=0;i<hz;i++)moveCharacter(p,1,0,5.5/hz,()=>false,()=>.8);return p.position.x};assert.ok(Math.abs(travel(30)-travel(144))<1e-8);
  const p=new T.Group();p.position.set(0,.8,0);moveCharacter(p,1,1,3,(x)=>x>1,()=>.8);assert.ok(p.position.x<=1&&p.position.z>2.8);p.position.y=-10;moveCharacter(p,0,0,0,()=>false,()=>null);assert.deepEqual(p.position.toArray(),[workshopSpawn.x,workshopSpawn.y,workshopSpawn.z]);
 });
+test('movement faces its direction after restoring a quaternion with flipped Euler axes',()=>{
+ const rotation=[8.556179328760063e-17,-.8076014202859948,8.556179328760063e-17,-.589728705382436];
+ for(const [horizontal,forward] of [[0,1],[0,-1],[1,1],[-1,-1]]){
+  const player=new T.Group();player.position.set(0,.8,0);player.quaternion.fromArray(rotation);const before=player.position.clone(),expected=new T.Vector3(horizontal,0,forward).normalize();
+  moveCharacter(player,expected.x,expected.z,.3,()=>false,()=>.8);
+  assert.ok(player.position.clone().sub(before).normalize().dot(expected)>.999999,'Restored position did not advance correctly');
+  assert.ok(new T.Vector3(0,0,1).applyQuaternion(player.quaternion).dot(expected)>.999999,'Restored Euler axes reversed the character facing');
+  assert.ok(new T.Vector3(0,1,0).applyQuaternion(player.quaternion).dot(new T.Vector3(0,1,0))>.999999);
+ }
+});
 test('location checkpoints skip unfinished startup and do not recreate cleared site data',()=>{
  const previous=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),values=new Map();let location=null,writes=0;
  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:key=>values.get(key)??null,setItem:(key,value)=>{writes++;values.set(key,value)},removeItem:key=>values.delete(key)}});

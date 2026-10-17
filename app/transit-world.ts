@@ -18,6 +18,7 @@ import {motherboardBounds} from './world-config';
 import {realmDesign} from './realm-layout';
 import {craftedBox} from './crafted-surfaces';
 import {cityPlanetFor,cityWalkingSpeed} from './bengaluru-city-config';
+import {moveOnMainWorld} from './main-world-movement';
 
 export {emptyTransit,type TransitStatus} from './transit-state';
 import type {TransitStatus} from './transit-state';
@@ -34,6 +35,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  change:(s:TransitStatus)=>void;open:()=>void;notice:(s:string)=>void;sound:()=>void;
  arrive?:(destination:number)=>void;
  prepare?:(root:T.Object3D)=>Promise<void>;
+ projectHome?:(root:T.Object3D,transition:boolean,rigid?:boolean)=>void;
  memoryConstrained?:boolean;releaseMemory?:()=>void;
 }){
  const root=new T.Group();root.name='OrbitalTransit';scene.add(root);const fixed=new T.Group();root.add(fixed);
@@ -59,6 +61,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
  const signSolids:{x:number;y:number;z:number;width:number}[]=[];
  function sign(parent:T.Group,text:string,x:number,y:number,z:number,width=3,height=1.5,shape:WoodenSignShape='arrow'){const board=createWoodenSign(text,{width,height,shape});board.position.set(x,y,z);parent.add(board);signSolids.push({x,y,z,width})}
  function addRails(path:MetroPath,parent:T.Object3D,origin:number,destination:number){
+  const previous=new Set(parent.children);
   const minimum=-metroAxleSpan-1,total=path.length+2*(metroAxleSpan+1);
   for(const side of [-1,1]){
   const railCurve=new MetroRailCurve(path,side);
@@ -66,6 +69,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   }
   const count=Math.min(360,Math.ceil(total/4)),sleepers=new T.InstancedMesh(new T.BoxGeometry(metroDimensions.gauge+.7,.13,.2),kit.navy,count),dummy=new T.Object3D();
   for(let index=0;index<count;index++){const frame=path.sample(minimum+index/(count-1)*total);dummy.position.copy(frame.position).addScaledVector(frame.up,-.12);dummy.quaternion.copy(frame.quaternion);dummy.updateMatrix();sleepers.setMatrixAt(index,dummy.matrix)}sleepers.computeBoundingSphere();parent.add(sleepers);
+  if(origin===0||destination===0)for(const object of parent.children)if(!previous.has(object))callbacks.projectHome?.(object,true);
  }
  addRails(pathFor(0,1),fixed,0,1);
  const journeyRails=new T.Group();journeyRails.name='Metro_ActiveRoute';root.add(journeyRails);
@@ -137,6 +141,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   return offsets.some(([x,z])=>stationaryBlocked(position.x+x,position.y,position.z+z)||neighborhood.blocked(position.x+x,position.y,position.z+z));
  }
  function stepSurface(dx:number,dz:number,distance:number,driving=false){
+  if(journey.current===0&&!journey.mode){moveOnMainWorld(player,dx,dz,distance,(x,z)=>driving?blocked(x,z)||[[1.7,0],[-1.7,0],[0,1.7],[0,-1.7]].some(([across,along])=>blocked(x+across,z+along)||height(x+across,z+along,player.position.y)===null):blocked(x,z),height);return true}
   const surface=surfaces[journey.current];if(!surface||journey.mode)return false;
   if(!streaming.ready(journey.current)){streaming.prefetch(journey.current);return true}
   settleCityArrival();
@@ -150,7 +155,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   player.position.copy(exit);player.up.copy(exit).sub(surface.center).normalize();player.userData.surfaceFrame=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),player.up);player.quaternion.copy(player.userData.surfaceFrame);pendingCityArrival=null;
  }
  function height(x:number,z:number,previous:number){
-  if(journey.current===0)return x<motherboardBounds.minX+1||x>motherboardBounds.maxX-1||z<motherboardBounds.minZ+1||z>motherboardBounds.maxZ-1?null:callbacks.ground(x,z,previous);
+  if(journey.current===0)return x<motherboardBounds.minX+1||x>motherboardBounds.maxX-1||z<motherboardBounds.minZ+1||z>motherboardBounds.maxZ-1?(previous<1.3?.8:null):callbacks.ground(x,z,previous);
   const s=current();return Math.hypot(x-s.x,z-(s.z-3))<28&&Math.abs(previous-s.y)<.5?s.y:null;
  }
  function publish(force=false){const s:TransitStatus={current:journey.current,mode:journey.mode,destination:journey.destination,progress:Math.round(journey.progress*100),driving:carIndex!==null,nearMetro:nearMetro(),nearRocket:nearRocket(),visited:[...visited]};const key=JSON.stringify(s);if(force||key!==lastStatus){lastStatus=key;callbacks.change(s)}}
@@ -187,6 +192,7 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
   streaming.protect(journey.current,destination);streaming.prefetch(destination);
   resetSurfaceFrame(player);metro.root.visible=mode==='metro';if(mode==='metro')showJourneyRails(journey.current,destination);else clearJourneyRails();
   flightRocket=mode==='rocket'?rockets[journey.current]:null;if(flightRocket){root.add(flightRocket.root);flightRocket.root.visible=true;rockets[destination].root.visible=false}
+  if(flightRocket&&(journey.current===0||destination===0))callbacks.projectHome?.(flightRocket.root,true,true);
   poseJourney(0,false);updateStationDetails();publish(true);return true;
  }
  function leaveCar(){
@@ -225,15 +231,17 @@ export function createTransitWorld(scene:T.Scene,player:T.Group,callbacks:{
     if(journey.tick(dt)){arrive(mode,dt,reduced);return true}poseJourney(journey.progress,reduced);
   }else if(carIndex!==null){
   const length=Math.min(1,Math.hypot(dx,dz)),outerCity=Math.abs(player.position.x)>62||player.position.z< -62||player.position.z>218,target=length*(journey.current?16:outerCity?28:6);speed=T.MathUtils.damp(speed,target,3.5,dt);
-  if(length>.05){driveX=dx/Math.max(length,1);driveZ=dz/Math.max(length,1);if(!journey.current)player.rotation.y=Math.atan2(dx,dz)}
-  const x=length>.05?dx/Math.max(length,1):journey.current?driveX:Math.sin(player.rotation.y),z=length>.05?dz/Math.max(length,1):journey.current?driveZ:Math.cos(player.rotation.y);
+  if(length>.05){driveX=dx/Math.max(length,1);driveZ=dz/Math.max(length,1);if(!journey.current)player.rotation.set(0,Math.atan2(dx,dz),0)}
+  const x=length>.05?dx/Math.max(length,1):driveX,z=length>.05?dz/Math.max(length,1):driveZ;
    const carBlocked=(a:number,b:number)=>blocked(a,b)||[[1.7,0],[-1.7,0],[0,1.7],[0,-1.7]].some(([ox,oz])=>blocked(a+ox,b+oz)||height(a+ox,b+oz,player.position.y)===null);
   if(!stepSurface(x,z,dt*speed,true))moveCharacter(player,x,z,dt*speed,carBlocked,height,bounds);const car=cars[carIndex];car.root.position.copy(player.position);car.root.quaternion.copy(player.quaternion);car.wheels.forEach(w=>w.rotation.x+=dt*speed*2);
   }else if(journey.current){
   stepSurface(dx,dz,dt*cityWalkingSpeed(cityPlanetFor(current()),walkingSpeed));
+  }else{
+   stepSurface(dx,dz,dt*walkingSpeed);
   }
   updateStationDetails(dt,reduced);
-  if(statusClock>.2){statusClock=0;publish()}return !!journey.mode||carIndex!==null||journey.current>0;
+  if(statusClock>.2){statusClock=0;publish()}return true;
  }
  function prompt(){
   if(journey.mode)return (journey.mode==='metro'?'Metro to ':'Rocket to ')+transitStops[journey.destination].name+' \u00b7 '+Math.round(journey.progress*100)+'%';

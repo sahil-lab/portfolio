@@ -164,6 +164,173 @@ The initial controlled High-quality desktop workflow reproduced a real blank can
 
 The presentation layer now restores the previous render target, `autoClear`, and scene override material on an exception before propagating the original error. The world records that error, pauses its animation loop and allows an explicit Resume without rebuilding or reloading the document. Normal effects remain unchanged, as does the existing Low-quality policy after context restoration. This fixes the reproduced sequence; it does not establish that all reported iPhone failures have the same cause.
 
+## Memory Maintenance Without Visual Downgrades
+
+Research rechecked 15 October 2026. Frequent blanket flushing is not a memory
+management strategy for this world: recreating visible textures, geometry,
+render targets, and shader programs can cause stalls and raise allocation
+churn. `gl.flush()` submits queued graphics commands; it does not free memory.
+
+Use the following ownership and residency rules:
+
+- Keep visible, current, destination, and observed worlds protected. The existing
+	planet-cache sweep checks at most every 500 ms and retires unused residents
+	after its grace period; it does not delete everything on a repeating timer.
+- On a world unload or cancelled load, dispose owned geometry, materials,
+	textures, skeletons, shadows, and instance bookkeeping. Removing a scene node
+	alone is not disposal.
+- Close decoded `ImageBitmap` sources only when their owner is definitively
+	finished. Streamed terrain now carries an explicit, deduplicated image-release
+	callback from the fresh load through final unload or cancellation.
+- GPU-only eviction of hidden scenery must retain CPU data for reuse and
+	context restoration. It must not close shared images or dispose resources
+	still referenced by active scenery.
+- Preserve texture resolution, geometry detail, materials, lighting, and effect
+	settings. Experimental multi-draw is disabled by default after the measured
+	frame-time regression below. It requires explicit developer opt-in and native
+	support; it is not activated by hardware support alone. The experiment only
+	combines immutable sibling batches with identical material identity and
+	compatible state. Custom and transparent draws stay separate, and scene-level
+	objects referenced by visibility/residency registries retain their identities.
+- Reuse render targets and buffers when dimensions and data are unchanged.
+	Do not poll synchronous graphics queries in the normal animation loop.
+- Do not call forced garbage collection, lose the graphics context, reload the
+	page, or clear saved location/settings as periodic production cleanup.
+
+The resource-disposal boundary uses Three.js type flags rather than relying on
+module-instance identity, and includes shader-uniform texture arrays. Batched
+rendering bookkeeping is released once. Geometry-only neighborhood retirement
+also releases instance buffers, while preserving the shared materials and
+textures. Full scene export expands the batched instances back into their
+original geometry, transforms, and colors.
+
+For maintenance, repeat the same destinations and return to the same camera
+pose at fixed quality. Compare post-GC heap in diagnostics, backing buffers,
+decoded-image estimates, native-process allocation, actual render counts,
+frame timing, and screenshots. Keep native allocator pools separate from GPU
+VRAM claims, and never add overlapping categories. Forced GC is appropriate as
+a measurement control in isolated profiling, not as application behavior.
+
+Research references:
+
+- [Three.js r185 disposal guide](https://raw.githubusercontent.com/mrdoob/three.js/r185/manual/en/how-to-dispose-of-objects.html): explicit ownership, shader/texture disposal, `ImageBitmap.close()`, and the cost of disposing reusable resources.
+- [Three.js BatchedMesh](https://threejs.org/docs/pages/BatchedMesh.html): per-object culling, multi-draw batching, and fallback behavior; runtime assumptions are checked against the installed r185 implementation.
+- [MDN WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices): bounded budgets, batching, avoiding allocation churn and blocking queries, and the distinction between command flushing and memory release.
+- [Chrome memory-problem guidance](https://developer.chrome.com/docs/devtools/memory-problems): distinguish bloat, retained allocations, and frequent collection using repeatable measurements.
+
+### Rejected Multi-Draw Experiment, 15-16 October
+
+Five same-scene Chrome comparisons used Balanced quality, fixed cameras and
+lighting, refreshed shadow maps, and explicitly requested rendered frames.
+Desktop canvases were 1280 x 800; the mobile-sized canvas was 390 x 844, both
+at device scale factor 1. Each scene was captured before and after enabling
+the native multi-draw pass, without changing geometry or material settings.
+
+| View | Draws Before | Draws After | Triangles, Unchanged |
+| --- | ---: | ---: | ---: |
+| Plaza | 2,583 | 2,468 | 2,386,427 |
+| Workshop, night | 2,299 | 2,247 | 1,585,355 |
+| Prism planet | 1,263 | 1,215 | 2,502,467 |
+| Bengaluru | 206 | 206 | 367,619 |
+| Mobile plaza | 1,281 | 1,233 | 1,829,767 |
+
+All five latest comparisons had zero pixel differences and no page errors.
+Bengaluru's visible tile renderer is separate, so batching hidden mainland
+scenery does not reduce its visible draws. These are submission and image
+equivalence results, not an FPS improvement or a physical-phone certification.
+
+Separate-build timing was variable and changed direction when the run order
+was reversed. A subsequent same-scene test therefore alternated native batches
+and their exact expanded meshes after warming both paths. Cameras, pixels,
+triangles, pixel density, and shadow state matched; each sample explicitly
+requested rendering. Mean times below average the two windows per mode:
+
+| Auto-Quality View | Batch Sorting | Expanded Draws | Native Multi-Draw |
+| --- | --- | ---: | ---: |
+| Plaza | Off | 96.4 ms | 108.5 ms |
+| Plaza | On | 98.1 ms | 106.5 ms |
+| Prism planet | Off | 58.2 ms | 62.3 ms |
+| Prism planet | On | 60.6 ms | 63.9 ms |
+
+The saved submissions did not translate to lower frame times on this Windows
+Chrome / Intel Arc Pro setup. Normal application rendering keeps
+the existing mesh path. The tested utility and export/teardown support remain
+available for explicit experiments, not as an enabled performance claim.
+No models, textures, lighting, effects, or settings were downgraded to improve
+these numbers. The paused-scene test is not live-gameplay FPS certification.
+
+### Resource-Lifetime Verification, 16 October
+
+The final default-off build passed TypeScript, scoped lint, 86 focused tests,
+the Vercel output validator, and 48 desktop/mobile world checks. Those checks
+covered all nine authored planets, their orbital views, mainland districts,
+Bengaluru tiles, movement, and night rendering, and asserted that experimental
+multi-draw was absent. Native mobile touch, orientation, camera changes, and
+WebGL loss/restoration also passed with the same document, scene, canvas, and
+player position. The existing Low-quality recovery policy was not changed.
+
+A separate complete control/experimental-candidate comparison performed three
+identical travel/return cycles, with Auto quality, Day lighting, previews and
+audio off. Both returned to approximately 197.732 MiB of geometry backing and
+303.635 MiB of image RGBA8 base estimates. Post-GC heap rose from about 100.6 to
+106.2 MiB in the control and 100.7 to 106.2 MiB in the experimental candidate.
+The final default-off build is distinct from this experimental timing build.
+
+The renderer native buffer pool's allocated-object counter rose from 141.686
+to 394.918 MiB in the control and 143.398 to 396.823 MiB in the experimental
+candidate. These cleanup fixes therefore do not establish a complete fix for
+the observed native retention.
+
+A diagnostic-only control replayed the unchanged control build with this
+probe's `Network.enable` payload buffers limited to 1 MiB total and 256 KiB per
+resource. Native-pool growth fell from 253.232 MiB to 129.426 MiB, with the
+limited run measuring 89.327 to 218.753 MiB. All 15 checkpoints rendered
+nonblank scenes without recorded page errors or context loss, and returned
+geometry and image estimates matched. No application cache, request, texture,
+model, or quality setting was changed. This demonstrates a material diagnostic
+contribution, not an application memory saving. Other debugger sessions and
+browser/driver accounting remain, so the residual growth is not yet attributed.
+The payload limits apply to the individual DevTools session, as documented by
+the [Chrome DevTools Network protocol](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Network.pdl).
+
+Allocator roots, geometry/backing estimates, image estimates, and GPU host
+allocations overlap; they must not be summed or presented as physical VRAM.
+The attempted reverse-order memory repeat was incomplete when the control
+browser closed, so it is not treated as a successful comparison. No general
+FPS gain, physical-phone stability, or whole-site memory-leak guarantee is
+claimed from these tests.
+
+### CPU Copy Release, 16 October
+
+The retained-copy rule above was revised by an explicit product decision: the
+renderer's private footprint, not VRAM, is what Chrome and Android act on when
+they discard or kill a tab, and the duplicate CPU copies were the largest
+remaining lossless saving. [gpu-residency.ts](../app/gpu-residency.ts) now:
+
+- Arms the attributes of immutable, unpickable scenery (`SceneryBatch`,
+  `City_VisibleSilhouettes`, `Everyday_CraftedBuilding`; never instanced,
+  batched, skinned, interleaved, morphing, or under pickable roots) so the
+  first `onUpload` replaces each static array with an empty one. Counts and
+  precomputed bounds stay valid, dynamic attributes (the silhouette index) keep
+  their data, and released meshes ignore rays.
+- Closes a decoded `ImageBitmap` after its first upload when every texture of
+  that source shares one GL cache key, swapping the source to a 1 x 1
+  placeholder so any later upload is harmless rather than fatal. Managed
+  models arm their images when parsed; planets when prepared.
+- Keeps released resources resident during hidden-mainland GPU eviction, since
+  nothing could re-upload them.
+- Replaces seamless context restoration: on `webglcontextlost` the world
+  checkpoints its location and the page rebuilds it behind the loading screen.
+  `?keep-cpu-copies` disables the release for export and audit tooling.
+
+Text fitting changed in the same pass: [text-fit.ts](../app/text-fit.ts)
+measures each word once instead of shaping cumulative lines at up to 95 font
+sizes, and speech bubbles draw their canvas only when first shown. Measured on
+the same low-quality desktop scene, renderer private footprint fell from 837 MB
+to 659 MB after the text changes (Blink shaping tables 134 MB to 12 MB) with
+`measureText` calls down 95%; the figures after copy release are recorded in the
+session notes rather than claimed here until re-measured on a physical phone.
+
 ## Measured Local Memory
 
 The 11 October investigation profiled the isolated local build at `http://127.0.0.1:4369/`, not an unrebuilt working tree or a physical phone. Fresh Windows Chrome sessions used Balanced quality, device scale factor 1, desktop 1440 x 960 and mobile-emulated 390 x 844 viewports. Live previews, audio/voice and the Linux PC were inactive. Each run visited the plaza, project area, Prism planet and returned to the plaza. The profiler collected unique scene backing-buffer sizes and Chromium heap counters before/after forced GC; the second run also collected four successful detailed native memory dumps.

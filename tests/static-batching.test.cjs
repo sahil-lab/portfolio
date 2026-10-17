@@ -2,6 +2,41 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,filename);
 const T=require('three'),{batchScenery,textureKey}=require('../app/static-batching.ts'),{disposeScene}=require('../app/scene-resources.ts');
 
+test('multi-draw coalescing preserves exact geometry, transforms, materials and culling bounds',()=>{
+ const {batchStaticDraws}=require('../app/static-batching.ts'),root=new T.Group(),material=new T.MeshStandardMaterial(),sources=[];
+ for(let index=0;index<6;index++){const geometry=new T.BoxGeometry(1+index*.1,2,1),mesh=new T.Mesh(geometry,material);mesh.name='SceneryBatch';mesh.position.set(index*4,1,2);mesh.updateMatrix();mesh.matrixAutoUpdate=false;mesh.castShadow=true;root.add(mesh);sources.push(mesh)}
+ root.userData.staticCameraBounds=[new T.Box3(new T.Vector3(-1,-1,-1),new T.Vector3(1,1,1))];const bounds=root.userData.staticCameraBounds;
+ assert.deepEqual(batchStaticDraws(root,false),{batches:0,meshes:0});assert.equal(root.children.length,6);
+ assert.deepEqual(batchStaticDraws(root,true),{batches:1,meshes:6});const batch=root.children[0];assert.equal(batch.isBatchedMesh,true);assert.equal(batch.material,material);assert.equal(batch.perObjectFrustumCulled,true);assert.equal(root.userData.staticCameraBounds,bounds);
+ for(let instance=0;instance<sources.length;instance++){
+  const source=sources[instance],matrix=new T.Matrix4();batch.getMatrixAt(instance,matrix);assert.deepEqual(matrix.elements,source.matrix.elements);
+  const range=batch.getGeometryRangeAt(batch.getGeometryIdAt(instance));
+  for(const [name,attribute] of Object.entries(source.geometry.attributes))assert.deepEqual(Array.from(batch.geometry.attributes[name].array.slice(range.vertexStart*attribute.itemSize,(range.vertexStart+range.vertexCount)*attribute.itemSize)),Array.from(attribute.array));
+  const indices=batch.geometry.index.array.slice(range.indexStart,range.indexStart+range.indexCount);assert.deepEqual(Array.from(indices,index=>index-range.vertexStart),Array.from(source.geometry.index.array));
+ }
+ assert.deepEqual(batchStaticDraws(root,true),{batches:0,meshes:0});batch.dispose();material.dispose();for(const source of sources)source.geometry.dispose();
+});
+
+test('multi-draw coalescing leaves animated, transparent, custom and differently owned meshes untouched',()=>{
+ const {batchStaticDraws}=require('../app/static-batching.ts'),root=new T.Group(),material=new T.MeshStandardMaterial(),sources=[];
+ for(const variant of ['dynamic','transparent','callback','shader','separate-material','mirrored','custom-depth','unculled'])for(let index=0;index<3;index++){
+  const current=variant==='transparent'?new T.MeshStandardMaterial({transparent:true}):variant==='shader'||variant==='separate-material'?material.clone():material;
+  if(variant==='shader')current.onBeforeCompile=()=>{};
+  const mesh=new T.Mesh(new T.BoxGeometry(),current);mesh.name='SceneryBatch';if(variant==='mirrored')mesh.scale.x=-1;if(variant==='custom-depth')mesh.customDepthMaterial=new T.MeshDepthMaterial();if(variant==='unculled')mesh.frustumCulled=false;mesh.updateMatrix();mesh.matrixAutoUpdate=variant==='dynamic';if(variant==='callback')mesh.onBeforeRender=()=>{};root.add(mesh);sources.push(mesh);
+ }
+ assert.deepEqual(batchStaticDraws(root,true),{batches:0,meshes:0});assert.equal(root.children.length,sources.length);disposeScene(root);
+});
+test('multi-draw releases obsolete geometry but preserves geometries shared outside the batched branch',()=>{
+ const {batchStaticDraws}=require('../app/static-batching.ts'),scene=new T.Scene(),root=new T.Group(),material=new T.MeshStandardMaterial(),shared=new T.BoxGeometry(),privateGeometries=[];scene.add(root,new T.Mesh(shared,material));let sharedReleases=0,privateReleases=0;shared.addEventListener('dispose',()=>sharedReleases++);
+ for(let index=0;index<4;index++){const geometry=index===0?shared:new T.BoxGeometry(1+index,1,1);if(index){geometry.addEventListener('dispose',()=>privateReleases++);privateGeometries.push(geometry)}const mesh=new T.Mesh(geometry,material);mesh.name='SceneryBatch';mesh.updateMatrix();mesh.matrixAutoUpdate=false;root.add(mesh)}
+ assert.deepEqual(batchStaticDraws(root,true),{batches:1,meshes:4});assert.equal(sharedReleases,0);assert.equal(privateReleases,3);disposeScene(scene);assert.equal(sharedReleases,1);
+});
+test('multi-draw preserves scene-level roots owned by external visibility and residency registries',()=>{
+ const {batchStaticDraws}=require('../app/static-batching.ts'),scene=new T.Scene(),material=new T.MeshStandardMaterial();
+ for(let index=0;index<4;index++){const mesh=new T.Mesh(new T.BoxGeometry(),material);mesh.name='SceneryBatch';mesh.updateMatrix();mesh.matrixAutoUpdate=false;scene.add(mesh)}
+ const roots=scene.children.map(object=>object.uuid);assert.deepEqual(batchStaticDraws(scene,true),{batches:0,meshes:0});assert.deepEqual(scene.children.map(object=>object.uuid),roots);disposeScene(scene);
+});
+
 test('static attribute packing reduces storage within bounded color and normal error',()=>{
  const {compactStaticGeometry}=require('../app/static-batching.ts'),geometry=new T.BoxGeometry(),position=geometry.attributes.position,index=geometry.index,normal=geometry.attributes.normal;
  geometry.rotateY(.37);geometry.setAttribute('color',new T.BufferAttribute(new Float32Array(position.count*3).map((_,offset)=>(offset%17)/16),3));

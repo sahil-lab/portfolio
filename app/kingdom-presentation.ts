@@ -8,6 +8,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {FXAAShader} from 'three/addons/shaders/FXAAShader.js';
 import type {Settings} from './persistence';
 import {createShaderPreparation} from './shader-preparation';
+import {batchStaticDraws} from './static-batching';
 
 export const kingdomBloom={strength:.12,radius:.12,threshold:1.6};
 export const kingdomOcclusion={pixelBudget:600000,radius:2.4,thickness:1.4,strength:.78};
@@ -21,10 +22,11 @@ export function resizeRenderer(renderer:T.WebGLRenderer,width:number,height:numb
   renderer.setDrawingBufferSize(width,height,ratio);renderer.domElement.style.width=width+'px';renderer.domElement.style.height=height+'px';return true;
 }
 
-export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera){
+export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera,options:{experimentalMultiDraw?:boolean}={}){
   let composer:EffectComposer|undefined,occlusion:GTAOPass|undefined,bloom:UnrealBloomPass|undefined,output:OutputPass|undefined,antialias:ShaderPass|undefined;
   let width=1,height=1;
   const shaders=createShaderPreparation(renderer,scene,camera,()=>composer?.readBuffer??null);
+  const multiDraw=options.experimentalMultiDraw===true&&renderer.extensions?.has('WEBGL_multi_draw')===true;let preparationClosed=false;
   const originalAutoReset=renderer.info.autoReset;renderer.info.autoReset=false;
   function release(){occlusion?.gtaoMaterial.dispose();occlusion?.blendMaterial.dispose();occlusion?.dispose();bloom?.materialHighPassFilter.dispose();bloom?.dispose();output?.dispose();antialias?.dispose();composer?.dispose();composer=undefined;occlusion=undefined;bloom=undefined;output=undefined;antialias=undefined}
   function resize(nextWidth:number,nextHeight:number){
@@ -59,9 +61,11 @@ export function createKingdomPresentation(renderer:T.WebGLRenderer,scene:T.Scene
     resize(width,height);
   }
   return {
-    quality,resize,prepare:shaders.prepare,finishPreparation:shaders.dispose,
+    quality,resize,
+    prepare(this:void,root:T.Object3D,visibleOnly=false){if(!preparationClosed&&multiDraw)batchStaticDraws(root,true);return shaders.prepare(root,visibleOnly)},
+    finishPreparation(this:void){preparationClosed=true;return shaders.dispose()},
     get pending(){return shaders.pending},
     render:()=>{const target=renderer.getRenderTarget(),autoClear=renderer.autoClear,overrideMaterial=scene.overrideMaterial;try{renderer.info.reset();if(composer){occlusion?.setGBuffer(composer.readBuffer.depthTexture!);composer.render()}else renderer.render(scene,camera)}catch(error){renderer.setRenderTarget(target);renderer.autoClear=autoClear;scene.overrideMaterial=overrideMaterial;throw error}},
-    dispose:()=>{release();renderer.info.autoReset=originalAutoReset},
+    dispose:()=>{preparationClosed=true;release();renderer.info.autoReset=originalAutoReset},
   };
 }

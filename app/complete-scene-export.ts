@@ -49,8 +49,23 @@ export function createExportSnapshot(roots:T.Object3D[],options:ExportOptions):E
   const renderable=source as T.Mesh;
   if(renderable.geometry?.attributes.position?.count===0){manifest.excluded.push({name:source.name,reason:'empty lifecycle/helper geometry'});return}
   if(renderable.isMesh&&source.layers.mask===0){manifest.excluded.push({name:source.name,reason:'source part represented by an instance batch'});return}
-  const id=options.zone+'/'+path,name=source.name||source.type,notes:string[]=[];let target:T.Object3D;
-  if((source as T.InstancedMesh).isInstancedMesh){
+  const id=options.zone+'/'+path,name=source.name||source.type,notes:string[]=[];let target:T.Object3D,batchInstances=0,batchTriangles=0;
+  if((source as T.BatchedMesh).isBatchedMesh){
+   const batch=source as T.BatchedMesh,group=new T.Group(),cache=new Map<number,T.BufferGeometry>(),matrix=new T.Matrix4(),color=new T.Color();target=group;
+   for(let index=0;index<batch.maxInstanceCount;index++){
+    let geometryId:number;try{geometryId=batch.getGeometryIdAt(index)}catch{continue}
+    const range=batch.getGeometryRangeAt(geometryId);if(!range)continue;let geometry=cache.get(geometryId);
+    if(!geometry){
+     geometry=new T.BufferGeometry();
+     for(const [attributeName,attribute] of Object.entries(batch.geometry.attributes))geometry.setAttribute(attributeName,new T.BufferAttribute(attribute.array.slice(range.vertexStart*attribute.itemSize,(range.vertexStart+range.vertexCount)*attribute.itemSize),attribute.itemSize,attribute.normalized));
+     if(batch.geometry.index)geometry.setIndex(new T.BufferAttribute(batch.geometry.index.array.slice(range.indexStart,range.indexStart+range.indexCount).map(value=>value-range.vertexStart),1));
+     geometry.computeBoundingBox();geometry.computeBoundingSphere();geometries.add(geometry);cache.set(geometryId,geometry);
+    }
+    batch.getMatrixAt(index,matrix);color.set('#ffffff');batch.getColorAt(index,color);
+    const mesh=new T.Mesh(geometry,materialFor(batch.material,id,color));mesh.name=name+'_instance_'+index;mesh.matrix.copy(matrix);mesh.matrixAutoUpdate=false;mesh.userData={exportId:id+'/instance-'+index,sourceInstance:index,sourceVisible:batch.getVisibleAt(index)};group.add(mesh);batchInstances++;batchTriangles+=(geometry.index?.count??geometry.attributes.position.count)/3;
+   }
+   notes.push('multi-draw instances expanded with original geometry, transforms and colors');
+  }else if((source as T.InstancedMesh).isInstancedMesh){
    const instanced=source as T.InstancedMesh,group=new T.Group(),geometry=geometryFor(instanced),matrix=new T.Matrix4(),color=new T.Color();target=group;
     for(let index=0;index<instanced.count;index++){instanced.getMatrixAt(index,matrix);if(instanced.instanceColor)instanced.getColorAt(index,color);else color.set('#ffffff');const originals=Array.isArray(instanced.material)?instanced.material:[instanced.material],finishes=originals.map(material=>materialFor(material,id,color)),mesh=new T.Mesh(geometry,Array.isArray(instanced.material)?finishes:finishes[0]);mesh.name=name+'_instance_'+index;mesh.matrix.copy(matrix);mesh.matrixAutoUpdate=false;mesh.userData={exportId:id+'/instance-'+index,sourceInstance:index};group.add(mesh)}
    notes.push('instances expanded to mesh nodes with preserved colors and shared geometry');
@@ -62,9 +77,9 @@ export function createExportSnapshot(roots:T.Object3D[],options:ExportOptions):E
   else target=new T.Group();
   target.name=name;target.visible=true;target.userData={...metadata(source.userData) as Record<string,unknown>,...target.userData,exportId:id,sourceVisible:source.visible,sourceType:source.type};target.matrix.copy(worldRoot?original.matrixWorld:source.matrix);target.matrixAutoUpdate=false;parent.add(target);
   if((source as T.DirectionalLight).isDirectionalLight||(source as T.SpotLight).isSpotLight){const light=source as T.DirectionalLight|T.SpotLight,position=source.getWorldPosition(new T.Vector3()),aim=light.target.getWorldPosition(new T.Vector3()),matrix=new T.Matrix4().lookAt(position,aim,source.up).setPosition(position);if(!worldRoot&&source.parent)matrix.premultiply(source.parent.matrixWorld.clone().invert());target.matrix.copy(matrix);const exported=target as T.DirectionalLight|T.SpotLight;exported.target=new T.Object3D();exported.target.position.z=-1;exported.target.name='Export_LightAim';exported.add(exported.target)}
-  const originals=renderable.material?(Array.isArray(renderable.material)?renderable.material:[renderable.material]):[],geometry=renderable.geometry,instances=(source as T.InstancedMesh).isInstancedMesh?(source as T.InstancedMesh).count:1;
+  const originals=renderable.material?(Array.isArray(renderable.material)?renderable.material:[renderable.material]):[],geometry=renderable.geometry,instances=(source as T.BatchedMesh).isBatchedMesh?batchInstances:(source as T.InstancedMesh).isInstancedMesh?(source as T.InstancedMesh).count:1;
   if(originals.some(material=>(material as T.ShaderMaterial).isShaderMaterial))notes.push('custom shader appearance approximated; source code retained');
-  manifest.objects.push({id,name,type:source.type,sourceUuid:source.uuid,visible:source.visible,instances,triangles:renderable.isMesh&&geometry?((geometry.index?.count??geometry.attributes.position.count)/3)*instances:0,materialNames:originals.map(material=>material.name||material.type),notes});
+  manifest.objects.push({id,name,type:source.type,sourceUuid:source.uuid,visible:source.visible,instances,triangles:(source as T.BatchedMesh).isBatchedMesh?batchTriangles:renderable.isMesh&&geometry?((geometry.index?.count??geometry.attributes.position.count)/3)*instances:0,materialNames:originals.map(material=>material.name||material.type),notes});
   if(source instanceof T.LOD){const best=source.levels[0]?.object;if(best)visit(best,target,path+'/LOD0');for(const level of source.levels.slice(1))manifest.excluded.push({name:level.object.name,reason:'alternate LOD; highest detail selected'})}
   else source.children.forEach((child,index)=>visit(child,target,path+'/'+index+'-'+(child.name||child.type)));
  }

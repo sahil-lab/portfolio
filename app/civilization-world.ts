@@ -6,6 +6,7 @@ import {planetPoint,planetUp,planetGeography,type PlanetSurface} from './planet-
 import type {ForgeSnapshot} from './forge-feed';
 import {createReadableDisplay} from './readable-display';
 import {planetArchitectureFor} from './architecture-profiles';
+import {wrapText} from './text-fit';
 import {createArchitectureNeighborhood} from './architecture-neighborhood';
 import {architectureMaterials,createCraftedBuilding,bakeArchitecture} from './building-craft';
 
@@ -93,8 +94,7 @@ export function createCivilizationWorld(parent:T.Object3D,surface:PlanetSurface)
     const canvas=document.createElement('canvas');canvas.width=768;canvas.height=256;const context=canvas.getContext('2d')!;
     context.fillStyle=identity==='github'?'#20252c':'#f2f7fc';context.fillRect(0,0,768,256);
     context.fillStyle=identity==='github'?'#f2f5fa':'#0a66c2';context.textAlign='center';context.font='700 46px "Trebuchet MS", sans-serif';
-    const words=title.split(' ');let line='',rows:string[]=[];
-    for(const word of words){const next=line?line+' '+word:word;if(context.measureText(next).width>690&&line){rows.push(line);line=word}else line=next}if(line)rows.push(line);
+    const rows=wrapText(context,title,690);
     rows.slice(0,2).forEach((text,index)=>context.fillText(text,384,rows.length>1?66+index*52:93,690));
     context.font='500 25px "Trebuchet MS", sans-serif';context.fillStyle=identity==='github'?'#adb8c7':'#516c83';context.fillText(detail,384,204,690);
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;

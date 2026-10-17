@@ -5,10 +5,12 @@ import {disposeScene} from './scene-resources';
 import {signatureShops,type ShopTheme} from './everyday-config';
 import {batchScenery} from './static-batching';
 import {cacheStaticTransforms} from './static-transforms';
+import {createWorkScheduler} from './work-scheduler';
 
 type SignatureBase={root:T.Group;hero:T.Group;solids:T.Box3[];features:Record<string,number>;theme:ShopTheme;interact:()=>string;update:(delta:number,reduced:boolean)=>void};
 type SignatureAsset={scene:T.Group;occlusion:T.Texture;url?:string};
 const assets=createAssetManager({concurrency:2});
+const work=createWorkScheduler();
 
 async function loadSignature(theme:ShopTheme,signal:AbortSignal):Promise<SignatureAsset>{
  let failure:unknown;
@@ -17,7 +19,7 @@ async function loadSignature(theme:ShopTheme,signal:AbortSignal):Promise<Signatu
   const base='/assets/signature-v'+version+'/'+theme,url=base+'.glb';
   const lease=assets.acquire(url,async signal=>{const response=await fetch(url,{signal,credentials:'same-origin',cache:'force-cache'});if(!response.ok)throw new Error('Signature model unavailable');return response.arrayBuffer()},()=>{});
   const cancel=()=>lease.release();signal.addEventListener('abort',cancel,{once:true});let scene:T.Group|undefined,occlusion:T.Texture|undefined;
-  try{const bytes=await lease.promise;if(signal.aborted)throw new DOMException('Shop released','AbortError');scene=(await new GLTFLoader().parseAsync(bytes,new URL('/assets/',location.href).href)).scene;const root=scene.getObjectByName('Signature_Root');if(root?.userData.signatureTheme!==theme||!scene.getObjectByName('Signature_Hero')||!scene.getObjectByName('Signature_SignAnchor')||version===2&&root.userData.signatureVersion!==2)throw new Error('Signature asset contract mismatch');occlusion=await new T.TextureLoader().loadAsync(base+'-ao.png');if(signal.aborted)throw new DOMException('Shop released','AbortError');return {scene,occlusion,url}}
+  try{const bytes=await lease.promise;scene=(await work.run(()=>{if(signal.aborted)throw new DOMException('Shop released','AbortError');return new GLTFLoader().parseAsync(bytes,new URL('/assets/',location.href).href)})).scene;const root=scene.getObjectByName('Signature_Root');if(root?.userData.signatureTheme!==theme||!scene.getObjectByName('Signature_Hero')||!scene.getObjectByName('Signature_SignAnchor')||version===2&&root.userData.signatureVersion!==2)throw new Error('Signature asset contract mismatch');occlusion=await new T.TextureLoader().loadAsync(base+'-ao.png');if(signal.aborted)throw new DOMException('Shop released','AbortError');return {scene,occlusion,url}}
   catch(error){if(scene)disposeScene(scene);occlusion?.dispose();if(signal.aborted)throw error;failure=error}
   finally{signal.removeEventListener('abort',cancel);lease.release()}
  }
@@ -29,7 +31,7 @@ export function createAuthoredSignatureShop(fallback:SignatureBase,name:string,t
  const marker=new T.Mesh(new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute([],3)),new T.MeshBasicMaterial());marker.name='Signature_AssetLifetime';marker.visible=false;root.add(marker);
  let disposed=false,loaded=false,time=0,selection=0;const accents=new Set<T.MeshStandardMaterial>();
  marker.geometry.addEventListener('dispose',()=>{disposed=true;controller.abort()});root.userData.assetState='loading';root.userData.signatureAsset=true;
- const ready=(options.load||typeof window!=='undefined'?Promise.resolve().then(()=>{if(disposed)throw new DOMException('Shop released','AbortError');return (options.load??(signal=>loadSignature(theme,signal)))(controller.signal)}):Promise.reject(new Error('No browser asset loader'))).then(asset=>{
+ const ready=(options.load||typeof window!=='undefined'?Promise.resolve().then(()=>{if(disposed)throw new DOMException('Shop released','AbortError');return (options.load??(signal=>loadSignature(theme,signal)))(controller.signal)}):Promise.reject(new Error('No browser asset loader'))).then(asset=>work.run(()=>{
   if(disposed){disposeScene(asset.scene);asset.occlusion.dispose();return false}
   const nativeRoot=asset.scene.getObjectByName('Signature_Root'),nativeHero=asset.scene.getObjectByName('Signature_Hero'),anchor=asset.scene.getObjectByName('Signature_SignAnchor');
   if(nativeRoot?.userData.signatureTheme!==theme||!nativeHero||!anchor){disposeScene(asset.scene);asset.occlusion.dispose();throw new Error('Signature asset contract mismatch')}
@@ -47,6 +49,6 @@ export function createAuthoredSignatureShop(fallback:SignatureBase,name:string,t
   signs.forEach(sign=>{const side=sign.userData.displaySide??1;sign.position.copy(side<0?backPosition:signPosition);sign.position.z+=side*.008});
   asset.scene.name='Signature_AuthoredGLB';root.add(asset.scene);loaded=true;root.userData.assetState='ready';root.userData.authoredSignature=theme;root.userData.signatureVersion=nativeRoot.userData.signatureVersion??1;root.userData.assetUrl=asset.url??'/assets/signature-v'+root.userData.signatureVersion+'/'+theme+'.glb';root.userData.signatureDetails=nativeRoot.userData.signatureDetails;
   if(selection)for(const material of accents)material.color.set(['#ffffff','#86caba','#ecd078'][selection]);return true;
- }).catch(error=>{if(!disposed){root.userData.assetState='fallback';root.userData.assetError=error instanceof Error?error.message:String(error)}return false});
+ })).catch(error=>{if(!disposed){root.userData.assetState='fallback';root.userData.assetError=error instanceof Error?error.message:String(error)}return false});
  return {...fallback,ready,interact:()=>{selection=(selection+1)%3;if(!loaded)return fallback.interact();for(const material of accents)material.color.set([design.accent,'#86caba','#ecd078'][selection]);return theme==='donut'?`${name}: ${['strawberry circuit','mint cloud','sunrise lemon'][selection]} glaze is now on display.`:`${name}: display collection ${selection+1} is now featured.`},update:(delta:number,reduced:boolean)=>{if(!loaded){fallback.update(delta,reduced);return}time+=reduced?0:Math.max(0,Math.min(delta,.05));hero.rotation.y=reduced?0:Math.sin(time*.35)*.045}};
 }

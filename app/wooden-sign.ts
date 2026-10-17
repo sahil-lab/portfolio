@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {craftGeometry} from './craft-kit';
+import {fitWrappedText} from './text-fit';
 
 export type WoodenSignShape = 'arch' | 'arrow' | 'shield';
 type SignOptions = {width?:number;height?:number;postHeight?:number;shape?:WoodenSignShape};
@@ -42,16 +43,7 @@ function lettering(text:string,width:number,height:number){
   const canvas=document.createElement('canvas');canvas.width=width>=4?1024:512;canvas.height=Math.round(canvas.width*height/width);
   const context=canvas.getContext('2d')!;
   const maximumWidth=canvas.width*.92,maximumHeight=canvas.height*.88;
-  let lines:string[]=[],fontSize=Math.floor(Math.min(200,maximumHeight/1.12));
-  for(;fontSize>=12;fontSize-=2){
-    context.font=`900 ${fontSize}px "Trebuchet MS", sans-serif`;lines=[];let line='';
-    for(const word of text.toUpperCase().trim().split(/\s+/)){
-      const next=line?line+' '+word:word;
-      if(line&&context.measureText(next).width>maximumWidth){lines.push(line);line=word}else line=next;
-    }
-    if(line)lines.push(line);
-    if(lines.length*fontSize*1.12<=maximumHeight&&lines.every(value=>context.measureText(value).width<=maximumWidth))break;
-  }
+  const {fontSize,lines}=fitWrappedText(context,text.toUpperCase(),{font:size=>`900 ${size}px "Trebuchet MS", sans-serif`,maxWidth:maximumWidth,maxHeight:maximumHeight,lineHeight:1.12,maxSize:Math.floor(Math.min(200,maximumHeight/1.12)),minSize:12});
   context.textAlign='center';context.textBaseline='middle';
   lines.forEach((line,index)=>{
     const baseline=canvas.height/2+(index-(lines.length-1)/2)*fontSize*1.12;

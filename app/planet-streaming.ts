@@ -28,14 +28,15 @@ const loadCityTiles:CityLoader=async(surface,signal)=>(await import('./bengaluru
 export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,scheduler:WorkScheduler,options:{factory?:()=>Promise<Builder>;now?:()=>number;prepare?:(root:T.Object3D)=>Promise<void>;terrain?:typeof loadAuthoredTerrain;city?:CityLoader;beforeLoad?:()=>void;onRelease?:()=>void;runLoad?:(work:()=>Promise<boolean>,priority:number,signal:AbortSignal)=>Promise<boolean>}={}){
  const root=new T.Group();root.name='Globe_'+surface.stop.id;parent.add(root);const proxy=createOrbitalProxy(surface);root.add(proxy);
  const rotation=createPlanetRotation(root,surface.center),now=options.now??(()=>performance.now());let value:Landscape|null=null,pending:Promise<boolean>|null=null,state:PlanetLoadState='unloaded',generation=0,disposed=false,lastUse=0,repositoryData:ForgeSnapshot|undefined,realmState:number|null=null,terrainController:AbortController|null=null;
+ let releaseTerrainImages:(()=>void)|undefined;
  function unload(){
    if(value||pending)recordDiagnostic('planet_unloaded',{phase:surface.stop.id,ready:!!value});
-  generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;value.city?.region?.dispose();delete surface.mappedGround;delete surface.mappedContact;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
+  generation++;terrainController?.abort();rotation.reset();if(value){realmState=value.realm?.demo.snapshot?.index??realmState;value.city?.region?.dispose();delete surface.mappedGround;delete surface.mappedContact;disposeScene(value.root);value.root.removeFromParent();value.root.clear();value=null;releaseTerrainImages?.();releaseTerrainImages=undefined;options.onRelease?.()}root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;proxy.visible=true;state='unloaded';
  }
  async function load(priority=1):Promise<boolean>{
   if(disposed)return false;if(value){lastUse=now();return true}if(pending)return pending;
   const started=performance.now();recordDiagnostic('planet_load_started',{phase:surface.stop.id});
-  const token=++generation,staging=new T.Group(),controller=new AbortController();terrainController=controller;state='loading';lastUse=now();let terrain:AuthoredTerrain|null=null;
+  const token=++generation,staging=new T.Group(),controller=new AbortController();terrainController=controller;state='loading';lastUse=now();let terrain:AuthoredTerrain|null=null,keepTerrainImages=false;
    const work=async()=>{
    try{
       options.beforeLoad?.();
@@ -51,10 +52,10 @@ export function createStreamedPlanet(parent:T.Object3D,surface:PlanetSurface,sch
     if(options.prepare)await options.prepare(landscape.root);if(disposed||token!==generation)return false;
     let world:T.Object3D=root;while(world.parent)world=world.parent;world.updateMatrix();
     landscape.root.traverse(object=>{for(const bound of object.userData.staticCameraBounds??[])bound.applyMatrix4(world.matrix)});
-    root.add(landscape.root);landscape.root.name='Planet_LoadedDetail_'+surface.stop.id;value=landscape;proxy.visible=false;lastUse=now();state='loaded';root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;
+    root.add(landscape.root);landscape.root.name='Planet_LoadedDetail_'+surface.stop.id;value=landscape;releaseTerrainImages=terrain?.releaseImages;keepTerrainImages=true;proxy.visible=false;lastUse=now();state='loaded';root.userData.boundsVersion=(root.userData.boundsVersion??0)+1;
     if(repositoryData)value.civilization?.setRepositories(repositoryData);if(realmState!==null)value.realm?.restore(realmState);recordDiagnostic('planet_ready',{phase:surface.stop.id,durationMs:Math.round(performance.now()-started)});return true;
      }catch(error){if(!disposed&&token===generation){state='failed';recordDiagnostic('planet_failed',{phase:surface.stop.id,durationMs:Math.round(performance.now()-started),...diagnosticError(error)})}return false}
-  finally{if(terrain)disposeScene(terrain.root);disposeScene(staging);staging.clear();pending=null;if(terrainController===controller)terrainController=null}
+  finally{if(terrain){disposeScene(terrain.root);if(!keepTerrainImages)terrain.releaseImages?.()}disposeScene(staging);staging.clear();pending=null;if(terrainController===controller)terrainController=null}
    };
    pending=(options.runLoad?options.runLoad(work,priority,controller.signal):work()).catch(()=>{if(!disposed&&token===generation)state='failed';return false}).finally(()=>{pending=null;if(terrainController===controller)terrainController=null});return pending;
  }

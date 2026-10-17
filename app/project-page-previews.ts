@@ -26,14 +26,14 @@ export function createProjectPreviewBudget(idleMs=2500,settleMs=900,loadInterval
   }};
 }
 
-export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:T.Camera,player:T.Group,gallery:ReturnType<typeof createProjectBulletins>,enabled=true){
+export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:T.Camera,player:T.Group,gallery:ReturnType<typeof createProjectBulletins>,enabled=true,projection?:{camera:()=>T.Camera;matrix:(source:T.Matrix4,target:T.Matrix4)=>T.Matrix4}){
   const browser=host.ownerDocument.defaultView,current=browser?.location?.href?new URL(browser.location.href):null,embedded=!!browser&&browser.self!==browser.top;
   const controlDisabled=current?.searchParams.get('preview-test')==='off',previewMode=()=>controlDisabled||!enabled?'off':'normal';
   const renderer=new CSS3DRenderer(),pages=new T.Scene(),budget=createProjectPreviewBudget(0),stats={loaded:0,visible:0,boundsScans:0,cssRenders:0,starts:0,stops:0,pending:0};let disposed=false,checkedAt=-Infinity,selectedAt=-Infinity,dirty=true;
   let lastUnload=-Infinity,lastResource:string|null=null;
   renderer.domElement.className='project-page-previews';renderer.domElement.setAttribute('aria-hidden','true');
   Object.assign(renderer.domElement.style,{position:'absolute',inset:'0',pointerEvents:'none',overflow:'hidden'});host.appendChild(renderer.domElement);
-  const blockers:{bounds:T.Box3;owner:T.Object3D}[]=[],ray=new T.Ray(),target=new T.Vector3(),normal=new T.Vector3(),direction=new T.Vector3(),hit=new T.Vector3(),scale=new T.Vector3(),offset=new T.Vector3(0,-.45,0),frustum=new T.Frustum(),projection=new T.Matrix4(),lastCamera=new T.Matrix4(),lastProjection=new T.Matrix4(),screenSphere=new T.Sphere();let candidates:number[]=[];
+  const blockers:{bounds:T.Box3;owner:T.Object3D}[]=[],ray=new T.Ray(),target=new T.Vector3(),normal=new T.Vector3(),direction=new T.Vector3(),hit=new T.Vector3(),scale=new T.Vector3(),offset=new T.Vector3(0,-.45,0),frustum=new T.Frustum(),projectionMatrix=new T.Matrix4(),lastCamera=new T.Matrix4(),lastProjection=new T.Matrix4(),screenSphere=new T.Sphere();let candidates:number[]=[];
   const frames=gallery.entries.map((entry,index)=>{
     const destination=new URL(entry.project.url);let allowed=!embedded&&(!current||destination.origin!==current.origin||destination.pathname.replace(/\/+$/,'')!==current.pathname.replace(/\/+$/,''));
     if(!allowed||previewMode()==='off')entry.group.userData.previewState='fallback';
@@ -90,15 +90,17 @@ export function createProjectPagePreviews(host:HTMLElement,scene:T.Scene,camera:
       }
     }
     if(nearby&&now-selectedAt>=250){
-      selectedAt=now;candidates=[];frustum.setFromProjectionMatrix(projection.multiplyMatrices((camera as T.PerspectiveCamera).projectionMatrix,camera.matrixWorldInverse));
+      const selectionCamera=projection?.camera()??camera;
+      selectedAt=now;candidates=[];frustum.setFromProjectionMatrix(projectionMatrix.multiplyMatrices((selectionCamera as T.PerspectiveCamera).projectionMatrix,selectionCamera.matrixWorldInverse));
       for(const [index,frame] of frames.entries()){
       if(!frame.allowed)continue;
       const front=frame.entry.faces.front;front.getWorldPosition(target);normal.set(0,0,1).transformDirection(front.matrixWorld);
-      const face=direction.copy(camera.position).sub(target).dot(normal)>=0?front:frame.entry.faces.back;
+      const face=direction.copy(selectionCamera.position).sub(target).dot(normal)>=0?front:frame.entry.faces.back;
       face.matrixWorld.decompose(frame.object.position,frame.object.quaternion,scale);frame.object.position.add(offset.set(0,-.45,0).multiply(scale).applyQuaternion(frame.object.quaternion));
-      frame.object.scale.copy(scale).multiplyScalar(projectBulletinSize.width/projectPreviewViewport.width);target.copy(frame.object.position);direction.copy(target).sub(camera.position);const distance=direction.length();ray.set(camera.position,direction.normalize());
+      frame.object.scale.copy(scale).multiplyScalar(projectBulletinSize.width/projectPreviewViewport.width);target.copy(frame.object.position);direction.copy(target).sub(selectionCamera.position);const distance=direction.length();ray.set(selectionCamera.position,direction.normalize());
       screenSphere.set(target,Math.hypot(projectBulletinSize.width,projectBulletinSize.height)*scale.x*.5);if(!frustum.intersectsSphere(screenSphere))continue;
-      if(blockers.some(blocker=>blocker.owner!==frame.entry.group&&visible(blocker.owner)&&!blocker.bounds.containsPoint(camera.position)&&ray.intersectBox(blocker.bounds,hit)&&hit.distanceTo(camera.position)<distance-.15))continue;
+      if(blockers.some(blocker=>blocker.owner!==frame.entry.group&&visible(blocker.owner)&&!blocker.bounds.containsPoint(selectionCamera.position)&&ray.intersectBox(blocker.bounds,hit)&&hit.distanceTo(selectionCamera.position)<distance-.15))continue;
+      if(projection){frame.object.matrix.compose(frame.object.position,frame.object.quaternion,frame.object.scale);projection.matrix(frame.object.matrix,frame.object.matrix);frame.object.matrixAutoUpdate=false}
       candidates.push(index);
       }
       candidates.sort((first,second)=>{const score=(index:number)=>frames[index].entry.approach.distanceToSquared(player.position)/(budget.residents.has(index)?1.2:1);return score(first)-score(second)});dirty=true;

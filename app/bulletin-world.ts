@@ -3,6 +3,7 @@ import {emptyMarket,emptyNews,quoteFreshness,type MarketBulletin,type NewsBullet
 import {createWoodenSign} from './wooden-sign';
 import {createAdaptiveDisplaySurface,createReadableDisplay} from './readable-display';
 import {cityBlock} from './city-architecture';
+import {fitSingleLine,wrapText} from './text-fit';
 
 export const bulletinSites={markets:{x:-77,z:152,width:18,height:10.125,yaw:-Math.PI/2},news:{x:-77,z:194,width:18,height:10.125,yaw:-Math.PI/2}};
 export function bulletinArrival(kind:keyof typeof bulletinSites){const site=bulletinSites[kind];return {x:site.x+Math.sin(site.yaw)*25,y:.8,z:site.z+Math.cos(site.yaw)*25}}
@@ -12,7 +13,7 @@ const stamp=(value:string|null)=>value?new Date(value).toISOString().slice(5,16)
 const compact=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 function price(quote:MarketQuote){return new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:Math.abs(quote.price)<1?4:2}).format(quote.price)}
 export function fitBoardText(context:CanvasRenderingContext2D,text:string,x:number,y:number,width:number,size:number,color:string){
-  let font=size;context.fillStyle=color;while(font>18){context.font=`700 ${font}px "Trebuchet MS", sans-serif`;if(context.measureText(text).width<=width)break;font-=2}context.fillText(text,x,y,width);
+  context.fillStyle=color;if(size>18)fitSingleLine(context,text,{font:font=>`700 ${font}px "Trebuchet MS", sans-serif`,maxWidth:width,maxSize:size,minSize:20});context.fillText(text,x,y,width);
 }
 export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:string)=>void){
   const root=new T.Group();root.name='MarketNewsSquare';scene.add(root);
@@ -78,8 +79,7 @@ export function createBulletinWorld(scene:T.Scene,player:T.Group,notice:(text:st
     for(let row=0;row<Math.min(3,count);row++){
       const headline=news.headlines[(newsIndex+row)%count],top=256+row*214;
       fitBoardText(context,headline.source.toUpperCase()+'  /  '+stamp(headline.publishedAt),80,top,1890,26,'#93d9c2');
-      context.font='700 51px "Trebuchet MS", sans-serif';const lines:string[]=[];let line='';
-      for(const word of headline.title.split(' ')){const next=line?line+' '+word:word;if(line&&context.measureText(next).width>1870){lines.push(line);line=word}else line=next}if(line)lines.push(line);
+      context.font='700 51px "Trebuchet MS", sans-serif';const lines=wrapText(context,headline.title,1870);
       lines.slice(0,2).forEach((text,index)=>fitBoardText(context,text+(index===1&&lines.length>2?'...':''),80,top+70+index*61,1870,51,'#f0f3e6'));
     }
     context.fillStyle='#9cdcc0';context.fillRect(72,884,1904,100);context.save();context.beginPath();context.rect(84,890,1880,87);context.clip();

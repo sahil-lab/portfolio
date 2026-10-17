@@ -46,6 +46,27 @@ without pausing exploration. Blocking sheets, category menus, observation and
 Angel control hide the dock; the normal contextual command returns afterward.
 Buttons remain at least 44px, with wrapping labels and scrollable phone layouts.
 
+## Spherical Mainland
+
+World > Travel > Motherboard from orbit shows the main city on its spherical
+surface. Return to exploration restores the walking camera. The mainland keeps
+its existing districts, roads, doors, stairs, project boards, and destinations.
+
+The city map is projected onto a sphere of radius 640 local units. Walking and
+driving reuse the planetary movement engine; the camera follows the local
+outward frame. Collision and address lookups remain in the original city
+coordinates, with a reversible mapping to the rendered sphere. This preserves
+the coordinate format of existing saved locations. Controlled characters keep
+their proportions, and camera/shadow culling uses the curved building bounds.
+
+Mainland-linked transport blends into the existing space routes. Other planets
+keep their existing surfaces and movement. Embedded project boards use the
+same projection as their physical frames.
+
+Scene-authoring exports retain the unwrapped city coordinates. The runtime
+projection is included in the application source rather than baked into every
+exported model.
+
 ## Returning To Your Last Location
 
 The world records the active character's location and camera locally, at most
@@ -64,6 +85,13 @@ Transit journeys, rover rides, moving lifts, project interiors, and shared
 activities retain the last resumable exploration checkpoint. If a destination
 cannot load, its saved position is kept for a later retry. A mapped position
 that is no longer clear uses nearby safe ground.
+
+Ground movement resets the complete facing rotation rather than editing only
+the Euler yaw. A restored quaternion can have equivalent flipped Euler axes;
+retaining those axes could reverse the avatar's facing even while its position
+moved correctly. Rover coasting similarly retains its movement vector rather
+than deriving it from an ambiguous Euler angle. Saved locations and headings
+are not discarded to fix this issue.
 
 The player-controls harness's `--location` mode checks autosave, immediate
 reload, browser-session reopening, planet and Bengaluru restoration, Angel

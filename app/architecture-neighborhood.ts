@@ -5,11 +5,12 @@ import type {WorkScheduler} from './work-scheduler';
 import {cacheStaticTransforms} from './static-transforms';
 import {takeArchitectureShells} from './architecture-shells';
 import {architectureKitReady} from './architecture-kit';
+import {disposeGeometry} from './scene-resources';
 
 export type BuildingPlacement={address:string;position:T.Vector3;rotation:T.Quaternion;width:number;height:number;depth:number;accent?:string;scale?:number};
 const exportBuilders=new WeakMap<T.Object3D,()=>T.Group>();
 export function rebuildArchitectureForExport(root:T.Object3D){return exportBuilders.get(root)?.()??null}
-export function releaseArchitectureGeometry(root:T.Object3D){const geometries=new Set<T.BufferGeometry>();root.traverse(object=>{if(object instanceof T.Mesh)geometries.add(object.geometry)});geometries.forEach(geometry=>geometry.dispose());root.clear()}
+export function releaseArchitectureGeometry(root:T.Object3D){disposeGeometry(root);root.clear()}
 export function createArchitectureNeighborhood(parent:T.Object3D,style:ArchitectureStyle,placements:BuildingPlacement[],detailDistance=82,sharedFinishes?:{materials:ArchitectureMaterials;paints:Map<string,T.MeshStandardMaterial>},stream?:{scheduler:WorkScheduler;prepare?:(root:T.Object3D)=>Promise<void>;runLoad?:(work:()=>Promise<void>,signal:AbortSignal)=>Promise<void>}){
  const root=new T.Group();root.name='Architecture_Neighborhood_'+style;root.userData.architectureStyle=style;parent.add(root);
  const shells=new T.Group(),details=new T.Group(),nearShells=new T.Group();shells.name='Architecture_UniqueSilhouettes';details.name='Architecture_NearbyFacades';nearShells.name='Architecture_NearbyEnvelopes';root.add(shells,nearShells,details);
